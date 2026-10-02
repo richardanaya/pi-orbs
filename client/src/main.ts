@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { homedir } from "node:os";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { archiveHeaders, conversationsArchive, readExport } from "./archive.js";
 import { deleteConnector, ensureConnector, gatewayBaseUrl } from "./connector.js";
 import { connectionName, normalizeConnector, providerApi, publicConnectors, readDeployUpdate, readSetup, type SpriteConnector } from "./connectors.js";
 import { deploySprite, localVersion, newSecret, remoteVersion } from "./deploy.js";
@@ -231,6 +232,45 @@ const http = createServer(async (req, res) => {
         baseApiUrl: setup.baseApiUrl,
         model: setup.model,
       });
+      return;
+    }
+    const exportMatch = url.pathname.match(/^\/api\/sprites\/([^/]+)\/conversations\.zip$/);
+    if (exportMatch && req.method === "GET") {
+      let name: string;
+      try {
+        name = decodeURIComponent(exportMatch[1] ?? "");
+      } catch {
+        send(res, 404, { error: "not found" });
+        return;
+      }
+      const saved = state.sprites.find((item) => item.name === name);
+      if (!saved) {
+        send(res, 404, { error: "sprite is not managed by this client" });
+        return;
+      }
+      const response = await spriteFetch(saved, "/api/export");
+      const payload: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        const error = payload && typeof payload === "object" && "error" in payload && typeof (payload as { error?: unknown }).error === "string"
+          ? (payload as { error: string }).error
+          : "export failed";
+        send(res, response.status, { error });
+        return;
+      }
+      const snapshot = readExport(saved.name, payload);
+      if (!snapshot) {
+        send(res, 502, { error: "sprite export was not a conversation list" });
+        return;
+      }
+      const archive = conversationsArchive(snapshot, [
+        saved.secret,
+        saved.apiKey ?? "",
+        saved.xaiKey ?? "",
+        saved.connectorId ?? "",
+        saved.connectorId ? gatewayBaseUrl(saved.connectorId) : "",
+      ]);
+      res.writeHead(200, archiveHeaders(archive.filename, archive.zip.length));
+      res.end(archive.zip);
       return;
     }
     const route = url.pathname.match(/^\/api\/sprites\/([^/]+)(\/bots(?:\/([^/]+)(?:\/messages)?)?)?(\/deploy)?$/);

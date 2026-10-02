@@ -5,11 +5,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
-import { ConversationBusy, createRegistry, Harness, type Conversation, type ConversationId } from "@earendil-works/pi-durable";
+import { ConversationBusy, createRegistry, Harness, type Conversation, type ConversationId, type Cursor, type EntryRecord } from "@earendil-works/pi-durable";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
-import type { EntryRecord } from "@earendil-works/pi-durable";
 import { installSharedModel, sharedModel } from "./model.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -190,6 +189,62 @@ function textOf(entry: EntryRecord): string {
   return parts.join("");
 }
 
+function redactSecrets(text: string, secrets: readonly string[]): string {
+  const needles = [...new Set(secrets.filter((item) => item.length >= 16))].sort((a, b) => b.length - a.length);
+  let out = text;
+  for (const needle of needles) out = out.split(needle).join("[redacted]");
+  return out;
+}
+
+function createdAtOf(entry: EntryRecord): string | null {
+  for (const message of entry.model ?? []) {
+    const timestamp = message.timestamp;
+    if (typeof timestamp !== "number" || !Number.isFinite(timestamp)) continue;
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) continue;
+    return date.toISOString();
+  }
+  return null;
+}
+
+const exportSecrets = [secret, process.env.PI_BASE_URL ?? "", process.env.PI_XAI_BASE_URL ?? "", process.env.XAI_API_KEY ?? "", process.env.OPENAI_API_KEY ?? ""];
+
+type ExportMessage = { id: string; kind: "pi.user" | "pi.assistant"; text: string; createdAt: string | null };
+
+async function transcript(conversation: Conversation): Promise<ExportMessage[]> {
+  const collected: EntryRecord[] = [];
+  const seenIds = new Set<number>();
+  const seenCursors = new Set<string>();
+  let cursor: Cursor | undefined;
+  for (let page = 0; page < 200; page += 1) {
+    const batch = await conversation.entries({}, 200, cursor, context);
+    for (const entry of batch.items) {
+      if (seenIds.has(entry.id)) continue;
+      seenIds.add(entry.id);
+      collected.push(entry);
+    }
+    if (!batch.next) break;
+    const key = JSON.stringify(batch.next);
+    if (seenCursors.has(key)) break;
+    seenCursors.add(key);
+    cursor = batch.next;
+    if (page === 199) throw new Error("export is too large");
+  }
+  const messages: ExportMessage[] = [];
+  for (const entry of collected.reverse()) {
+    if (entry.kind !== "pi.user" && entry.kind !== "pi.assistant") continue;
+    const raw = textOf(entry);
+    if (raw.trim().length === 0) continue;
+    messages.push({
+      id: String(entry.id),
+      kind: entry.kind,
+      text: redactSecrets(raw, exportSecrets),
+      createdAt: createdAtOf(entry),
+    });
+  }
+  return messages;
+}
+
 async function readBody(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   let size = 0;
@@ -230,6 +285,22 @@ const http = createServer(async (req, res) => {
   try {
     if (url.pathname === "/api/bots" && req.method === "GET") {
       send(res, 200, { bots: await loadBots() });
+      return;
+    }
+    if (url.pathname === "/api/export" && req.method === "GET") {
+      const bots = await loadBots();
+      const exported = [];
+      for (const bot of bots) {
+        exported.push({
+          id: bot.id,
+          name: redactSecrets(bot.name, exportSecrets),
+          conversationId: bot.conversationId,
+          instruction: redactSecrets(bot.instruction, exportSecrets),
+          look: bot.look,
+          messages: await transcript(await conversationFor(bot.id)),
+        });
+      }
+      send(res, 200, { exportedAt: new Date().toISOString(), bots: exported });
       return;
     }
     if (url.pathname === "/api/bots" && req.method === "POST") {

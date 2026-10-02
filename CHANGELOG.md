@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Settings → Download all conversations**. One zip of every bot thread as JSON transcripts (id, name, timestamps). API keys and connector credentials are left out. The local simulator returns the seeded threads, or a zip that says there are no conversations when the roster is empty.
 - Bot configuration dialog for create and edit: name, instruction, and a glass-orb look. The instruction is stored on the bot and applied to its Pi conversation, including a later edit. The local simulator accepts and returns the same fields.
 - Setup connector types. The default is xAI. OpenAI, OpenRouter, Groq, Together AI, DeepSeek, Mistral, Fireworks, and Custom are the other choices. One shared model from that form is what every bot uses. The API key stays in the Sprites connection.
 - Local simulator API tests in `client/test`. Root `npm test` runs them before the server tests. CI runs them on Node 20 and, with the server tests, on Node 22. No sprite CLI and no xAI key.

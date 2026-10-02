@@ -1,5 +1,6 @@
 // In-memory stand-in for a Sprite. Used only when PI_ORBS_MODE=local or --local.
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { archiveHeaders, conversationsArchive, type ExportSnapshot } from "./archive.js";
 import { defaultConnector, publicConnectors, readDeployUpdate, readSetup, type SpriteConnector } from "./connectors.js";
 import { localVersion } from "./deploy.js";
 
@@ -9,7 +10,7 @@ const INSTRUCTION_MAX = 8_000;
 
 type Look = (typeof LOOKS)[number];
 type Kind = "pi.user" | "pi.assistant";
-type Message = { id: string; kind: Kind; text: string };
+type Message = { id: string; kind: Kind; text: string; createdAt: string };
 type Bot = {
   id: string;
   name: string;
@@ -23,19 +24,29 @@ type FieldPatch = { name?: string; instruction?: string; look?: Look };
 
 const localUrl = "http://127.0.0.1:8787";
 
+const seedStart = Date.parse("2026-03-02T15:04:00.000Z");
+
 let nextMessage = 1;
 let nextBot = 1;
+let seedClock = 0;
 let sprite: Sprite | null = null;
 let bots: Bot[] = [];
 
-function message(kind: Kind, text: string): Message {
+function message(kind: Kind, text: string, createdAt?: string): Message {
   const id = `m${nextMessage++}`;
-  return { id, kind, text };
+  const at = createdAt ?? new Date(seedStart + seedClock * 1000).toISOString();
+  if (!createdAt) seedClock += 30;
+  return { id, kind, text, createdAt: at };
+}
+
+function publicMessage(item: Message): { id: string; kind: Kind; text: string } {
+  return { id: item.id, kind: item.kind, text: item.text };
 }
 
 function seedBots(): Bot[] {
   nextMessage = 1;
   nextBot = 1;
+  seedClock = 0;
   return [
     {
       id: "ada",
@@ -150,6 +161,26 @@ function send(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body));
 }
 
+function localSnapshot(): ExportSnapshot {
+  return {
+    sprite: sprite?.name ?? "",
+    exportedAt: new Date().toISOString(),
+    bots: bots.map((bot) => ({
+      id: bot.id,
+      name: bot.name,
+      conversationId: bot.conversationId,
+      instruction: bot.instruction,
+      look: bot.look,
+      messages: bot.messages.map((item) => ({
+        id: item.id,
+        kind: item.kind,
+        text: item.text,
+        createdAt: item.createdAt,
+      })),
+    })),
+  };
+}
+
 async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
   let size = 0;
@@ -239,6 +270,12 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
     send(res, 200, { ok: true });
     return;
   }
+  if (rest.length === 1 && rest[0] === "conversations.zip" && req.method === "GET") {
+    const archive = conversationsArchive(localSnapshot());
+    res.writeHead(200, archiveHeaders(archive.filename, archive.zip.length));
+    res.end(archive.zip);
+    return;
+  }
   if (rest.length === 1 && rest[0] === "deploy" && req.method === "POST") {
     const next = readDeployUpdate(await readJson(req), sprite);
     if ("error" in next) {
@@ -290,7 +327,7 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
       return;
     }
     if (rest.length === 2 && req.method === "GET") {
-      send(res, 200, { bot: publicBot(bot), messages: bot.messages });
+      send(res, 200, { bot: publicBot(bot), messages: bot.messages.map(publicMessage) });
       return;
     }
     if (rest.length === 2 && req.method === "PATCH") {
@@ -311,8 +348,9 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
         send(res, 400, { error: "content is required" });
         return;
       }
-      bot.messages.push(message("pi.user", content));
-      bot.messages.push(message("pi.assistant", cannedReply(content)));
+      const at = new Date();
+      bot.messages.push(message("pi.user", content, at.toISOString()));
+      bot.messages.push(message("pi.assistant", cannedReply(content), new Date(at.getTime() + 1000).toISOString()));
       send(res, 202, { submissionId: `local-${bot.messages.at(-1)?.id ?? "reply"}` });
       return;
     }

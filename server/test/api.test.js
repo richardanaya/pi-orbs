@@ -124,6 +124,24 @@ test("unauthorized requests get 401", async () => {
   });
   assert.equal(wrong.status, 401);
   assert.deepEqual(await wrong.json(), { error: "unauthorized" });
+
+  const exportMissing = await fetch(`${state.base}/api/export`);
+  assert.equal(exportMissing.status, 401);
+});
+
+test("GET /api/export is an empty conversation list before any bot exists", async () => {
+  const response = await fetch(`${state.base}/api/export`, {
+    headers: { authorization: `Bearer ${secret}` },
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(typeof body.exportedAt, "string");
+  assert.equal(Number.isNaN(Date.parse(body.exportedAt)), false);
+  assert.deepEqual(body.bots, []);
+  assert.equal(JSON.stringify(body).includes(secret), false);
+  for (const hidden of ["apiKey", "xaiKey", "connectorId", "PI_API_SECRET"]) {
+    assert.equal(JSON.stringify(body).includes(hidden), false, hidden);
+  }
 });
 
 test("Bearer secret creates a bot and lists it", async () => {
@@ -204,4 +222,44 @@ test("instruction and look are stored and can be edited", async () => {
   const threadBody = await thread.json();
   assert.equal(threadBody.bot.look, "clay");
   assert.equal(threadBody.bot.instruction, "");
+});
+
+test("GET /api/export lists every bot and redacts the API secret from a message", async () => {
+  const listed = await fetch(`${state.base}/api/bots`, {
+    headers: { authorization: `Bearer ${secret}` },
+  });
+  const roster = await listed.json();
+  const ada = roster.bots.find((item) => item.name === "Ada");
+  assert.ok(ada);
+
+  const posted = await fetch(`${state.base}/api/bots/${ada.id}/messages`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${secret}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ content: `remember ${secret} please` }),
+  });
+  assert.equal(posted.status, 202);
+
+  const response = await fetch(`${state.base}/api/export`, {
+    headers: { authorization: `Bearer ${secret}` },
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(JSON.stringify(body).includes(secret), false);
+  const names = body.bots.map((item) => item.name);
+  assert.ok(names.includes("Ada"));
+  assert.ok(names.includes("Kepler 2"));
+  const exportedAda = body.bots.find((item) => item.id === ada.id);
+  assert.equal(exportedAda.conversationId, ada.id);
+  assert.equal(exportedAda.look, "slate");
+  const remembered = exportedAda.messages.find((item) => item.kind === "pi.user" && item.text.includes("remember"));
+  assert.ok(remembered);
+  assert.equal(remembered.text, "remember [redacted] please");
+  assert.equal(typeof remembered.id, "string");
+  assert.equal(Number.isNaN(Date.parse(remembered.createdAt)), false);
+  for (const hidden of ["apiKey", "xaiKey", "connectorId", "PI_API_SECRET", "XAI_API_KEY"]) {
+    assert.equal(JSON.stringify(body).includes(hidden), false, hidden);
+  }
 });

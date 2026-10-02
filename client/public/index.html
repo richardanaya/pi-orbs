@@ -357,6 +357,13 @@
     font-size: 13px;
   }
   #settings button:hover { background: var(--fill); }
+  #export {
+    display: block;
+    width: 100%;
+    margin: 0 0 8px;
+    text-align: center;
+  }
+  #export-status:empty { display: none; }
   #destroy {
     color: var(--danger);
     border-color: rgba(255, 140, 148, 0.4);
@@ -604,6 +611,9 @@
       <button id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings">Settings</button>
       <div id="settings">
         <p id="sprite-meta"></p>
+        <p class="hint">Downloads a zip of every bot thread: JSON transcripts with id, name, and timestamps. API keys stay on this machine.</p>
+        <button id="export" type="button">Download all conversations</button>
+        <p id="export-status" class="hint" role="status"></p>
         <p class="hint">Destroying the sprite deletes its disk, bots, and URL.</p>
         <button id="deploy" type="button">Push server build</button>
         <button id="destroy" type="button">Destroy sprite</button>
@@ -1013,6 +1023,38 @@ document.querySelector("#settings-toggle").onclick = () => {
   const panel = document.querySelector("#settings");
   const open = panel.classList.toggle("open");
   document.querySelector("#settings-toggle").setAttribute("aria-expanded", open ? "true" : "false");
+};
+document.querySelector("#export").onclick = async () => {
+  if (!state.sprite) return;
+  const button = document.querySelector("#export");
+  const status = document.querySelector("#export-status");
+  button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  button.textContent = "Preparing…";
+  status.textContent = "";
+  try {
+    const response = await fetch("/api/sprites/" + encodeURIComponent(state.sprite) + "/conversations.zip");
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.error || response.statusText);
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const named = /filename="([^"]+)"/.exec(response.headers.get("content-disposition") || "");
+    link.href = url;
+    link.download = named ? named[1] : "pi-orbs-conversations.zip";
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    button.disabled = false;
+    button.removeAttribute("aria-busy");
+    button.textContent = "Download all conversations";
+  }
 };
 document.querySelector("#deploy").onclick = async () => {
   if (!state.sprite) return;
