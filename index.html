@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pi Orbs</title>
+<meta name="description" content="Named Pi bots on one shared Fly.io Sprite — install the client, it deploys the server.">
+<link rel="icon" href="website/logo.png" type="image/png">
+<link rel="apple-touch-icon" href="website/logo.png">
+<link rel="stylesheet" href="website/styles.css">
+<link rel="canonical" href="https://richardanaya.github.io/pi-orbs/">
+<meta property="og:title" content="Pi Orbs">
+<meta property="og:description" content="Named Pi bots on one shared Fly.io Sprite — install the client, it deploys the server.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://richardanaya.github.io/pi-orbs/">
+<meta property="og:image" content="https://richardanaya.github.io/pi-orbs/docs/hero.jpg">
+<meta property="og:image:alt" content="Pi Orbs mark, a glass orb whose pi symbol reads as a pair of eyes">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Pi Orbs">
+<meta name="twitter:description" content="Named Pi bots on one shared Fly.io Sprite — install the client, it deploys the server.">
+<meta name="twitter:image" content="https://richardanaya.github.io/pi-orbs/docs/hero.jpg">
+<meta name="theme-color" content="#000000">
+</head>
+<body id="top">
+<a class="skip" href="#content">Skip to content</a>
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="word" href="#top"><img src="website/logo.png" alt="" width="28" height="28">Pi Orbs</a>
+    <nav class="nav-links" aria-label="Page">
+      <a href="#product">What it is</a>
+      <a href="#run">Run</a>
+      <a href="#local">Local mode</a>
+      <a class="ext" href="https://github.com/richardanaya/pi-orbs">GitHub</a>
+    </nav>
+  </div>
+</header>
+<main id="content">
+  <section class="hero">
+    <div class="wrap">
+      <img class="hero-mark" src="website/logo.png" width="256" height="256" alt="Pi Orbs mark, a glass orb whose pi symbol reads as a pair of eyes">
+      <h1>Pi Orbs</h1>
+      <p class="one-liner">Named Pi bots on one shared Fly.io Sprite — <span>install the client, it deploys the server.</span></p>
+      <div class="command">
+        <code>npx pi-orbs</code>
+        <button type="button" data-copy="npx pi-orbs">Copy</button>
+      </div>
+      <p class="meta">Node 20 or newer · <a href="https://sprites.dev">sprite CLI</a>, logged in · <a href="http://127.0.0.1:8787">127.0.0.1:8787</a></p>
+    </div>
+  </section>
+
+  <section id="product">
+    <div class="wrap">
+      <h2>What Pi Orbs is</h2>
+      <p class="section-lead">Named bots, each one a durable Pi thread, sharing one Fly.io Sprite as their computer.</p>
+      <div class="facts">
+        <article>
+          <h3>A Pi thread per bot</h3>
+          <p>Each bot is its own Pi conversation. The first bot is selected on load. Name a bot and choose Add.</p>
+        </article>
+        <article>
+          <h3>One shared computer</h3>
+          <p>They share one Fly.io Sprite, including <code>/home/sprite/work</code>. The thread refreshes every few seconds.</p>
+        </article>
+        <article>
+          <h3>The client ships the server</h3>
+          <p>What you install is the client. It keeps the Sprite list, creates bots, and pushes a server build onto a Sprite when you ask it to.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="run">
+    <div class="wrap">
+      <h2>Run</h2>
+      <p class="section-lead">Install the client and deploy a Sprite, or review the same UI on this machine with no Sprite and no key.</p>
+      <div class="paths">
+        <article class="path">
+          <p class="kicker">01</p>
+          <h3>npx pi-orbs</h3>
+          <div class="snippet">
+            <pre><code>npx pi-orbs</code></pre>
+            <button type="button" data-copy="npx pi-orbs">Copy</button>
+          </div>
+          <p>You need Node 20 or newer, and the <a href="https://sprites.dev">sprite CLI</a> installed and logged in. Open <a href="http://127.0.0.1:8787">http://127.0.0.1:8787</a>.</p>
+          <p>Until a sprite is running, the page shows only the setup form: a sprite name, an xAI key, and <strong>Create and deploy</strong>. That creates the Sprite, makes its URL public, stores the key in a Sprites connector named <code>pi-orbs xAI</code>, and installs the server. The xAI key is not copied into the sprite service environment.</p>
+        </article>
+        <article class="path">
+          <p class="kicker">02</p>
+          <h3>npm run dev:local</h3>
+          <div class="snippet">
+            <pre><code>npm install --prefix client
+npm run dev:local</code></pre>
+            <button type="button" data-copy="npm install --prefix client&#10;npm run dev:local">Copy</button>
+          </div>
+          <p>From a checkout of this repo. <code>npm run dev:local</code> builds the client and serves the same UI at <a href="http://127.0.0.1:8787">http://127.0.0.1:8787</a> against an in-memory simulator. No sprite CLI and no xAI key.</p>
+          <p>The setup form stays hidden. The roster opens with three bots — Ada, Kepler, and Nova — on a pretend sprite named <code>atlas</code>, and the selected thread already has messages. Send a message and the simulator appends your text plus a canned reply. Local mode leaves <code>~/.pi-orbs/state.json</code> untouched.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="local">
+    <div class="wrap">
+      <h2>Local mode</h2>
+      <p class="section-lead">The roster, the thread, and a canned reply. Sprite create, deploy, and destroy stay outside this mode, along with the xAI connector and Pi itself.</p>
+      <figure class="shot shot-wide">
+        <img src="docs/local-roster.png" width="2560" height="1600" alt="Roster of Ada, Kepler, and Nova on the local sprite atlas">
+        <figcaption>Roster of Ada, Kepler, and Nova on the local sprite atlas.</figcaption>
+      </figure>
+      <div class="shots">
+        <figure class="shot">
+          <img src="docs/local-thread.png" width="1976" height="1600" alt="Ada's thread with the seeded sample messages">
+          <figcaption>Ada’s thread with the seeded sample messages.</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="docs/local-reply.png" width="1976" height="1600" alt="Ada's thread after a sent message, with the canned reply">
+          <figcaption>Ada’s thread after a sent message, with the canned reply.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+</main>
+<footer>
+  <div class="wrap foot">
+    <img src="website/logo.png" alt="" width="28" height="28">
+    <p>Pi Orbs. Named bots on one Fly.io Sprite. The client is what you install.</p>
+    <p class="foot-links"><a href="https://github.com/richardanaya/pi-orbs">GitHub</a> · <a href="https://github.com/richardanaya/pi-orbs#readme">README</a> · <a href="https://www.npmjs.com/package/pi-orbs">npm</a> · <a href="LICENSE">MIT License</a></p>
+  </div>
+</footer>
+<script src="website/site.js"></script>
+</body>
+</html>
