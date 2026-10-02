@@ -32,6 +32,21 @@ npm run build
 npm start
 ```
 
+## Try locally
+
+Review the roster and thread on this machine with no sprite CLI and no xAI key. `npm run dev:local` builds the client and serves the same UI at http://127.0.0.1:8787 against an in-memory simulator. `PI_ORBS_MODE=local` and `node ./bin/pi-orbs.js --local` select the same mode. Leave the mode off and the client keeps the Sprite paths in **Run** and **Use**.
+
+```bash
+npm install --prefix client
+npm run dev:local
+```
+
+The setup form stays hidden. The roster opens with three bots on a pretend sprite named `atlas`, and the selected thread already has messages. Send a message and the simulator appends your text plus a canned reply. **Add** creates a bot in memory. **Settings → Push server build** reports success and stops there. **Destroy sprite** returns to the setup form; any sprite name and any placeholder in the key field restore a fresh seeded roster. The placeholder is discarded. Local mode leaves `~/.pi-orbs/state.json` untouched.
+
+**Covers:** the client UI — roster, thread, compose, and adding a bot.
+
+**Outside this mode:** Sprite create, deploy, and destroy; the xAI connector; Pi conversations and tools; the server process that runs on a Sprite.
+
 ## Use
 
 Until a sprite is running, the page shows only the setup form: a sprite name, an xAI key, and **Create and deploy**. That creates the Sprite, makes its URL public, stores the key in a Sprites connector named `pi-orbs xAI`, and installs the server. The connector id, the sprite URL, and an API secret are written to `~/.pi-orbs/state.json`. The xAI key is not copied into the sprite service environment.

@@ -20,6 +20,7 @@
   "scripts": {
     "build": "npm run build --prefix server && npm run build --prefix client",
     "start": "node ./bin/pi-orbs.js",
+    "dev:local": "npm run build --prefix client && node ./bin/pi-orbs.js --local",
     "prepublishOnly": "npm run build"
   },
   "engines": {

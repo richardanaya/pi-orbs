@@ -8,7 +8,7 @@ By participating, you agree to the [Code of Conduct](CODE_OF_CONDUCT.md). Report
 
 - Node.js 20 or newer
 - npm
-- The [sprite CLI](https://sprites.dev), installed and logged in, when you create or manage a Sprite
+- The [sprite CLI](https://sprites.dev), installed and logged in, when you create or manage a Sprite. `npm run dev:local` does not use it.
 
 Building the TypeScript does not need the sprite CLI or an xAI key.
 
@@ -39,6 +39,19 @@ npm start
 The client listens on http://127.0.0.1:8787. `npm start` runs `node ./bin/pi-orbs.js`, which loads `client/dist`, so build before you start.
 
 Creating a Sprite from that page needs the sprite CLI and an xAI key. The key is stored in a Sprites connector named `pi-orbs xAI`. It is not written into the Sprite service environment. See [SECURITY.md](SECURITY.md).
+
+## UI simulator
+
+`npm run dev:local` builds the client and opens the same page against an in-memory simulator. No sprite CLI, no Sprite, and no xAI key. The roster starts with seeded bots and a thread. Sending a message appends a canned reply. The simulator leaves `~/.pi-orbs/state.json` untouched.
+
+```bash
+npm install --prefix client
+npm run dev:local
+```
+
+`PI_ORBS_MODE=local` or `node ./bin/pi-orbs.js --local` is the same switch. With the mode off, `npm start` is the Sprite-backed client above.
+
+The simulator covers the roster, thread, compose box, and adding a bot. Sprite create, deploy, and destroy, the xAI connector, Pi conversations, and the server that runs on a Sprite stay on the real path. Screenshots of the simulator are in the README under **Try locally**.
 
 ## Pull requests
 
