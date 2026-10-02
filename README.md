@@ -38,29 +38,29 @@ You need Node 20 or newer, and the [sprite CLI](https://sprites.dev) installed a
 
 Open http://127.0.0.1:8787.
 
-![Roster of Ada, Kepler, and Nova, then Peers, then the new-bot dialog](docs/local-demo.gif)
+![Roster of Ada, Kepler, and Nova, then a steer opened in the thread](docs/local-demo.gif)
 
-Until a sprite is running, the page is the setup form: a sprite name, a connector, an API key, a base URL, a model, and **Create and deploy**. xAI is the default connector. That creates the Sprite, makes its URL public, stores the key in a Sprites connection, and installs the server. The connection id, the sprite URL, and an API secret are written to `~/.pi-orbs/state.json`. The API key is not copied into the sprite service environment.
+Until a sprite is running, the page is the setup form: a sprite name, a connector, an API key, a base URL, a model, and **Create and deploy**. The connectors are xAI, OpenAI, Anthropic, and Custom. xAI is the default. That creates the Sprite, makes its URL public, stores the key in a Sprites connection, and installs the server. The connection id, the sprite URL, and an API secret are written to `~/.pi-orbs/state.json`. The API key is not copied into the sprite service environment.
 
-![Setup form with a sprite name, connector, API key, base URL, and model](docs/local-setup.png)
+![Setup form with the connector list open: xAI, OpenAI, Anthropic, and Custom](docs/local-setup.png)
 
 ## The interface
 
 After a sprite is up, the page is a roster and a thread. The first bot is selected on load.
 
-![Roster of Ada, Kepler, and Nova beside Ada’s thread](docs/local-roster.png)
+![Roster of Ada, Kepler, and Nova with flat pi faces beside Ada’s thread](docs/local-roster.png)
 
-Ada, Kepler, and Nova. The selected bot’s thread is open beside the roster.
+Ada, Kepler, and Nova. Flat π faces, and **Add** is the plus on the right. The selected bot’s thread is open beside the roster.
 
-![Ada’s thread with its messages](docs/local-thread.png)
+![Kepler’s thread with a steer from Ada between the messages](docs/local-thread.png)
 
-A thread. Each bot keeps its own.
+A thread. Each bot keeps its own. A steer from another bot is a line in that thread.
 
-**Peers**, on the open bot and on the roster, opens cross-bot traffic beside that thread. Each steer shows both orbs, who sent it, who received it, when, and the message. The thread stays the conversation with you. A roster orb pulses while that bot is working.
+Open the line to read who sent it and the message. The roster face pulses while that bot is working.
 
-![Peers beside Ada’s thread, with steers between Ada and Kepler](docs/local-peers.png)
+![Ada’s thread with steers to and from Kepler opened](docs/local-peers.png)
 
-Choose **Add** to name a bot, write its instruction, and pick a glass orb. The same dialog edits a bot from the roster. Each bot is its own Pi conversation. They share `/home/sprite/work` and the one model from setup. Send a message in the bar at the bottom. The thread refreshes every few seconds.
+Choose **Add** (the plus) to name a bot, write its instruction, and pick a glass orb. The same dialog edits a bot from the roster, and can delete it. Each bot is its own Pi conversation. They share `/home/sprite/work` and the one model from setup. Send a message in the bar at the bottom. The thread refreshes every few seconds.
 
 ![Ada’s thread after a message is sent](docs/local-reply.png)
 
