@@ -1,34 +1,70 @@
-# Pi Orbs
+<p align="center">
+  <img src="docs/logo.png" width="132" alt="Pi Orbs mark, a glass orb whose pi symbol reads as a pair of eyes">
+</p>
 
-[![CI](https://github.com/richardanaya/pi-orbs/actions/workflows/ci.yml/badge.svg)](https://github.com/richardanaya/pi-orbs/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/pi-orbs)](https://www.npmjs.com/package/pi-orbs)
-[![License: MIT](https://img.shields.io/github/license/richardanaya/pi-orbs)](LICENSE)
+<h1 align="center">Pi Orbs</h1>
 
-Named Pi bots on one shared Fly.io Sprite — install the client, it deploys the server.
+<p align="center">Named Pi bots on one shared Fly.io Sprite — install the client, it deploys the server.</p>
 
-Homepage: [`index.html`](index.html) at the repository root, with assets in [`website/`](website/). [GitHub Pages setup](#site).
+<p align="center">
+  <a href="https://github.com/richardanaya/pi-orbs/actions/workflows/ci.yml"><img src="https://github.com/richardanaya/pi-orbs/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  &nbsp;
+  <a href="https://www.npmjs.com/package/pi-orbs"><img src="https://img.shields.io/npm/v/pi-orbs" alt="npm version"></a>
+  &nbsp;
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/richardanaya/pi-orbs" alt="License: MIT"></a>
+</p>
 
-[Contributing](CONTRIBUTING.md) · [Architecture](docs/architecture.md)
-
-![Pi Orbs mark, a glass orb whose pi symbol reads as a pair of eyes](docs/logo.png)
+<p align="center">
+  <a href="https://piorbs.com/">piorbs.com</a>
+  ·
+  <a href="docs/architecture.md">Architecture</a>
+  ·
+  <a href="CONTRIBUTING.md">Contributing</a>
+  ·
+  <a href="SECURITY.md">Security</a>
+</p>
 
 Named bots, each one a durable Pi thread, sharing one Fly.io Sprite as their computer.
 
 What you install is the client. The client keeps the Sprite list, creates bots, and pushes a server build onto a Sprite when you ask it to.
 
-## Run
-
-You need Node 20 or newer, and the [sprite CLI](https://sprites.dev) installed and logged in.
+## Try
 
 ```bash
 npx pi-orbs
 ```
 
+You need Node 20 or newer, and the [sprite CLI](https://sprites.dev) installed and logged in.
+
 Open http://127.0.0.1:8787.
 
-![Roster of Ada, Kepler, and Nova, a message to Ada, and her reply](docs/local-demo.gif)
+![Roster of Ada, Kepler, and Nova, then a message and a reply](docs/local-demo.gif)
 
-From a checkout of this repo:
+Until a sprite is running, the page is the setup form: a sprite name, an xAI key, and **Create and deploy**. That creates the Sprite, makes its URL public, stores the key in a Sprites connector named `pi-orbs xAI`, and installs the server. The connector id, the sprite URL, and an API secret are written to `~/.pi-orbs/state.json`. The xAI key is not copied into the sprite service environment.
+
+## The interface
+
+After a sprite is up, the page is a roster and a thread. The first bot is selected on load.
+
+![Roster of Ada, Kepler, and Nova beside Ada’s thread](docs/local-roster.png)
+
+Ada, Kepler, and Nova. The selected bot’s thread is open beside the roster.
+
+![Ada’s thread with its messages](docs/local-thread.png)
+
+A thread. Each bot keeps its own.
+
+Name a bot and choose **Add**. Each bot is its own Pi conversation. They share `/home/sprite/work`. Send a message in the bar at the bottom. The thread refreshes every few seconds.
+
+![Ada’s thread after a message is sent](docs/local-reply.png)
+
+The same thread after a message is sent.
+
+**Settings** holds **Push server build** and **Destroy sprite**. Push installs this package's server on the sprite. Destroy deletes that sprite and the connector that was saved with it, then the page returns to setup.
+
+How the pieces connect, and what to check when setup fails, is in [Architecture](docs/architecture.md#troubleshooting).
+
+## From a checkout
 
 ```bash
 npm install --prefix server && npm install --prefix client
@@ -36,40 +72,7 @@ npm run build
 npm start
 ```
 
-## Try locally
-
-Review the roster and thread on this machine with no sprite CLI and no xAI key. `npm run dev:local` builds the client and serves the same UI at http://127.0.0.1:8787 against an in-memory simulator. `PI_ORBS_MODE=local` and `node ./bin/pi-orbs.js --local` select the same mode. Leave the mode off and the client keeps the Sprite paths in **Run** and **Use**.
-
-```bash
-npm install --prefix client
-npm run dev:local
-```
-
-The setup form stays hidden. The roster opens with three bots on a pretend sprite named `atlas`, and the selected thread already has messages.
-
-![Roster of Ada, Kepler, and Nova on the local sprite atlas](docs/local-roster.png)
-
-![Ada's thread with the seeded sample messages](docs/local-thread.png)
-
-Send a message and the simulator appends your text plus a canned reply.
-
-![Ada's thread after a sent message, with the canned reply](docs/local-reply.png)
-
-**Add** creates a bot in memory. **Settings → Push server build** reports success and stops there. **Destroy sprite** returns to the setup form; any sprite name and any placeholder in the key field restore a fresh seeded roster. The placeholder is discarded. Local mode leaves `~/.pi-orbs/state.json` untouched.
-
-**Covers:** the client UI — roster, thread, compose, and adding a bot.
-
-**Outside this mode:** Sprite create, deploy, and destroy; the xAI connector; Pi conversations and tools; the server process that runs on a Sprite.
-
-## Use
-
-Until a sprite is running, the page shows only the setup form: a sprite name, an xAI key, and **Create and deploy**. That creates the Sprite, makes its URL public, stores the key in a Sprites connector named `pi-orbs xAI`, and installs the server. The connector id, the sprite URL, and an API secret are written to `~/.pi-orbs/state.json`. The xAI key is not copied into the sprite service environment.
-
-After that, the page is a roster and a thread. The first bot is selected on load. Name a bot and choose **Add**. Each bot is its own Pi conversation. They share `/home/sprite/work`. Send a message in the bar at the bottom. The thread refreshes every few seconds.
-
-**Settings** holds **Push server build** and **Destroy sprite**. Push installs this package's server on the sprite. Destroy deletes that sprite and the connector that was saved with it, then the page returns to setup.
-
-How the client, the Sprite, and the bots connect, and what to check when setup fails, is in [Architecture](docs/architecture.md#troubleshooting).
+`npm start` is the same client as `npx pi-orbs`.
 
 ## Test
 
@@ -83,21 +86,20 @@ That builds the server and runs its smoke tests: `/version` is public, requests 
 
 ## Site
 
-The project homepage is static. Nothing has to be built to view it.
+The project homepage is [https://piorbs.com/](https://piorbs.com/). It is static. Nothing has to be built to view it.
 
-`index.html` is the entrypoint, at the repository root. `website/` holds the rest of the page: `website/styles.css`, `website/site.js`, and `website/logo.png` (the same mark as `docs/logo.png`). The local-mode pictures are the README files, referenced with relative paths:
+`index.html` is the entrypoint, at the repository root. `website/` holds the stylesheet, script, mark, launch video, and share image. The interface pictures are:
 
+- `docs/local-demo.gif`
 - `docs/local-roster.png`
 - `docs/local-thread.png`
 - `docs/local-reply.png`
 
-Those paths resolve when the site is served from the repository root, including GitHub Pages.
+Those paths resolve when the site is served from the repository root, including GitHub Pages. `CNAME` publishes that root at `piorbs.com`.
 
-To publish with GitHub Pages: repository **Settings → Pages → Build and deployment → Source: Deploy from a branch**. Branch: `master`. Folder: **/ (root)**. Use the root, not `/docs`. `/docs` would publish only the screenshot folder. The entrypoint is `index.html` next to `website/`.
+To publish with GitHub Pages: repository **Settings → Pages → Build and deployment → Source: Deploy from a branch**. Branch: `master`. Folder: **/ (root)**. Use the root, not `/docs`. `/docs` would publish only the screenshot folder.
 
 `.nojekyll` is at the root so Pages copies the files as committed and does not run Jekyll.
-
-After that source is saved, the site is https://richardanaya.github.io/pi-orbs/.
 
 ## Publish
 
@@ -110,3 +112,7 @@ git tag v0.1.0 && git push --tags
 ```
 
 That push opens a GitHub Release from the `[0.1.0]` section of [CHANGELOG.md](CHANGELOG.md). It does not publish to npm. `server/VERSION` is what `GET /version` returns, and it matches the package version.
+
+## Contributors
+
+Install, build, tests, pull requests, and the UI simulator are in [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues the way [SECURITY.md](SECURITY.md) describes.

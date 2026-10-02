@@ -61,7 +61,7 @@ npm run dev:local
 
 `PI_ORBS_MODE=local` or `node ./bin/pi-orbs.js --local` is the same switch. With the mode off, `npm start` is the Sprite-backed client above.
 
-The simulator covers the roster, thread, compose box, and adding a bot. Sprite create, deploy, and destroy, the xAI connector, Pi conversations, and the server that runs on a Sprite stay on the real path. Screenshots of the simulator are in the README under **Try locally**.
+The simulator covers the roster, thread, compose box, and adding a bot. Sprite create, deploy, and destroy, the xAI connector, Pi conversations, and the server that runs on a Sprite stay on the real path. Screenshots of this UI are in the README under **The interface**. The public try path is `npx pi-orbs`, not this simulator.
 
 ## Pull requests
 
