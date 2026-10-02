@@ -72,5 +72,6 @@ The simulator covers the roster, thread, compose box, and adding a bot. Sprite c
 - Leave secrets out of the commit and the pull request. That includes xAI keys, `PI_API_SECRET`, and `~/.pi-orbs/state.json`.
 - Link the issue the change closes.
 - Do not publish to npm, and do not deploy a shared Sprite, as part of a code or docs change. Publishing is the maintainer's `npm publish` step; `prepublishOnly` already runs the build.
+- Do not create a `v*` tag or a GitHub Release from a pull request. [RELEASE.md](RELEASE.md) is the bump and the later tag (`git tag v0.1.0 && git push --tags` once the bump is on `master` and the release is OK).
 
 A green `npm run build` and `npm test` are the checks to report.
