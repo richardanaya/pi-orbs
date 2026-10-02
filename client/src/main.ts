@@ -3,12 +3,23 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { homedir } from "node:os";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { deleteXaiConnector, ensureXaiConnector, gatewayBaseUrl } from "./connector.js";
+import { deleteConnector, ensureConnector, gatewayBaseUrl } from "./connector.js";
+import { connectionName, normalizeConnector, providerApi, publicConnectors, readDeployUpdate, readSetup, type SpriteConnector } from "./connectors.js";
 import { deploySprite, localVersion, newSecret, remoteVersion } from "./deploy.js";
 import { handleLocal, localMode } from "./local.js";
 import { listSprites, sprite } from "./sprite.js";
 
-type SavedSprite = { name: string; url: string; secret: string; xaiKey: string; connectorId?: string };
+type SavedSprite = {
+  name: string;
+  url: string;
+  secret: string;
+  xaiKey?: string;
+  apiKey?: string;
+  connectorId?: string;
+  connectorType?: string;
+  baseApiUrl?: string;
+  model?: string;
+};
 type StateFile = { sprites: SavedSprite[] };
 
 const statePath = join(homedir(), ".pi-orbs", "state.json");
@@ -34,20 +45,50 @@ async function readBody(req: IncomingMessage): Promise<Record<string, string>> {
   return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, string>;
 }
 
+function connectorOf(saved: SavedSprite): SpriteConnector {
+  return normalizeConnector(saved);
+}
+
 function serviceEnv(saved: SavedSprite): Record<string, string> {
-  if (!saved.connectorId) throw new Error("xAI connector is not set up");
+  if (!saved.connectorId) throw new Error("connector is not set up");
+  const connector = connectorOf(saved);
+  const gateway = gatewayBaseUrl(saved.connectorId);
   return {
     PI_API_SECRET: saved.secret,
-    PI_MODEL: "grok-4.7",
+    PI_MODEL: connector.model,
+    PI_API: providerApi(connector.connectorType),
     PI_DB: "/home/sprite/app/data/agent.sqlite",
     PI_CWD: "/home/sprite/work",
-    PI_XAI_BASE_URL: gatewayBaseUrl(saved.connectorId),
+    PI_BASE_URL: gateway,
+    PI_XAI_BASE_URL: gateway,
     XAI_API_KEY: "connector",
+    OPENAI_API_KEY: "connector",
+  };
+}
+
+function publicSprite(saved: SavedSprite, extra: Record<string, unknown>): Record<string, unknown> {
+  const connector = connectorOf(saved);
+  return {
+    name: saved.name,
+    url: saved.url,
+    connectorType: connector.connectorType,
+    baseApiUrl: connector.baseApiUrl,
+    model: connector.model,
+    ...extra,
   };
 }
 
 async function withConnector(saved: SavedSprite): Promise<SavedSprite> {
-  return { ...saved, connectorId: saved.connectorId ?? await ensureXaiConnector(saved.xaiKey) };
+  if (saved.connectorId) return saved;
+  const connector = connectorOf(saved);
+  const apiKey = saved.apiKey ?? saved.xaiKey ?? "";
+  if (!apiKey) throw new Error("connector is not set up");
+  const connectorId = await ensureConnector({
+    name: connectionName(connector.connectorType, connector.baseApiUrl),
+    baseApiUrl: connector.baseApiUrl,
+    apiKey,
+  });
+  return { ...saved, connectorId };
 }
 
 function send(res: ServerResponse, status: number, body: unknown): void {
@@ -107,6 +148,10 @@ const http = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://localhost");
   try {
     if (await servePublic(url.pathname, res)) return;
+    if (url.pathname === "/api/connector-presets" && req.method === "GET") {
+      send(res, 200, { connectors: publicConnectors() });
+      return;
+    }
     if (localMode()) {
       if (url.pathname.startsWith("/api/")) {
         await handleLocal(url, req, res);
@@ -124,35 +169,53 @@ const http = createServer(async (req, res) => {
         return;
       }
       const remote = await remoteVersion(saved.url);
+      const connector = connectorOf(saved);
       send(res, 200, {
         localVersion: local,
-        sprite: { name: saved.name, url: saved.url, remoteVersion: remote, update: remote !== local },
+        sprite: {
+          name: saved.name,
+          url: saved.url,
+          remoteVersion: remote,
+          update: remote !== local,
+          connectorType: connector.connectorType,
+          baseApiUrl: connector.baseApiUrl,
+          model: connector.model,
+        },
       });
       return;
     }
     if (url.pathname === "/api/sprites" && req.method === "POST") {
-      const body = await readBody(req);
-      const name = body.name?.trim();
-      if (!name || !body.xaiKey) {
-        send(res, 400, { error: "name and xaiKey are required" });
+      const setup = readSetup(await readBody(req));
+      if ("error" in setup) {
+        send(res, 400, { error: setup.error });
         return;
       }
       const live = await listSprites();
-      if (!live.some((item) => item.name === name)) {
-        await sprite(["create", "--skip-console", name]);
+      if (!live.some((item) => item.name === setup.name)) {
+        await sprite(["create", "--skip-console", setup.name]);
       }
-      await sprite(["config", "update", "-s", name, "--url-auth", "public"]);
-      const infoRaw = await sprite(["api", `/v1/sprites/${name}`]);
+      await sprite(["config", "update", "-s", setup.name, "--url-auth", "public"]);
+      const infoRaw = await sprite(["api", `/v1/sprites/${setup.name}`]);
       const info = JSON.parse(infoRaw.slice(infoRaw.indexOf("{"))) as { url: string };
-      const previous = state.sprites.find((item) => item.name === name);
-      const saved = await withConnector({
-        name,
+      const previous = state.sprites.find((item) => item.name === setup.name);
+      const connectorId = await ensureConnector({
+        name: connectionName(setup.connectorType, setup.baseApiUrl),
+        baseApiUrl: setup.baseApiUrl,
+        apiKey: setup.apiKey,
+      });
+      if (previous?.connectorId && previous.connectorId !== connectorId) await deleteConnector(previous.connectorId);
+      const saved: SavedSprite = {
+        name: setup.name,
         url: info.url,
         secret: previous?.secret ?? newSecret(),
-        xaiKey: body.xaiKey,
-        connectorId: previous?.connectorId,
-      });
-      await deploySprite(name, serviceEnv(saved));
+        apiKey: setup.apiKey,
+        ...(setup.connectorType === "xai" ? { xaiKey: setup.apiKey } : {}),
+        connectorId,
+        connectorType: setup.connectorType,
+        baseApiUrl: setup.baseApiUrl,
+        model: setup.model,
+      };
+      await deploySprite(setup.name, serviceEnv(saved));
       const remote = await remoteVersion(saved.url);
       if (!remote) {
         send(res, 502, { error: "sprite was created, but the server did not answer /version" });
@@ -160,7 +223,14 @@ const http = createServer(async (req, res) => {
       }
       state.sprites = [saved];
       await saveState(state);
-      send(res, 201, { name, url: saved.url, remoteVersion: remote });
+      send(res, 201, {
+        name: setup.name,
+        url: saved.url,
+        remoteVersion: remote,
+        connectorType: setup.connectorType,
+        baseApiUrl: setup.baseApiUrl,
+        model: setup.model,
+      });
       return;
     }
     const route = url.pathname.match(/^\/api\/sprites\/([^/]+)(\/bots(?:\/([^/]+)(?:\/messages)?)?)?(\/deploy)?$/);
@@ -174,7 +244,7 @@ const http = createServer(async (req, res) => {
       return;
     }
     if (req.method === "DELETE" && !route[2] && !route[4]) {
-      if (saved.connectorId) await deleteXaiConnector(saved.connectorId);
+      if (saved.connectorId) await deleteConnector(saved.connectorId);
       await sprite(["destroy", "--force", saved.name]);
       state.sprites = state.sprites.filter((item) => item.name !== saved.name);
       await saveState(state);
@@ -182,7 +252,12 @@ const http = createServer(async (req, res) => {
       return;
     }
     if (route[4] === "/deploy" && req.method === "POST") {
-      const ready = await withConnector(saved);
+      const next = readDeployUpdate(await readBody(req), connectorOf(saved));
+      if ("error" in next) {
+        send(res, 400, { error: next.error });
+        return;
+      }
+      const ready = await withConnector({ ...saved, ...next });
       state.sprites = state.sprites.map((item) => item.name === ready.name ? ready : item);
       await saveState(state);
       await deploySprite(ready.name, serviceEnv(ready));
@@ -199,11 +274,16 @@ const http = createServer(async (req, res) => {
       const local = await localVersion();
       const botsResponse = await spriteFetch(saved, "/api/bots");
       const bots = botsResponse.ok ? await botsResponse.json() : { bots: [] };
-      send(res, 200, { ...saved, xaiKey: undefined, remoteVersion: remote, update: remote !== local, ...bots });
+      send(res, 200, publicSprite(saved, { remoteVersion: remote, update: remote !== local, ...bots }));
       return;
     }
     if (route[2] === "/bots" && req.method === "POST") {
       const response = await spriteFetch(saved, "/api/bots", { method: "POST", body: JSON.stringify(await readBody(req)) });
+      send(res, response.status, await response.json());
+      return;
+    }
+    if (route[3] && req.method === "PATCH" && !url.pathname.endsWith("/messages")) {
+      const response = await spriteFetch(saved, `/api/bots/${route[3]}`, { method: "PATCH", body: JSON.stringify(await readBody(req)) });
       send(res, response.status, await response.json());
       return;
     }

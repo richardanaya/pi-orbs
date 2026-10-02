@@ -99,6 +99,9 @@ describe("local simulator API", { concurrency: 1 }, () => {
         url: "http://127.0.0.1:8787",
         remoteVersion: version,
         update: false,
+        connectorType: "xai",
+        baseApiUrl: "https://api.x.ai/v1",
+        model: "grok-4.7",
       },
     });
   });
@@ -223,5 +226,138 @@ describe("local simulator API", { concurrency: 1 }, () => {
     const threadBody = await thread.json();
     assert.equal(threadBody.messages.length, 4);
     assert.match(threadBody.messages[0].text, /status page/);
+  });
+
+  test("connector presets and setup choose one shared model", async () => {
+    const presets = await fetch(`${session.base}/api/connector-presets`);
+    assert.equal(presets.status, 200);
+    const catalog = await presets.json();
+    const ids = catalog.connectors.map((item) => item.id);
+    assert.deepEqual(ids, ["xai", "openai", "openrouter", "groq", "together", "deepseek", "mistral", "fireworks", "custom"]);
+    const xai = catalog.connectors.find((item) => item.id === "xai");
+    assert.equal(xai.baseApiUrl, "https://api.x.ai/v1");
+    assert.equal(xai.model, "grok-4.7");
+    assert.equal(JSON.stringify(catalog).includes("sk-"), false);
+
+    const created = await fetch(`${session.base}/api/sprites`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "atlas",
+        apiKey: "local-simulator-test",
+        connectorType: "openai",
+        baseApiUrl: "https://evil.example/v1",
+        model: "gpt-4o-mini",
+      }),
+    });
+    assert.equal(created.status, 201);
+    const createdBody = await created.json();
+    assert.equal(createdBody.connectorType, "openai");
+    assert.equal(createdBody.baseApiUrl, "https://api.openai.com/v1");
+    assert.equal(createdBody.model, "gpt-4o-mini");
+    assert.equal(createdBody.apiKey, undefined);
+    assert.equal(createdBody.xaiKey, undefined);
+
+    const home = await fetch(`${session.base}/api/sprites`);
+    const homeBody = await home.json();
+    assert.equal(homeBody.sprite.connectorType, "openai");
+    assert.equal(homeBody.sprite.model, "gpt-4o-mini");
+    assert.equal(homeBody.sprite.apiKey, undefined);
+
+    const custom = await fetch(`${session.base}/api/sprites`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "atlas", apiKey: "local-simulator-test", connectorType: "custom", model: "my-model" }),
+    });
+    assert.equal(custom.status, 400);
+
+    const switched = await fetch(`${session.base}/api/sprites/atlas/deploy`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ connectorType: "groq", baseApiUrl: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile" }),
+    });
+    assert.equal(switched.status, 400);
+
+    const renamed = await fetch(`${session.base}/api/sprites/atlas/deploy`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ connectorType: "openai", model: "gpt-4o" }),
+    });
+    assert.equal(renamed.status, 200);
+    const after = await fetch(`${session.base}/api/sprites`);
+    const afterBody = await after.json();
+    assert.equal(afterBody.sprite.connectorType, "openai");
+    assert.equal(afterBody.sprite.model, "gpt-4o");
+    assert.equal(afterBody.sprite.baseApiUrl, "https://api.openai.com/v1");
+  });
+
+  test("bots accept instruction and look on create and edit", async () => {
+    const roster = await fetch(`${session.base}/api/sprites/atlas`);
+    const seeded = await roster.json();
+    assert.deepEqual(seeded.bots.map((bot) => bot.look), ["tide", "pine", "amber"]);
+    assert.equal(seeded.bots[0].instruction, "Sketch status pages on a black background.");
+    assert.equal(new Set(seeded.bots.map((bot) => bot.look)).size, 3);
+
+    const created = await fetch(`${session.base}/api/sprites/atlas/bots`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Scribe", instruction: "  Write commit messages.  ", look: "plum" }),
+    });
+    assert.equal(created.status, 201);
+    const bot = await created.json();
+    assert.equal(bot.name, "Scribe");
+    assert.equal(bot.instruction, "Write commit messages.");
+    assert.equal(bot.look, "plum");
+    assert.equal(bot.conversationId, bot.id);
+
+    const unnamed = await fetch(`${session.base}/api/sprites/atlas/bots`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ instruction: "no name" }),
+    });
+    assert.equal(unnamed.status, 400);
+
+    const badLook = await fetch(`${session.base}/api/sprites/atlas/bots`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Nope", look: "rainbow" }),
+    });
+    assert.equal(badLook.status, 400);
+
+    const defaults = await fetch(`${session.base}/api/sprites/atlas/bots`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Quill" }),
+    });
+    assert.equal(defaults.status, 201);
+    const plain = await defaults.json();
+    assert.equal(plain.instruction, "");
+    assert.equal(plain.look, "slate");
+
+    const patched = await fetch(`${session.base}/api/sprites/atlas/bots/${bot.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Scribe 2", instruction: "", look: "mist" }),
+    });
+    assert.equal(patched.status, 200);
+    const updated = await patched.json();
+    assert.equal(updated.name, "Scribe 2");
+    assert.equal(updated.instruction, "");
+    assert.equal(updated.look, "mist");
+
+    const thread = await fetch(`${session.base}/api/sprites/atlas/bots/${bot.id}`);
+    const threadBody = await thread.json();
+    assert.equal(threadBody.bot.name, "Scribe 2");
+    assert.equal(threadBody.bot.look, "mist");
+    assert.equal(threadBody.bot.instruction, "");
+
+    const rejected = await fetch(`${session.base}/api/sprites/atlas/bots/${bot.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ look: "nope" }),
+    });
+    assert.equal(rejected.status, 400);
+    const unchanged = await fetch(`${session.base}/api/sprites/atlas/bots/${bot.id}`);
+    assert.equal((await unchanged.json()).bot.look, "mist");
   });
 });

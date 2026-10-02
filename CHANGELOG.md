@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Bot configuration dialog for create and edit: name, instruction, and a glass-orb look. The instruction is stored on the bot and applied to its Pi conversation, including a later edit. The local simulator accepts and returns the same fields.
+- Setup connector types. The default is xAI. OpenAI, OpenRouter, Groq, Together AI, DeepSeek, Mistral, Fireworks, and Custom are the other choices. One shared model from that form is what every bot uses. The API key stays in the Sprites connection.
 - Local simulator API tests in `client/test`. Root `npm test` runs them before the server tests. CI runs them on Node 20 and, with the server tests, on Node 22. No sprite CLI and no xAI key.
 - A Local simulator badge on the client page when local mode is on. The Sprite-backed client does not show it.
 - [Architecture](docs/architecture.md): client and Sprite, `~/.pi-orbs/state.json`, the xAI connector, shared `/home/sprite/work`, and troubleshooting. The README links to it.

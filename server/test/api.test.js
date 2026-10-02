@@ -138,6 +138,8 @@ test("Bearer secret creates a bot and lists it", async () => {
   assert.equal(created.status, 201);
   const bot = await created.json();
   assert.equal(bot.name, "Ada");
+  assert.equal(bot.instruction, "");
+  assert.equal(bot.look, "slate");
   assert.equal(typeof bot.id, "string");
   assert.ok(bot.id.length > 0);
   assert.equal(bot.conversationId, bot.id);
@@ -147,4 +149,59 @@ test("Bearer secret creates a bot and lists it", async () => {
   });
   assert.equal(listed.status, 200);
   assert.deepEqual(await listed.json(), { bots: [bot] });
+});
+
+test("instruction and look are stored and can be edited", async () => {
+  const created = await fetch(`${state.base}/api/bots`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${secret}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ name: "Kepler", instruction: "  Answer briefly.  ", look: "pine" }),
+  });
+  assert.equal(created.status, 201);
+  const bot = await created.json();
+  assert.equal(bot.name, "Kepler");
+  assert.equal(bot.instruction, "Answer briefly.");
+  assert.equal(bot.look, "pine");
+
+  const patched = await fetch(`${state.base}/api/bots/${bot.id}`, {
+    method: "PATCH",
+    headers: {
+      authorization: `Bearer ${secret}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ name: "Kepler 2", instruction: "", look: "clay" }),
+  });
+  assert.equal(patched.status, 200);
+  const updated = await patched.json();
+  assert.equal(updated.name, "Kepler 2");
+  assert.equal(updated.instruction, "");
+  assert.equal(updated.look, "clay");
+  assert.equal(updated.id, bot.id);
+  assert.equal(updated.conversationId, bot.conversationId);
+
+  const listed = await fetch(`${state.base}/api/bots`, {
+    headers: { authorization: `Bearer ${secret}` },
+  });
+  const body = await listed.json();
+  assert.deepEqual(body.bots.find((item) => item.id === bot.id), updated);
+
+  const rejected = await fetch(`${state.base}/api/bots/${bot.id}`, {
+    method: "PATCH",
+    headers: {
+      authorization: `Bearer ${secret}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ look: "rainbow" }),
+  });
+  assert.equal(rejected.status, 400);
+
+  const thread = await fetch(`${state.base}/api/bots/${bot.id}`, {
+    headers: { authorization: `Bearer ${secret}` },
+  });
+  const threadBody = await thread.json();
+  assert.equal(threadBody.bot.look, "clay");
+  assert.equal(threadBody.bot.instruction, "");
 });
