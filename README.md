@@ -8,7 +8,7 @@ Named Pi bots on one shared Fly.io Sprite — install the client, it deploys the
 
 Homepage: [`index.html`](index.html) at the repository root, with assets in [`website/`](website/). [GitHub Pages setup](#site).
 
-[Contributing](CONTRIBUTING.md)
+[Contributing](CONTRIBUTING.md) · [Architecture](docs/architecture.md)
 
 ![Pi Orbs mark, a glass orb whose pi symbol reads as a pair of eyes](docs/logo.png)
 
@@ -66,6 +66,8 @@ Until a sprite is running, the page shows only the setup form: a sprite name, an
 After that, the page is a roster and a thread. The first bot is selected on load. Name a bot and choose **Add**. Each bot is its own Pi conversation. They share `/home/sprite/work`. Send a message in the bar at the bottom. The thread refreshes every few seconds.
 
 **Settings** holds **Push server build** and **Destroy sprite**. Push installs this package's server on the sprite. Destroy deletes that sprite and the connector that was saved with it, then the page returns to setup.
+
+How the client, the Sprite, and the bots connect, and what to check when setup fails, is in [Architecture](docs/architecture.md#troubleshooting).
 
 ## Test
 

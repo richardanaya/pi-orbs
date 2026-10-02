@@ -2,7 +2,7 @@
 
 Thanks for helping with Pi Orbs. This guide covers a local checkout: install, build, run, and what a pull request should include.
 
-By participating, you agree to the [Code of Conduct](CODE_OF_CONDUCT.md). Report security issues the way [SECURITY.md](SECURITY.md) describes.
+By participating, you agree to the [Code of Conduct](CODE_OF_CONDUCT.md). Report security issues the way [SECURITY.md](SECURITY.md) describes. How the client, the Sprite, and the bots fit is in [Architecture](docs/architecture.md).
 
 ## Prerequisites
 
