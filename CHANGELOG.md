@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Product stills, the demo GIF, and the landscape site hero `website/pi-orbs-site-hero.mp4` (1920×1080). Captions match flat π faces, four connectors, and steers in the thread.
+
 ## [0.2.0] - 2026-10-02
 
 ### Added
@@ -25,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dialog and Settings use the same black glass chrome as the roster and thread. The bot dialog shows the chosen orb. Settings stacks **Download all conversations**, **Push server build**, and **Destroy sprite**. Focus rings stay on the controls. Motion stays limited to the working pulse.
 - Roster. The version and the Peers button are hidden. **Add** is a plus on the right. Faces are flat pi marks in the bot’s color. The site favicon is the current orb.
 - Homepage on a phone. The header is one row: the mark, Pi Orbs, and Menu. The hero is the landscape launch video in a 16:9 frame, so the video controls cannot stretch it.
-- README and homepage stills show the page, including Peers. The public try path remains `npx pi-orbs`.
+- README and homepage stills show the page, with steers in the thread and no Peers panel. The public try path remains `npx pi-orbs`.
 - Brand mark. The app icon, homepage, and README use the white orb with a pi mouth. The Open Graph image is the black lockup of that orb beside the name. Page chrome stays black and white.
 - Client UI. Glass-orb avatars, message bubbles, a quieter composer, brand glow, and an empty thread. Setup, roster, thread, add bot, and Settings behave as before.
 - Homepage at [piorbs.com](https://piorbs.com/). Spacing, type, screenshot frames, a launch video near the top, and an Open Graph image. The public try path is `npx pi-orbs`. Copy stays on Fly.io Sprites and the sprite CLI.

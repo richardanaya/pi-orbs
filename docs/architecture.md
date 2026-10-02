@@ -87,9 +87,9 @@ What is stored:
 
 The open thread does not treat those rows as human messages. `GET /api/bots/:id` still returns `{ bot, messages }` for the page, and omits a peer user entry. The assistant reply that follows stays, so a result steered back shows up in the thread. The page ignores a message flagged `peer` or `source: "peer"` if one is ever returned, and it does not rebuild or jump the scroll when the visible transcript is unchanged.
 
-Steers for the open bot sit in that bot’s thread. Each one is a small icon. Hovering it shows “Message from” or “Message to” and the other bot’s face. Clicking it shows the text. `GET /api/bots/:id` returns those rows as `pi.peer` messages, and only for that bot. `GET /api/bots/:id/peers` is the same single-bot ledger. Each row is `id`, `from`, `to`, `fromName`, `toName`, `content`, `submissionId`, `createdAt`, and `delivery: "steer"`, plus `entryId` once the input is placed. The card shows both bots’ glass orbs, the time, and the message. A poll that does not change that list leaves the panel scroll where it is, and it does not rebuild the open thread.
+Steers for the open bot are lines in that bot’s thread. Each line reads “Message from” or “Message to” and shows the other bot’s face. Opening the line shows the message. The roster Peers button is hidden, and there is no panel beside the thread. `GET /api/bots/:id` returns those rows as `pi.peer` messages, and only for that bot. `GET /api/bots/:id/peers` is the same single-bot ledger. Each row is `id`, `from`, `to`, `fromName`, `toName`, `content`, `submissionId`, `createdAt`, and `delivery: "steer"`, plus `entryId` once the input is placed. A poll that does not change the visible thread leaves the scroll where it is.
 
-`GET /api/bots/activity` returns `{ "busy": ["<bot id>", ...] }`. A bot is busy while that conversation has a live task, or a submission that is still queued or placed. The roster draws a pulse on that orb. If a busy bot is not the one open in the thread, the thread bar says that bot is working. The local simulator uses the same routes. A steer marks the target busy for a few seconds. The simulator also starts with one Ada and Kepler exchange already in the ledger, so the panel is not empty on first load. Creating the sprite again clears that sample.
+`GET /api/bots/activity` returns `{ "busy": ["<bot id>", ...] }`. A bot is busy while that conversation has a live task, or a submission that is still queued or placed. The roster draws a pulse on that orb. If a busy bot is not the one open in the thread, the thread bar says that bot is working. The local simulator uses the same routes. A steer marks the target busy for a few seconds. The simulator also starts with one Ada and Kepler exchange already in the ledger, so those lines are in the thread on first load. Creating the sprite again clears that sample.
 
 A bot can send the same steer itself. The `peers` extension adds a `steer_peer` tool (name or id, plus content) and a system section that lists the other bots. The tool uses the same server path and a request id tied to the tool call, so a replay after a crash does not send twice.
 
@@ -131,7 +131,7 @@ sequenceDiagram
   Note over Bots: shared disk /home/sprite/work
   Note over Bots: peer entries stay out of the open thread
   Client->>Sprite: GET /api/bots/:id/peers
-  Note over Client: Peers panel, beside the open thread
+  Note over Client: Steers are openable lines in the open bot's thread
   Bots-->>Sprite: thread entries
   Sprite-->>Client: messages for the page
 ```
