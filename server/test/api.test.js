@@ -68,7 +68,10 @@ before(async () => {
       PI_API_SECRET: secret,
       PI_DB: join(state.dir, "agent.sqlite"),
       PI_BOTS: join(state.dir, "bots.json"),
+      PI_PEERS: join(state.dir, "peers.json"),
       PI_CWD: state.dir,
+      PI_BASE_URL: "http://127.0.0.1:9",
+      PI_XAI_BASE_URL: "http://127.0.0.1:9",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -127,6 +130,13 @@ test("unauthorized requests get 401", async () => {
 
   const exportMissing = await fetch(`${state.base}/api/export`);
   assert.equal(exportMissing.status, 401);
+
+  const steer = await fetch(`${state.base}/api/bots/1/steer`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ from: "1", content: "hi" }),
+  });
+  assert.equal(steer.status, 401);
 });
 
 test("GET /api/export is an empty conversation list before any bot exists", async () => {
@@ -262,4 +272,83 @@ test("GET /api/export lists every bot and redacts the API secret from a message"
   for (const hidden of ["apiKey", "xaiKey", "connectorId", "PI_API_SECRET", "XAI_API_KEY"]) {
     assert.equal(JSON.stringify(body).includes(hidden), false, hidden);
   }
+});
+
+test("one bot can steer another without putting it on the open thread", async () => {
+  const headers = {
+    authorization: `Bearer ${secret}`,
+    "content-type": "application/json",
+  };
+  async function create(name) {
+    const response = await fetch(`${state.base}/api/bots`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ name }),
+    });
+    assert.equal(response.status, 201);
+    return response.json();
+  }
+  const lumen = await create("Lumen");
+  const moss = await create("Moss");
+
+  const visible = await fetch(`${state.base}/api/bots/${moss.id}/messages`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ content: "visible-user-line" }),
+  });
+  assert.equal(visible.status, 202);
+
+  const steered = await fetch(`${state.base}/api/bots/${lumen.id}/steer`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ from: moss.id, content: "hidden-peer-line" }),
+  });
+  assert.equal(steered.status, 202);
+  const steerBody = await steered.json();
+  assert.equal(steerBody.from, moss.id);
+  assert.equal(steerBody.to, lumen.id);
+  assert.equal(steerBody.fromName, "Moss");
+  assert.equal(steerBody.toName, "Lumen");
+  assert.equal(steerBody.content, "hidden-peer-line");
+  assert.equal(steerBody.delivery, "steer");
+  assert.equal(typeof steerBody.submissionId, "string");
+  assert.equal(typeof steerBody.entryId, "string");
+
+  const back = await fetch(`${state.base}/api/bots/${moss.id}/steer`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ from: lumen.id, content: "hidden-reply-line" }),
+  });
+  assert.equal(back.status, 202);
+
+  const lumenThread = await fetch(`${state.base}/api/bots/${lumen.id}`, { headers });
+  const lumenBody = await lumenThread.json();
+  assert.equal(JSON.stringify(lumenBody.messages).includes("hidden-peer-line"), false);
+  assert.equal(JSON.stringify(lumenBody.messages).includes("Message from bot"), false);
+
+  const mossThread = await fetch(`${state.base}/api/bots/${moss.id}`, { headers });
+  const mossBody = await mossThread.json();
+  assert.equal(JSON.stringify(mossBody.messages).includes("visible-user-line"), true);
+  assert.equal(JSON.stringify(mossBody.messages).includes("hidden-reply-line"), false);
+  assert.equal(JSON.stringify(mossBody.messages).includes("hidden-peer-line"), false);
+
+  const lumenPeers = await fetch(`${state.base}/api/bots/${lumen.id}/peers`, { headers });
+  assert.equal(lumenPeers.status, 200);
+  const lumenPeerBody = await lumenPeers.json();
+  assert.equal(lumenPeerBody.peers.some((item) => item.from === moss.id && item.content === "hidden-peer-line" && item.delivery === "steer"), true);
+  assert.equal(lumenPeerBody.peers.some((item) => item.from === lumen.id && item.content === "hidden-reply-line"), true);
+
+  const self = await fetch(`${state.base}/api/bots/${lumen.id}/steer`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ from: lumen.id, content: "nope" }),
+  });
+  assert.equal(self.status, 400);
+
+  const missing = await fetch(`${state.base}/api/bots/${lumen.id}/steer`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ from: "missing-bot", content: "nope" }),
+  });
+  assert.equal(missing.status, 404);
 });

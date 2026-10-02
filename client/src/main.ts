@@ -273,6 +273,27 @@ const http = createServer(async (req, res) => {
       res.end(archive.zip);
       return;
     }
+    const peerRoute = url.pathname.match(/^\/api\/sprites\/([^/]+)\/bots\/([^/]+)\/(steer|peers)$/);
+    if (peerRoute) {
+      const saved = state.sprites.find((item) => item.name === peerRoute[1]);
+      if (!saved) {
+        send(res, 404, { error: "sprite is not managed by this client" });
+        return;
+      }
+      const target = `/api/bots/${peerRoute[2]}/${peerRoute[3]}`;
+      if (peerRoute[3] === "steer" && req.method === "POST") {
+        const response = await spriteFetch(saved, target, { method: "POST", body: JSON.stringify(await readBody(req)) });
+        send(res, response.status, await response.json());
+        return;
+      }
+      if (peerRoute[3] === "peers" && req.method === "GET") {
+        const response = await spriteFetch(saved, target);
+        send(res, response.status, await response.json());
+        return;
+      }
+      send(res, 404, { error: "not found" });
+      return;
+    }
     const route = url.pathname.match(/^\/api\/sprites\/([^/]+)(\/bots(?:\/([^/]+)(?:\/messages)?)?)?(\/deploy)?$/);
     if (!route) {
       send(res, 404, { error: "not found" });

@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
-    "test": "npm run build && node --test test/api.test.js"
+    "test": "npm run build && node --test test"
   },
   "dependencies": {
     "@earendil-works/chord": "^1.0.0",

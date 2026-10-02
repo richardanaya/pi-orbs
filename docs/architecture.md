@@ -64,7 +64,32 @@ Each bot is one Pi conversation in a single pi-durable harness. The harness data
 
 The coding tools for every bot use `PI_CWD`, which deploy sets to `/home/sprite/work`, and the `web` service uses that directory as its working directory. Bots on the sprite share that disk.
 
-Sending a message submits text to that conversation and returns immediately (`202`). The page reloads the thread every few seconds.
+Sending a message submits text to that conversation and returns immediately (`202`). The page reloads the thread every few seconds. A reload that does not change the visible messages leaves the scroll where it is.
+
+## Cross-bot steering
+
+Bots on one sprite share the harness and the work directory. They do not share a thread. Bot A messages bot B through the server, which steers that text into B’s Pi conversation.
+
+`POST /api/bots/:id/steer` with `{ "from", "content" }` checks that both bots exist and that a bot is not steering itself. The server then calls Pi Durable:
+
+```ts
+conversation.submit({ type: "input", content, whenBusy: "steer", requestId }, context)
+```
+
+`whenBusy: "steer"` is the harness primitive. If B is idle, the input starts a turn. If B is busy, the input waits in that conversation’s inbox and is placed after the current tool round, joining the run in progress. A follow-up would wait until the run finished. A reject would fail the call. The `requestId` starts with `peer:` so a retry of the same id does not admit a second input.
+
+The model sees a short preface plus the content: who sent it, that they are another bot, and that the human’s thread does not show it. Pi Durable admits that input as a `pi.user` entry. There is no separate peer entry kind that both starts a run and stays out of `pi.user`. The preface is how the model tells a peer from the human.
+
+What is stored:
+
+- The steered input, and any later assistant answer, stay in B’s conversation in `agent.sqlite`.
+- A ledger next to the roster, `peers.json` (`PI_PEERS` overrides the path), keeps one row per steer: id, from, to, names at send time, the original content, `requestId`, submission id, entry id once the input is placed, and `createdAt`. The ledger keeps the latest 1000 rows. `GET /api/bots/:id/peers` returns rows where that bot is sender or target. Each row has `delivery: "steer"`.
+
+The open thread does not treat those rows as human messages. `GET /api/bots/:id` still returns `{ bot, messages }` for the page, and omits a peer user entry. It also omits the assistant entries that follow, when that turn has no human user entry. A steer that joins a turn the human already started shares that answer, so the answer stays visible and only the peer user entry is left out. The page ignores a message flagged `peer` or `source: "peer"` if one is ever returned, and it does not rebuild or jump the scroll when the visible transcript is unchanged. The cross-bot inspector is a later surface; it can read `GET /api/bots/:id/peers` and the entry id.
+
+A bot can send the same steer itself. The `peers` extension adds a `steer_peer` tool (name or id, plus content) and a system section that lists the other bots. The tool uses the same server path and a request id tied to the tool call, so a replay after a crash does not send twice.
+
+The local simulator has no Pi harness, so it does not call `submit`. It stores the same ledger row, with a `local-` submission id, and leaves both bots’ message lists unchanged. That is the stand-in for the steer, not a pasted chat line.
 
 **Settings → Download all conversations** asks the sprite for `GET /api/export` (the same Bearer secret as the other bot routes) and downloads a `.zip`. The sprite reads every durable bot and that bot’s user and assistant text, oldest first, including messages past the 200 the thread shows. The client writes the zip. Local simulator mode builds the same zip from the in-memory threads. An older sprite server does not have `/api/export` until **Push server build**.
 
@@ -91,7 +116,10 @@ sequenceDiagram
   Sprite->>Bots: open a Pi conversation
   Client->>Sprite: POST /api/bots/:id/messages
   Sprite->>Bots: submit on that thread
+  Client->>Sprite: POST /api/bots/:id/steer
+  Sprite->>Bots: submit whenBusy steer on the target
   Note over Bots: shared disk /home/sprite/work
+  Note over Bots: peer entries stay out of the open thread
   Bots-->>Sprite: thread entries
   Sprite-->>Client: messages for the page
 ```

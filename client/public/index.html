@@ -843,24 +843,41 @@ async function refreshBots(sprite) {
     log.append(showEmpty("Choose a bot", "The roster is on the left. Each bot keeps its own thread."));
   }
 }
+let threadView = "";
+function visibleThreadMessages(messages) {
+  return (messages || []).filter((message) => message && message.peer !== true && message.source !== "peer");
+}
+function threadSignature(botId, messages) {
+  return botId + "\n" + messages.map((message) => [message.id, message.kind, message.text].join("\t")).join("\n");
+}
 async function refreshThread() {
   const log = document.querySelector("#log");
   if (!state.sprite || !state.bot) {
+    threadView = "";
     log.innerHTML = "";
     setThreadHead("Choose a bot", "");
     setComposer(false, "Message");
     return;
   }
-  const body = await api("/api/sprites/" + state.sprite + "/bots/" + state.bot);
+  const requested = state.bot;
+  const body = await api("/api/sprites/" + state.sprite + "/bots/" + requested);
+  if (state.bot !== requested) return;
   setThreadHead(body.bot.name, state.sprite, body.bot.look);
   setComposer(true, "Message " + body.bot.name);
+  const messages = visibleThreadMessages(body.messages);
+  const signature = threadSignature(requested, messages);
+  if (signature === threadView && log.childElementCount > 0) return;
+  const distance = log.scrollHeight - log.scrollTop - log.clientHeight;
+  const pinned = !threadView.startsWith(requested + "\n") || distance < 48;
+  const kept = log.scrollTop;
+  threadView = signature;
   log.innerHTML = "";
-  if (!body.messages.length) {
+  if (!messages.length) {
     log.append(showEmpty(body.bot.name, "This thread is empty. Send a message to start it."));
     return;
   }
   let previous = "";
-  for (const message of body.messages) {
+  for (const message of messages) {
     const mine = message.kind === "pi.user";
     const kind = mine ? "user" : "bot";
     const block = document.createElement("div");
@@ -878,7 +895,7 @@ async function refreshThread() {
     block.append(bubble);
     log.append(block);
   }
-  log.scrollTop = log.scrollHeight;
+  log.scrollTop = pinned ? log.scrollHeight : kept;
 }
 document.querySelector("#create-sprite").onsubmit = async (event) => {
   event.preventDefault();
