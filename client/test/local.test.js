@@ -180,6 +180,40 @@ test("the zip redacts api keys and connector secrets from transcript text", asyn
 });
 
 describe("local simulator API", { concurrency: 1 }, () => {
+  test("seeded peer traffic is on the ledger and off the thread", async () => {
+    const ada = await fetch(`${session.base}/api/sprites/atlas/bots/ada`);
+    assert.equal(ada.status, 200);
+    const adaBody = await ada.json();
+    assert.equal(JSON.stringify(adaBody.messages).includes("Same muted gray as the roster"), false);
+    const peers = await fetch(`${session.base}/api/sprites/atlas/bots/ada/peers`);
+    assert.equal(peers.status, 200);
+    const list = (await peers.json()).peers;
+    assert.deepEqual(list.map((item) => ({ from: item.from, to: item.to, fromName: item.fromName, toName: item.toName, content: item.content, delivery: item.delivery })), [
+      {
+        from: "ada",
+        to: "kepler",
+        fromName: "Ada",
+        toName: "Kepler",
+        content: "The status line is in status.html. Same muted gray as the roster.",
+        delivery: "steer",
+      },
+      {
+        from: "kepler",
+        to: "ada",
+        fromName: "Kepler",
+        toName: "Ada",
+        content: "I see it. The work directory is shared, so that file is on my disk too.",
+        delivery: "steer",
+      },
+    ]);
+    assert.equal(typeof list[0].createdAt, "string");
+    const nova = await fetch(`${session.base}/api/sprites/atlas/bots/nova/peers`);
+    assert.deepEqual((await nova.json()).peers, []);
+    const activity = await fetch(`${session.base}/api/sprites/atlas/activity`);
+    assert.equal(activity.status, 200);
+    assert.deepEqual(await activity.json(), { busy: [] });
+  });
+
   test("GET /api/sprites returns the seeded sprite and localVersion", async () => {
     const response = await fetch(`${session.base}/api/sprites`);
     assert.equal(response.status, 200);
@@ -528,6 +562,9 @@ describe("local simulator API", { concurrency: 1 }, () => {
     assert.equal(steerBody.content, "token-ada-to-kepler");
     assert.equal(steerBody.delivery, "steer");
     assert.match(steerBody.submissionId, /^local-peer-/);
+    const working = await fetch(`${session.base}/api/sprites/atlas/activity`);
+    assert.equal(working.status, 200);
+    assert.deepEqual(await working.json(), { busy: ["kepler"] });
 
     const toAda = await fetch(`${session.base}/api/sprites/atlas/bots/ada/steer`, {
       method: "POST",
@@ -589,4 +626,14 @@ test("the open thread does not treat peer traffic as user messages", async () =>
   assert.match(html, /function visibleThreadMessages/);
   assert.match(html, /message\.peer !== true && message\.source !== "peer"/);
   assert.match(html, /signature === threadView && log\.childElementCount > 0\) return/);
+  assert.match(html, /<section id="peers"/);
+  assert.match(html, /id="peers-toggle"/);
+  assert.match(html, /id="roster-peers"/);
+  assert.match(html, /id="peers-log"/);
+  assert.match(html, /function refreshPeers/);
+  assert.match(html, /body\.peers-open main/);
+  assert.match(html, /Steers stay out of this thread/);
+  assert.doesNotMatch(html, /querySelector\("#peers"\)\.showModal/);
+  const main = await readFile(join(clientRoot, "src", "main.ts"), "utf8");
+  assert.match(main, /\/api\/bots\/activity/);
 });

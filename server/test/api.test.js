@@ -131,6 +131,9 @@ test("unauthorized requests get 401", async () => {
   const exportMissing = await fetch(`${state.base}/api/export`);
   assert.equal(exportMissing.status, 401);
 
+  const activity = await fetch(`${state.base}/api/bots/activity`);
+  assert.equal(activity.status, 401);
+
   const steer = await fetch(`${state.base}/api/bots/1/steer`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -152,6 +155,16 @@ test("GET /api/export is an empty conversation list before any bot exists", asyn
   for (const hidden of ["apiKey", "xaiKey", "connectorId", "PI_API_SECRET"]) {
     assert.equal(JSON.stringify(body).includes(hidden), false, hidden);
   }
+});
+
+test("activity returns busy bot ids", async () => {
+  const response = await fetch(`${state.base}/api/bots/activity`, {
+    headers: { authorization: `Bearer ${secret}` },
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.ok(Array.isArray(body.busy));
+  assert.equal(body.busy.every((id) => typeof id === "string"), true);
 });
 
 test("Bearer secret creates a bot and lists it", async () => {
