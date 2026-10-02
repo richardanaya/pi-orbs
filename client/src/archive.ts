@@ -158,8 +158,10 @@ function readme(empty: boolean): string {
     "  messages[]       id, kind (\"pi.user\" or \"pi.assistant\"), text,",
     "                   createdAt (ISO-8601, or null when the transcript has no time)",
     "",
-    "Messages are the user and assistant text the thread shows, oldest first.",
+    "Messages are user and assistant text, oldest first.",
     "Tool traces and thinking text are omitted.",
+    "A steered message is stored on the target bot as user text, so a sprite",
+    "export includes it. The open thread hides that entry.",
     "",
   ];
   if (empty) {

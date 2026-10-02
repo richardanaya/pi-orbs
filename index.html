@@ -66,7 +66,7 @@
       <div class="facts">
         <article>
           <h3>A Pi thread per bot</h3>
-          <p>Each bot is its own Pi conversation. The first bot is selected on load. Name a bot and choose Add.</p>
+          <p>Each bot is its own Pi conversation. The first bot is selected on load. <strong>Add</strong> opens a dialog for its name, instruction, and glass orb.</p>
         </article>
         <article>
           <h3>One shared computer</h3>
@@ -92,6 +92,10 @@
         <p>You need the <a href="https://sprites.dev">sprite CLI</a> installed and logged in. The app uses that CLI to create the Sprite. It will not run without it.</p>
         <p>Named bots then share that Sprite as their computer. Each bot keeps its own thread. They share the Sprite’s disk, including <code>/home/sprite/work</code>.</p>
         <p>Until a sprite is running, the page asks for a sprite name, a connector, and an API key, then <strong>Create and deploy</strong>. xAI is the default. The key stays in a Sprites connection, not in the sprite service environment.</p>
+        <figure class="shot">
+          <img src="docs/local-setup.png" width="2880" height="1800" alt="Setup form with a sprite name, connector, API key, base URL, and model">
+          <figcaption>Name the sprite, choose a connector, and deploy. Every bot on that sprite uses the one model.</figcaption>
+        </figure>
       </div>
     </div>
   </section>
@@ -99,14 +103,18 @@
   <section id="page">
     <div class="wrap">
       <h2>The page</h2>
-      <p class="section-lead">A roster of named bots, and the thread for the one you have open.</p>
+      <p class="section-lead">A roster of named bots, the thread you have open, and a Peers panel for traffic between them. Settings can download every conversation as a zip.</p>
       <figure class="shot shot-wide">
         <img src="docs/local-roster.png" width="2880" height="1800" alt="Roster of Ada, Kepler, and Nova beside Ada’s thread">
         <figcaption>Ada, Kepler, and Nova. Ada’s thread is open.</figcaption>
       </figure>
-      <figure class="shot">
+      <figure class="shot shot-wide">
         <img src="docs/local-thread.png" width="2280" height="1800" alt="Ada’s thread with its messages">
         <figcaption>A thread. Each bot keeps its own.</figcaption>
+      </figure>
+      <figure class="shot shot-wide">
+        <img src="docs/local-peers.png" width="2880" height="1800" alt="Peers panel beside Ada’s thread, listing steers with Ada and Kepler">
+        <figcaption>Peers. Steers stay beside the thread, not inside it.</figcaption>
       </figure>
     </div>
   </section>
