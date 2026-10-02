@@ -495,6 +495,22 @@ const http = createServer(async (req, res) => {
       send(res, 200, bot);
       return;
     }
+    if (messageRoute && req.method === "DELETE" && !messageRoute[2]) {
+      const bots = await loadBots();
+      const index = bots.findIndex((item) => item.id === messageRoute[1]);
+      if (index < 0) {
+        send(res, 404, { error: "bot not found" });
+        return;
+      }
+      const removed = bots[index];
+      bots.splice(index, 1);
+      await saveBots(bots);
+      conversations.delete(removed.id);
+      const peers = (await loadPeers()).filter((item) => item.from !== removed.id && item.to !== removed.id);
+      await savePeers(peers);
+      send(res, 200, { ok: true });
+      return;
+    }
     const peerRoute = url.pathname.match(/^\/api\/bots\/([^/]+)\/(steer|peers)$/);
     if (peerRoute && req.method === "GET" && peerRoute[2] === "peers") {
       const bots = await loadBots();

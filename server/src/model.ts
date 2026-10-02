@@ -1,6 +1,8 @@
 import { createModels, createProvider, type MutableModels } from "@earendil-works/pi-ai/models";
+import { anthropicMessagesApi } from "@earendil-works/pi-ai/api/anthropic-messages.lazy";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import { openAIResponsesApi } from "@earendil-works/pi-ai/api/openai-responses.lazy";
+import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
 import { xaiProvider } from "@earendil-works/pi-ai/providers/xai";
 
 export const SHARED_PROVIDER = "pi-orbs";
@@ -20,7 +22,7 @@ function connectorKeyAuth() {
       }) => {
         signal.throwIfAborted();
         if (credential?.key) return { auth: { apiKey: credential.key }, source: "stored credential" };
-        for (const envVar of ["OPENAI_API_KEY", "XAI_API_KEY"]) {
+        for (const envVar of ["OPENAI_API_KEY", "XAI_API_KEY", "ANTHROPIC_API_KEY"]) {
           const value = await ctx.env(envVar);
           signal.throwIfAborted();
           if (value) return { auth: { apiKey: value }, source: envVar };
@@ -33,9 +35,48 @@ function connectorKeyAuth() {
 
 export function installSharedModel(models: MutableModels): void {
   const { modelId } = sharedModel();
-  const completions = process.env.PI_API === "openai-completions";
+  const api = process.env.PI_API === "openai-completions"
+    ? "openai-completions"
+    : process.env.PI_API === "anthropic-messages"
+      ? "anthropic-messages"
+      : "openai-responses";
   const baseUrl = process.env.PI_BASE_URL?.trim() || process.env.PI_XAI_BASE_URL?.trim() || "https://api.x.ai/v1";
-  if (!completions) {
+  if (api === "anthropic-messages") {
+    const catalog = createModels();
+    catalog.setProvider(anthropicProvider());
+    const template = catalog.getModel("anthropic", modelId) ?? catalog.getModel("anthropic", "claude-sonnet-5");
+    const model = template
+      ? {
+          ...template,
+          id: modelId,
+          name: template.id === modelId ? template.name : modelId,
+          provider: SHARED_PROVIDER,
+          baseUrl,
+        }
+      : {
+          id: modelId,
+          name: modelId,
+          api: "anthropic-messages" as const,
+          provider: SHARED_PROVIDER,
+          baseUrl,
+          reasoning: true,
+          input: ["text" as const],
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+          contextWindow: 200000,
+          maxTokens: 8192,
+          compat: { supportsMidConvoSystemMessages: true },
+        };
+    models.setProvider(createProvider({
+      id: SHARED_PROVIDER,
+      name: "Pi Orbs",
+      baseUrl,
+      auth: connectorKeyAuth(),
+      models: [model],
+      api: anthropicMessagesApi(),
+    }));
+    return;
+  }
+  if (api === "openai-responses") {
     const catalog = createModels();
     catalog.setProvider(xaiProvider());
     const template = catalog.getModel("xai", modelId) ?? catalog.getModel("xai", "grok-4.7");

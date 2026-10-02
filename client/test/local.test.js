@@ -502,7 +502,7 @@ describe("local simulator API", { concurrency: 1 }, () => {
     assert.equal(presets.status, 200);
     const catalog = await presets.json();
     const ids = catalog.connectors.map((item) => item.id);
-    assert.deepEqual(ids, ["xai", "openai", "openrouter", "groq", "together", "deepseek", "mistral", "fireworks", "custom"]);
+    assert.deepEqual(ids, ["xai", "openai", "anthropic", "custom"]);
     const xai = catalog.connectors.find((item) => item.id === "xai");
     assert.equal(xai.baseApiUrl, "https://api.x.ai/v1");
     assert.equal(xai.model, "grok-4.7");
@@ -543,7 +543,7 @@ describe("local simulator API", { concurrency: 1 }, () => {
     const switched = await fetch(`${session.base}/api/sprites/atlas/deploy`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ connectorType: "groq", baseApiUrl: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile" }),
+      body: JSON.stringify({ connectorType: "anthropic", baseApiUrl: "https://api.anthropic.com", model: "claude-sonnet-5" }),
     });
     assert.equal(switched.status, 400);
 
@@ -700,6 +700,13 @@ describe("local simulator API", { concurrency: 1 }, () => {
     assert.equal(renamed.name, "Scribe 3");
     assert.equal(renamed.instruction, "");
     assert.equal(renamed.look, "mist");
+
+    const removed = await fetch(`${session.base}/api/sprites/atlas/bots/${bot.id}`, { method: "DELETE" });
+    assert.equal(removed.status, 200);
+    const rosterGone = await fetch(`${session.base}/api/sprites/atlas`);
+    assert.equal((await rosterGone.json()).bots.some((item) => item.id === bot.id), false);
+    const missing = await fetch(`${session.base}/api/sprites/atlas/bots/${bot.id}`);
+    assert.equal(missing.status, 404);
   });
 
   test("two bots exchange steered messages outside the open thread", async () => {
@@ -876,7 +883,7 @@ test("the open thread does not treat peer traffic as user messages", async () =>
   assert.match(html, /signature === threadView && log\.childElementCount > 0\) return/);
   assert.match(html, /<section id="peers"/);
   assert.match(html, /id="peers-toggle"/);
-  assert.match(html, /id="roster-peers"/);
+  assert.doesNotMatch(html, /id="roster-peers"/);
   assert.match(html, /id="peers-log"/);
   assert.match(html, /function refreshPeers/);
   assert.match(html, /body\.peers-open main/);

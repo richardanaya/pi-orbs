@@ -245,6 +245,31 @@ test("instruction and look are stored and can be edited", async () => {
   const threadBody = await thread.json();
   assert.equal(threadBody.bot.look, "clay");
   assert.equal(threadBody.bot.instruction, "");
+
+  const extra = await fetch(`${state.base}/api/bots`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${secret}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ name: "Temp" }),
+  });
+  const temp = await extra.json();
+  const removed = await fetch(`${state.base}/api/bots/${temp.id}`, {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${secret}` },
+  });
+  assert.equal(removed.status, 200);
+  const after = await fetch(`${state.base}/api/bots`, {
+    headers: { authorization: `Bearer ${secret}` },
+  });
+  const names = (await after.json()).bots.map((item) => item.name);
+  assert.equal(names.includes("Temp"), false);
+  assert.equal(names.includes("Kepler 2"), true);
+  const gone = await fetch(`${state.base}/api/bots/${temp.id}`, {
+    headers: { authorization: `Bearer ${secret}` },
+  });
+  assert.equal(gone.status, 404);
 });
 
 test("GET /api/export lists every bot and redacts the API secret from a message", async () => {

@@ -64,6 +64,7 @@ function serviceEnv(saved: SavedSprite): Record<string, string> {
     PI_XAI_BASE_URL: gateway,
     XAI_API_KEY: "connector",
     OPENAI_API_KEY: "connector",
+    ...(connector.connectorType === "anthropic" ? { ANTHROPIC_API_KEY: "connector" } : {}),
   };
 }
 
@@ -356,6 +357,11 @@ const http = createServer(async (req, res) => {
     }
     if (route[3] && req.method === "PATCH" && !url.pathname.endsWith("/messages")) {
       const response = await spriteFetch(saved, `/api/bots/${route[3]}`, { method: "PATCH", body: JSON.stringify(await readBody(req)) });
+      send(res, response.status, await response.json());
+      return;
+    }
+    if (route[3] && req.method === "DELETE" && !url.pathname.endsWith("/messages")) {
+      const response = await spriteFetch(saved, `/api/bots/${route[3]}`, { method: "DELETE" });
       send(res, response.status, await response.json());
       return;
     }

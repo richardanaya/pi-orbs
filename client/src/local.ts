@@ -427,6 +427,16 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
       send(res, 200, publicBot(bot));
       return;
     }
+    if (rest.length === 2 && req.method === "DELETE") {
+      const index = bots.findIndex((item) => item.id === bot.id);
+      if (index >= 0) bots.splice(index, 1);
+      for (let i = peers.length - 1; i >= 0; i -= 1) {
+        const peer = peers[i];
+        if (peer && (peer.from === bot.id || peer.to === bot.id)) peers.splice(i, 1);
+      }
+      send(res, 200, { ok: true });
+      return;
+    }
     if (rest.length === 3 && rest[2] === "peers" && req.method === "GET") {
       send(res, 200, { peers: peers.filter((item) => item.from === bot.id || item.to === bot.id).map(publicPeer) });
       return;

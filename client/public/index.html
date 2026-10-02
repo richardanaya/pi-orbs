@@ -157,7 +157,7 @@
     border-color: rgba(255, 255, 255, 0.72);
     box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.06);
   }
-  #create-button, .send, #add-bot, #bot-save {
+  #create-button, .send, #bot-save {
     border: 0;
     background: #fff;
     color: #0a0a0a;
@@ -170,8 +170,8 @@
     padding: 14px 18px;
     letter-spacing: -0.01em;
   }
-  #create-button:hover, #add-bot:hover, #bot-save:hover, .send:hover { background: #eceeed; }
-  #create-button:focus-visible, .send:focus-visible, #add-bot:focus-visible, #bot-save:focus-visible, #bot-cancel:focus-visible { outline-offset: 3px; }
+  #create-button:hover, #bot-save:hover, .send:hover { background: #eceeed; }
+  #create-button:focus-visible, .send:focus-visible, #add-bot:focus-visible, #bot-save:focus-visible, #bot-cancel:focus-visible, #bot-delete:focus-visible { outline-offset: 3px; }
 
   main {
     display: none;
@@ -202,18 +202,6 @@
     letter-spacing: -0.03em;
     line-height: 1.1;
   }
-  .version {
-    margin-left: auto;
-    color: var(--muted);
-    font-family: var(--mono);
-    font-size: 11px;
-    letter-spacing: 0.02em;
-    font-variant-numeric: tabular-nums;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    padding: 3px 8px;
-    line-height: 1.4;
-  }
   .side-head {
     display: flex;
     align-items: center;
@@ -227,26 +215,6 @@
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-  }
-  #roster-peers {
-    margin-left: auto;
-    display: inline-flex;
-    align-items: center;
-    border: 1px solid var(--line-strong);
-    background: rgba(255, 255, 255, 0.03);
-    color: var(--text);
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-    border-radius: 999px;
-    padding: 4px 10px;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  }
-  #roster-peers:hover { background: var(--fill); }
-  #roster-peers[aria-expanded="true"] {
-    background: #fff;
-    color: #0a0a0a;
-    border-color: #fff;
   }
   #bots {
     flex: 1;
@@ -334,10 +302,19 @@
   .row .name { font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; }
   .row .sub { color: var(--muted); font-size: 13px; line-height: 1.3; }
   #add-bot {
-    margin: 4px 12px 12px;
-    border-radius: 999px;
-    padding: 10px 16px;
+    margin: 0 0 0 auto;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
   }
+  #add-bot:hover { color: var(--text); background: var(--fill); }
+  #add-bot svg { display: block; }
   .side-foot { border-top: 1px solid var(--line); padding: 8px 8px 12px; }
   #settings-toggle {
     width: 100%;
@@ -784,6 +761,8 @@
   #bot-dialog-error { color: var(--danger); margin: 8px 0 0; font-size: 13px; }
   #bot-dialog-error:empty { display: none; }
   .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  #bot-delete { margin-right: auto; background: transparent; border: 0; color: var(--muted); font-weight: 600; padding: 8px 4px; }
+  #bot-delete:hover { color: var(--text); }
   #bot-cancel, #bot-save { border-radius: 999px; padding: 8px 16px; }
   #bot-cancel { background: transparent; border: 1px solid var(--line-strong); color: var(--text); font-weight: 600; }
   #bot-cancel:hover { background: var(--fill); }
@@ -816,7 +795,7 @@
   <div class="card">
     <div class="glow setup-glow"><img class="setup-mark" src="/logo.png" alt="Pi Orbs"></div>
     <h1>Pi Orbs</h1>
-    <p id="setup-copy">Name the computer and choose a connector. Nothing else runs until that sprite is up.</p>
+    <p id="setup-copy">Name your Fly Sprite and choose your Model Provider.</p>
     <form id="create-sprite">
       <label class="setup-field" for="sprite-name">
         <span>Sprite name</span>
@@ -848,14 +827,16 @@
     <div class="brand">
       <div class="glow brand-glow"><img class="mark" src="/logo.png" alt=""></div>
       <strong>Pi Orbs</strong>
-      <span id="version" class="version"></span>
     </div>
     <div class="side-head">
       <div class="side-label">Bots</div>
-      <button id="roster-peers" type="button" data-peers-toggle aria-expanded="false" aria-controls="peers" disabled>Peers</button>
+      <button id="add-bot" type="button" aria-label="Add">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
     </div>
     <div id="bots"></div>
-    <button id="add-bot" type="button">Add</button>
     <div class="side-foot">
       <button id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings">Settings</button>
       <div id="settings">
@@ -938,6 +919,7 @@
     </fieldset>
     <p id="bot-dialog-error" role="alert"></p>
     <div class="dialog-actions">
+      <button id="bot-delete" type="button" hidden>Delete</button>
       <button id="bot-cancel" type="button">Cancel</button>
       <button id="bot-save" type="submit">Create</button>
     </div>
@@ -1068,11 +1050,10 @@ function setSimulator(on) {
 async function refreshHome() {
   const body = await api("/api/sprites");
   setSimulator(body.simulator === true);
-  document.querySelector("#version").textContent = body.localVersion;
   if (!body.sprite) {
     state.sprite = null;
     state.bot = null;
-    showSetup("Name the computer and choose a connector. Nothing else runs until that sprite is up.");
+    showSetup("Name your Fly Sprite and choose your Model Provider.");
     if (connectorPresets.length) {
       connectorSelect.value = presetById("xai") ? "xai" : connectorPresets[0].id;
       applyPreset(true);
@@ -1099,7 +1080,7 @@ async function refreshBots(sprite) {
   const meta = document.querySelector("#sprite-meta");
   const box = document.querySelector("#bots");
   const body = sprite && sprite.bots ? sprite : await api("/api/sprites/" + state.sprite);
-  meta.textContent = body.url + "\nrunning " + (body.remoteVersion || "nothing") + (body.update ? " · update available" : "");
+  meta.textContent = body.url + (body.update ? "\nupdate available" : "");
   const bots = body.bots || [];
   state.bots = bots;
   if (!state.bot && bots[0]) state.bot = bots[0].id;
@@ -1132,7 +1113,7 @@ async function refreshBots(sprite) {
     edit.className = "row-edit";
     edit.setAttribute("aria-label", "Edit " + bot.name);
     edit.dataset.id = bot.id;
-    edit.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6.1 6.1l1.5 1.5M16.4 16.4l1.5 1.5M17.9 6.1l-1.5 1.5M7.6 16.4l-1.5 1.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+    edit.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 8h9M17 8h3M4 16h5M13 16h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="15" cy="8" r="2.1" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="11" cy="16" r="2.1" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>';
     edit.onclick = () => openBotDialog(bot);
     row.append(open, edit);
     box.appendChild(row);
@@ -1456,6 +1437,7 @@ function openBotDialog(bot) {
     ? "Update the name, instruction, or glass orb. Leave the instruction empty to clear it."
     : "Name it, give it an instruction, and choose a glass orb. The instruction can be empty.";
   document.querySelector("#bot-save").textContent = bot ? "Save" : "Create";
+  document.querySelector("#bot-delete").hidden = !bot;
   botName.value = bot ? bot.name : "";
   botInstruction.value = bot && bot.instruction ? bot.instruction : "";
   botName.setCustomValidity("");
@@ -1482,6 +1464,28 @@ botDialog.addEventListener("close", () => {
 });
 document.querySelector("#bot-cancel").onclick = () => {
   if (!dialogSaving) botDialog.close();
+};
+document.querySelector("#bot-delete").onclick = async () => {
+  if (dialogSaving || botDialog.dataset.mode !== "edit" || !state.sprite) return;
+  const id = botDialog.dataset.id;
+  const name = botName.value.trim() || "this bot";
+  if (!confirm("Delete " + name + "?")) return;
+  const button = document.querySelector("#bot-delete");
+  dialogSaving = true;
+  button.disabled = true;
+  botError.textContent = "";
+  try {
+    await api("/api/sprites/" + state.sprite + "/bots/" + id, { method: "DELETE" });
+    if (state.bot === id) state.bot = null;
+    dialogOpener = null;
+    botDialog.close();
+    await refreshBots();
+  } catch (error) {
+    botError.textContent = error.message;
+  } finally {
+    dialogSaving = false;
+    button.disabled = false;
+  }
 };
 document.querySelector("#add-bot").onclick = () => openBotDialog(null);
 botForm.onsubmit = async (event) => {
@@ -1526,7 +1530,6 @@ botForm.onsubmit = async (event) => {
   }
 };
 document.querySelector("#peers-toggle").onclick = () => setPeersOpen(!state.peersOpen, document.querySelector("#peers-toggle"));
-document.querySelector("#roster-peers").onclick = () => setPeersOpen(!state.peersOpen, document.querySelector("#roster-peers"));
 document.querySelector("#peers-close").onclick = () => setPeersOpen(false, document.querySelector("#peers-toggle"));
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape" || !state.peersOpen || botDialog.open) return;

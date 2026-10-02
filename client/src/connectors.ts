@@ -1,12 +1,7 @@
 export const CONNECTORS = [
   { id: "xai", label: "xAI", baseApiUrl: "https://api.x.ai/v1", model: "grok-4.7", connectionName: "pi-orbs xAI" },
   { id: "openai", label: "OpenAI", baseApiUrl: "https://api.openai.com/v1", model: "gpt-4o", connectionName: "pi-orbs OpenAI" },
-  { id: "openrouter", label: "OpenRouter", baseApiUrl: "https://openrouter.ai/api/v1", model: "openai/gpt-4o", connectionName: "pi-orbs OpenRouter" },
-  { id: "groq", label: "Groq", baseApiUrl: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile", connectionName: "pi-orbs Groq" },
-  { id: "together", label: "Together AI", baseApiUrl: "https://api.together.ai/v1", model: "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo", connectionName: "pi-orbs Together AI" },
-  { id: "deepseek", label: "DeepSeek", baseApiUrl: "https://api.deepseek.com", model: "deepseek-chat", connectionName: "pi-orbs DeepSeek" },
-  { id: "mistral", label: "Mistral", baseApiUrl: "https://api.mistral.ai/v1", model: "mistral-large-latest", connectionName: "pi-orbs Mistral" },
-  { id: "fireworks", label: "Fireworks", baseApiUrl: "https://api.fireworks.ai/inference/v1", model: "accounts/fireworks/models/llama-v3p1-70b-instruct", connectionName: "pi-orbs Fireworks" },
+  { id: "anthropic", label: "Anthropic", baseApiUrl: "https://api.anthropic.com", model: "claude-sonnet-5", connectionName: "pi-orbs Anthropic" },
   { id: "custom", label: "Custom", baseApiUrl: "", model: "", connectionName: "" },
 ] as const;
 
@@ -57,8 +52,10 @@ export function connectionName(type: ConnectorId, baseApiUrl: string): string {
   return `pi-orbs custom ${baseApiUrl}`;
 }
 
-export function providerApi(type: ConnectorId): "openai-responses" | "openai-completions" {
-  return type === "xai" ? "openai-responses" : "openai-completions";
+export function providerApi(type: ConnectorId): "openai-responses" | "openai-completions" | "anthropic-messages" {
+  if (type === "xai") return "openai-responses";
+  if (type === "anthropic") return "anthropic-messages";
+  return "openai-completions";
 }
 
 function isHttpUrl(value: string): boolean {
