@@ -93,7 +93,7 @@ The open thread does not treat those rows as human messages. `GET /api/bots/:id`
 
 A bot can send the same steer itself. The `peers` extension adds a `steer_peer` tool (name or id, plus content) and a system section that lists the other bots. The tool uses the same server path and a request id tied to the tool call, so a replay after a crash does not send twice.
 
-The local simulator has no Pi harness, so it does not call `submit`. It stores the same ledger row, with a `local-` submission id, and leaves both bots’ message lists unchanged. That is the stand-in for the steer, not a pasted chat line.
+The local simulator has no Pi harness, so it does not call `submit`. It stores the same ledger row, with a `local-` submission id, keeps the latest 1000 rows, and leaves both bots’ message lists unchanged. That is the stand-in for the steer, not a pasted chat line.
 
 **Settings → Download all conversations** asks the sprite for `GET /api/export` (the same Bearer secret as the other bot routes) and downloads a `.zip`. The client writes the zip from that payload. Local simulator mode builds the same zip from the in-memory threads. An older sprite server does not have `/api/export` until **Push server build**.
 

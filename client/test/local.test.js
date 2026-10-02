@@ -140,43 +140,111 @@ test("an empty roster is a zip that says there are no conversations", async () =
   });
   assert.equal(archive.filename, "pi-orbs-atlas-conversations-2026-03-02.zip");
   const files = await unzip(archive.zip);
+  assert.deepEqual(Object.keys(files).sort(), ["README.txt", "manifest.json"]);
+  assert.match(files["README.txt"], /pi-orbs-conversations version 1/);
   assert.match(files["README.txt"], /no conversations/);
+  assert.match(files["README.txt"], /Import is not supported/);
+  assert.match(files["README.txt"], /API keys and connector credentials are not included/);
   const manifest = JSON.parse(files["manifest.json"]);
   assert.equal(manifest.format, "pi-orbs-conversations");
   assert.equal(manifest.formatVersion, 1);
+  assert.equal(manifest.sprite, "atlas");
+  assert.equal(manifest.exportedAt, "2026-03-02T15:04:00.000Z");
   assert.deepEqual(manifest.bots, []);
   assert.match(manifest.note, /no conversations/);
-  assert.equal(Object.keys(files).some((name) => name.startsWith("bots/")), false);
+  const packed = JSON.stringify(files);
+  for (const hidden of ["apiKey", "xaiKey", "connectorId", "PI_API_SECRET", "XAI_API_KEY", "OPENAI_API_KEY"]) {
+    assert.equal(packed.includes(hidden), false, hidden);
+  }
 });
 
-test("the zip redacts api keys and connector secrets from transcript text", async () => {
+test("a multi-bot zip is pi-orbs-conversations v1 and redacts secrets in every transcript", async () => {
   const secret = "pi-orbs-test-secret";
+  const connector = "https://api.sprites.dev/v1/gateway/custom_api/conn-12345678";
   const archive = conversationsArchive({
     sprite: "atlas",
     exportedAt: "2026-03-02T15:04:00.000Z",
-    bots: [{
-      id: "ada",
-      name: "Ada",
-      conversationId: "ada",
-      instruction: `keep ${secret} private`,
-      look: "tide",
-      messages: [{
-        id: "m1",
-        kind: "pi.user",
-        text: `token ${secret} end`,
-        createdAt: "2026-03-02T15:04:00.000Z",
-      }],
-    }],
-  }, [secret, "https://api.sprites.dev/v1/gateway/custom_api/conn-12345678"]);
+    bots: [
+      {
+        id: "ada",
+        name: "Ada",
+        conversationId: "ada",
+        instruction: `keep ${secret} private`,
+        look: "tide",
+        messages: [{
+          id: "m1",
+          kind: "pi.user",
+          text: `token ${secret} end`,
+          createdAt: "2026-03-02T15:04:00.000Z",
+        }, {
+          id: "m2",
+          kind: "pi.assistant",
+          text: "Noted.",
+          createdAt: "2026-03-02T15:05:00.000Z",
+        }],
+      },
+      {
+        id: "kepler",
+        name: "Kepler",
+        conversationId: "kepler",
+        instruction: "Answer briefly.",
+        look: "pine",
+        messages: [{
+          id: "m3",
+          kind: "pi.user",
+          text: `gateway ${connector} stays out`,
+          createdAt: "2026-03-02T15:06:00.000Z",
+        }],
+      },
+    ],
+  }, [secret, connector]);
+  assert.equal(archive.filename, "pi-orbs-atlas-conversations-2026-03-02.zip");
   const files = await unzip(archive.zip);
+  assert.deepEqual(Object.keys(files).sort(), ["README.txt", "bots/ada.json", "bots/kepler.json", "manifest.json"]);
+  assert.match(files["README.txt"], /pi-orbs-conversations version 1/);
   const packed = JSON.stringify(files);
   assert.equal(packed.includes(secret), false);
   assert.equal(packed.includes("conn-12345678"), false);
-  const bot = JSON.parse(files["bots/ada.json"]);
-  assert.equal(bot.instruction, "keep [redacted] private");
-  assert.equal(bot.messages[0].text, "token [redacted] end");
-  assert.equal(bot.id, "ada");
-  assert.equal(bot.name, "Ada");
+  const manifest = JSON.parse(files["manifest.json"]);
+  assert.equal(manifest.format, "pi-orbs-conversations");
+  assert.equal(manifest.formatVersion, 1);
+  assert.equal(manifest.sprite, "atlas");
+  assert.equal(manifest.exportedAt, "2026-03-02T15:04:00.000Z");
+  assert.equal(manifest.note, undefined);
+  assert.deepEqual(manifest.bots, [
+    {
+      id: "ada",
+      name: "Ada",
+      conversationId: "ada",
+      instruction: "keep [redacted] private",
+      look: "tide",
+      file: "bots/ada.json",
+      messageCount: 2,
+      firstMessageAt: "2026-03-02T15:04:00.000Z",
+      lastMessageAt: "2026-03-02T15:05:00.000Z",
+    },
+    {
+      id: "kepler",
+      name: "Kepler",
+      conversationId: "kepler",
+      instruction: "Answer briefly.",
+      look: "pine",
+      file: "bots/kepler.json",
+      messageCount: 1,
+      firstMessageAt: "2026-03-02T15:06:00.000Z",
+      lastMessageAt: "2026-03-02T15:06:00.000Z",
+    },
+  ]);
+  const ada = JSON.parse(files["bots/ada.json"]);
+  assert.deepEqual(Object.keys(ada).sort(), ["conversationId", "id", "instruction", "look", "messages", "name"]);
+  assert.equal(ada.instruction, "keep [redacted] private");
+  assert.deepEqual(ada.messages, [
+    { id: "m1", kind: "pi.user", text: "token [redacted] end", createdAt: "2026-03-02T15:04:00.000Z" },
+    { id: "m2", kind: "pi.assistant", text: "Noted.", createdAt: "2026-03-02T15:05:00.000Z" },
+  ]);
+  const kepler = JSON.parse(files["bots/kepler.json"]);
+  assert.equal(kepler.messages[0].text, "gateway [redacted] stays out");
+  assert.equal(kepler.look, "pine");
 });
 
 describe("local simulator API", { concurrency: 1 }, () => {
@@ -188,25 +256,31 @@ describe("local simulator API", { concurrency: 1 }, () => {
     const peers = await fetch(`${session.base}/api/sprites/atlas/bots/ada/peers`);
     assert.equal(peers.status, 200);
     const list = (await peers.json()).peers;
-    assert.deepEqual(list.map((item) => ({ from: item.from, to: item.to, fromName: item.fromName, toName: item.toName, content: item.content, delivery: item.delivery })), [
+    assert.deepEqual(list, [
       {
+        id: "peer-sample-1",
         from: "ada",
         to: "kepler",
         fromName: "Ada",
         toName: "Kepler",
         content: "The status line is in status.html. Same muted gray as the roster.",
+        submissionId: "local-peer-sample-1",
+        createdAt: "2026-03-02T15:06:00.000Z",
         delivery: "steer",
       },
       {
+        id: "peer-sample-2",
         from: "kepler",
         to: "ada",
         fromName: "Kepler",
         toName: "Ada",
         content: "I see it. The work directory is shared, so that file is on my disk too.",
+        submissionId: "local-peer-sample-2",
+        createdAt: "2026-03-02T15:07:00.000Z",
         delivery: "steer",
       },
     ]);
-    assert.equal(typeof list[0].createdAt, "string");
+    assert.equal(list.every((item) => item.entryId === undefined && item.requestId === undefined), true);
     const nova = await fetch(`${session.base}/api/sprites/atlas/bots/nova/peers`);
     assert.deepEqual((await nova.json()).peers, []);
     const activity = await fetch(`${session.base}/api/sprites/atlas/activity`);
@@ -265,10 +339,32 @@ describe("local simulator API", { concurrency: 1 }, () => {
     assert.match(response.headers.get("content-disposition") ?? "", /pi-orbs-atlas-conversations-/);
     const files = await unzip(await response.arrayBuffer());
     assert.match(files["README.txt"], /pi-orbs-conversations version 1/);
+    assert.match(files["README.txt"], /API keys and connector credentials are not included/);
     const manifest = JSON.parse(files["manifest.json"]);
     assert.equal(manifest.format, "pi-orbs-conversations");
+    assert.equal(manifest.formatVersion, 1);
     assert.equal(manifest.sprite, "atlas");
+    assert.equal(manifest.note, undefined);
     assert.deepEqual(manifest.bots.map((bot) => bot.id), ["ada", "kepler", "nova"]);
+    for (const summary of manifest.bots) {
+      assert.equal(summary.file, `bots/${summary.id}.json`);
+      assert.equal(typeof summary.name, "string");
+      assert.equal(summary.conversationId, summary.id);
+      assert.equal(typeof summary.instruction, "string");
+      assert.equal(typeof summary.look, "string");
+      assert.equal(typeof summary.messageCount, "number");
+      assert.equal(Number.isNaN(Date.parse(summary.firstMessageAt)), false);
+      assert.equal(Number.isNaN(Date.parse(summary.lastMessageAt)), false);
+      const transcript = JSON.parse(files[summary.file]);
+      assert.deepEqual(Object.keys(transcript).sort(), ["conversationId", "id", "instruction", "look", "messages", "name"]);
+      assert.equal(transcript.messages.length, summary.messageCount);
+      assert.equal(transcript.messages[0].createdAt, summary.firstMessageAt);
+      assert.equal(transcript.messages.at(-1).createdAt, summary.lastMessageAt);
+      for (const message of transcript.messages) {
+        assert.deepEqual(Object.keys(message).sort(), ["createdAt", "id", "kind", "text"]);
+        assert.ok(message.kind === "pi.user" || message.kind === "pi.assistant");
+      }
+    }
     const ada = JSON.parse(files["bots/ada.json"]);
     assert.equal(ada.name, "Ada");
     assert.equal(ada.conversationId, "ada");
@@ -285,6 +381,8 @@ describe("local simulator API", { concurrency: 1 }, () => {
     const nova = JSON.parse(files["bots/nova.json"]);
     assert.equal(nova.name, "Nova");
     const packed = JSON.stringify(files);
+    assert.equal(packed.includes("The status line is in status.html"), false);
+    assert.equal(packed.includes("so that file is on my disk too"), false);
     for (const hidden of ["apiKey", "xaiKey", "connectorId", "PI_API_SECRET", "XAI_API_KEY", "OPENAI_API_KEY"]) {
       assert.equal(packed.includes(hidden), false, hidden);
     }
@@ -476,6 +574,7 @@ describe("local simulator API", { concurrency: 1 }, () => {
     });
     assert.equal(created.status, 201);
     const bot = await created.json();
+    assert.deepEqual(Object.keys(bot).sort(), ["conversationId", "id", "instruction", "look", "name"]);
     assert.equal(bot.name, "Scribe");
     assert.equal(bot.instruction, "Write commit messages.");
     assert.equal(bot.look, "plum");
@@ -487,6 +586,14 @@ describe("local simulator API", { concurrency: 1 }, () => {
       body: JSON.stringify({ instruction: "no name" }),
     });
     assert.equal(unnamed.status, 400);
+    assert.equal((await unnamed.json()).error, "name is required");
+
+    const blankName = await fetch(`${session.base}/api/sprites/atlas/bots`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "   " }),
+    });
+    assert.equal(blankName.status, 400);
 
     const badLook = await fetch(`${session.base}/api/sprites/atlas/bots`, {
       method: "POST",
@@ -494,6 +601,31 @@ describe("local simulator API", { concurrency: 1 }, () => {
       body: JSON.stringify({ name: "Nope", look: "rainbow" }),
     });
     assert.equal(badLook.status, 400);
+    assert.equal((await badLook.json()).error, "look is not recognized");
+
+    const longName = await fetch(`${session.base}/api/sprites/atlas/bots`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "n".repeat(81) }),
+    });
+    assert.equal(longName.status, 400);
+    assert.equal((await longName.json()).error, "name is too long");
+
+    const longInstruction = await fetch(`${session.base}/api/sprites/atlas/bots`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Nope", instruction: "i".repeat(8001) }),
+    });
+    assert.equal(longInstruction.status, 400);
+    assert.equal((await longInstruction.json()).error, "instruction is too long");
+
+    const badInstruction = await fetch(`${session.base}/api/sprites/atlas/bots`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Nope", instruction: 12 }),
+    });
+    assert.equal(badInstruction.status, 400);
+    assert.equal((await badInstruction.json()).error, "instruction must be a string");
 
     const defaults = await fetch(`${session.base}/api/sprites/atlas/bots`, {
       method: "POST",
@@ -504,6 +636,19 @@ describe("local simulator API", { concurrency: 1 }, () => {
     const plain = await defaults.json();
     assert.equal(plain.instruction, "");
     assert.equal(plain.look, "slate");
+
+    const trimmedName = "n".repeat(80);
+    const fullInstruction = "i".repeat(8000);
+    const bounded = await fetch(`${session.base}/api/sprites/atlas/bots`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: `  ${trimmedName}  `, instruction: fullInstruction, look: "clay" }),
+    });
+    assert.equal(bounded.status, 201);
+    const boundedBot = await bounded.json();
+    assert.equal(boundedBot.name, trimmedName);
+    assert.equal(boundedBot.instruction, fullInstruction);
+    assert.equal(boundedBot.look, "clay");
 
     const patched = await fetch(`${session.base}/api/sprites/atlas/bots/${bot.id}`, {
       method: "PATCH",
@@ -522,6 +667,12 @@ describe("local simulator API", { concurrency: 1 }, () => {
     assert.equal(threadBody.bot.look, "mist");
     assert.equal(threadBody.bot.instruction, "");
 
+    const rosterAfter = await fetch(`${session.base}/api/sprites/atlas`);
+    const listed = (await rosterAfter.json()).bots.find((item) => item.id === bot.id);
+    assert.equal(listed.name, "Scribe 2");
+    assert.equal(listed.instruction, "");
+    assert.equal(listed.look, "mist");
+
     const rejected = await fetch(`${session.base}/api/sprites/atlas/bots/${bot.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -530,6 +681,25 @@ describe("local simulator API", { concurrency: 1 }, () => {
     assert.equal(rejected.status, 400);
     const unchanged = await fetch(`${session.base}/api/sprites/atlas/bots/${bot.id}`);
     assert.equal((await unchanged.json()).bot.look, "mist");
+
+    const emptyPatch = await fetch(`${session.base}/api/sprites/atlas/bots/${bot.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    assert.equal(emptyPatch.status, 400);
+    assert.equal((await emptyPatch.json()).error, "nothing to update");
+
+    const nameOnly = await fetch(`${session.base}/api/sprites/atlas/bots/${bot.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "  Scribe 3  " }),
+    });
+    assert.equal(nameOnly.status, 200);
+    const renamed = await nameOnly.json();
+    assert.equal(renamed.name, "Scribe 3");
+    assert.equal(renamed.instruction, "");
+    assert.equal(renamed.look, "mist");
   });
 
   test("two bots exchange steered messages outside the open thread", async () => {
@@ -551,17 +721,22 @@ describe("local simulator API", { concurrency: 1 }, () => {
     const toKepler = await fetch(`${session.base}/api/sprites/atlas/bots/kepler/steer`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ from: "ada", content: "token-ada-to-kepler" }),
+      body: JSON.stringify({ from: " ada ", content: "  token-ada-to-kepler  " }),
     });
     assert.equal(toKepler.status, 202);
     const steerBody = await toKepler.json();
+    assert.deepEqual(Object.keys(steerBody).sort(), ["content", "createdAt", "delivery", "from", "fromName", "id", "submissionId", "to", "toName"]);
     assert.equal(steerBody.from, "ada");
     assert.equal(steerBody.to, "kepler");
     assert.equal(steerBody.fromName, "Ada");
     assert.equal(steerBody.toName, "Kepler");
     assert.equal(steerBody.content, "token-ada-to-kepler");
     assert.equal(steerBody.delivery, "steer");
-    assert.match(steerBody.submissionId, /^local-peer-/);
+    assert.equal(steerBody.entryId, undefined);
+    assert.equal(steerBody.requestId, undefined);
+    assert.match(steerBody.id, /^peer-/);
+    assert.equal(steerBody.submissionId, `local-${steerBody.id}`);
+    assert.equal(Number.isNaN(Date.parse(steerBody.createdAt)), false);
     const working = await fetch(`${session.base}/api/sprites/atlas/activity`);
     assert.equal(working.status, 200);
     assert.deepEqual(await working.json(), { busy: ["kepler"] });
@@ -588,7 +763,31 @@ describe("local simulator API", { concurrency: 1 }, () => {
     const keplerList = (await keplerPeers.json()).peers;
     assert.deepEqual(adaList.map((item) => item.content), ["token-ada-to-kepler", "token-kepler-to-ada"]);
     assert.deepEqual(keplerList.map((item) => item.content), ["token-ada-to-kepler", "token-kepler-to-ada"]);
-    assert.equal(adaList.every((item) => item.delivery === "steer"), true);
+    assert.equal(adaList.every((item) => item.delivery === "steer" && item.entryId === undefined && item.requestId === undefined), true);
+    for (const item of adaList) {
+      assert.deepEqual(Object.keys(item).sort(), ["content", "createdAt", "delivery", "from", "fromName", "id", "submissionId", "to", "toName"]);
+    }
+    const novaPeers = await fetch(`${session.base}/api/sprites/atlas/bots/nova/peers`);
+    assert.deepEqual((await novaPeers.json()).peers, []);
+
+    const renameAda = await fetch(`${session.base}/api/sprites/atlas/bots/ada`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Ada Prime" }),
+    });
+    assert.equal(renameAda.status, 200);
+    const renameKepler = await fetch(`${session.base}/api/sprites/atlas/bots/kepler`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Kepler Prime" }),
+    });
+    assert.equal(renameKepler.status, 200);
+    const frozen = await fetch(`${session.base}/api/sprites/atlas/bots/kepler/peers`);
+    const frozenList = (await frozen.json()).peers;
+    assert.deepEqual(frozenList.map((item) => ({ fromName: item.fromName, toName: item.toName, content: item.content })), [
+      { fromName: "Ada", toName: "Kepler", content: "token-ada-to-kepler" },
+      { fromName: "Kepler", toName: "Ada", content: "token-kepler-to-ada" },
+    ]);
 
     const noted = await fetch(`${session.base}/api/sprites/atlas/bots/ada/messages`, {
       method: "POST",
@@ -618,6 +817,55 @@ describe("local simulator API", { concurrency: 1 }, () => {
       body: JSON.stringify({ from: "ada", content: "   " }),
     });
     assert.equal(empty.status, 400);
+    assert.equal((await empty.json()).error, "content is required");
+    const missingFrom = await fetch(`${session.base}/api/sprites/atlas/bots/kepler/steer`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: "no sender" }),
+    });
+    assert.equal(missingFrom.status, 400);
+    assert.equal((await missingFrom.json()).error, "from is required");
+    const tooLong = await fetch(`${session.base}/api/sprites/atlas/bots/kepler/steer`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ from: "ada", content: "x".repeat(8001) }),
+    });
+    assert.equal(tooLong.status, 400);
+    assert.equal((await tooLong.json()).error, "content is too long");
+    const unknownPeers = await fetch(`${session.base}/api/sprites/atlas/bots/missing/peers`);
+    assert.equal(unknownPeers.status, 404);
+    const afterRejects = await fetch(`${session.base}/api/sprites/atlas/bots/ada/peers`);
+    assert.equal((await afterRejects.json()).peers.length, 2);
+  });
+
+  test("the peer ledger keeps the latest 1000 steers", async () => {
+    const seeded = await fetch(`${session.base}/api/sprites`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "atlas", apiKey: "local-simulator-test" }),
+    });
+    assert.equal(seeded.status, 201);
+    const cleared = await fetch(`${session.base}/api/sprites/atlas/bots/ada/peers`);
+    assert.deepEqual((await cleared.json()).peers, []);
+
+    for (let n = 0; n < 1001; n += 1) {
+      const response = await fetch(`${session.base}/api/sprites/atlas/bots/kepler/steer`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ from: "ada", content: `steer-${n}` }),
+      });
+      assert.equal(response.status, 202);
+    }
+    const listed = await fetch(`${session.base}/api/sprites/atlas/bots/ada/peers`);
+    assert.equal(listed.status, 200);
+    const peers = (await listed.json()).peers;
+    assert.equal(peers.length, 1000);
+    assert.equal(peers[0].content, "steer-1");
+    assert.equal(peers.at(-1).content, "steer-1000");
+    assert.equal(peers.some((item) => item.content === "steer-0"), false);
+    assert.equal(peers.every((item) => item.delivery === "steer" && item.from === "ada" && item.to === "kepler"), true);
+    const thread = await fetch(`${session.base}/api/sprites/atlas/bots/kepler`);
+    assert.equal(JSON.stringify((await thread.json()).messages).includes("steer-1000"), false);
   });
 });
 

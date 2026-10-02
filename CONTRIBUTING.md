@@ -38,7 +38,7 @@ npm test
 
 `npm test` at the repo root runs the client simulator tests, then the server package tests. Both use Node's built-in test runner. No sprite CLI and no xAI key.
 
-The client tests call the in-memory simulator in `client/src/local.ts` over HTTP. They check the seeded sprite `atlas` and `localVersion`, the bots Ada, Kepler, and Nova, the seeded thread, a zip of those conversations, a canned assistant reply, creating a bot, instruction and look on create and edit, connector presets and the shared model, and stubbed deploy and destroy. Deploy and destroy do not write `~/.pi-orbs/state.json`. After destroy, the sprite is gone, and create reseeds it. Node 20 can run these on their own:
+The client tests call the in-memory simulator in `client/src/local.ts` over HTTP. They check the seeded sprite `atlas` and `localVersion`, the bots Ada, Kepler, and Nova, the seeded thread, a zip of those conversations (`pi-orbs-conversations` version 1, including an empty roster and several bots, with secrets redacted), a canned assistant reply, creating a bot, name, instruction, and look on create and edit, peer steers and the Peers row, connector presets and the shared model, and stubbed deploy and destroy. Deploy and destroy do not write `~/.pi-orbs/state.json`. After destroy, the sprite is gone, and create reseeds it. Node 20 can run these on their own:
 
 ```bash
 npm test --prefix client
