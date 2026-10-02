@@ -8,6 +8,7 @@ const LOOKS = ["slate", "silver", "mist", "tide", "pine", "amber", "clay", "plum
 const NAME_MAX = 80;
 const INSTRUCTION_MAX = 8_000;
 const PEER_CONTENT_MAX = 8_000;
+const PEER_LEDGER_MAX = 1_000;
 const PEER_BUSY_MS = 12_000;
 
 type Look = (typeof LOOKS)[number];
@@ -21,8 +22,8 @@ type Peer = {
   toName: string;
   content: string;
   submissionId: string;
+  entryId?: string;
   createdAt: string;
-  delivery: "steer";
 };
 type Bot = {
   id: string;
@@ -113,7 +114,6 @@ function samplePeers(): Peer[] {
       content: "The status line is in status.html. Same muted gray as the roster.",
       submissionId: "local-peer-sample-1",
       createdAt: new Date(seedStart + 120_000).toISOString(),
-      delivery: "steer",
     },
     {
       id: "peer-sample-2",
@@ -124,7 +124,6 @@ function samplePeers(): Peer[] {
       content: "I see it. The work directory is shared, so that file is on my disk too.",
       submissionId: "local-peer-sample-2",
       createdAt: new Date(seedStart + 180_000).toISOString(),
-      delivery: "steer",
     },
   ];
 }
@@ -204,6 +203,37 @@ function readFields(body: Record<string, unknown>, mode: "create" | "edit"): Fie
 
 function publicBot(bot: Bot): { id: string; name: string; conversationId: string; instruction: string; look: Look } {
   return { id: bot.id, name: bot.name, conversationId: bot.conversationId, instruction: bot.instruction, look: bot.look };
+}
+
+function publicPeer(record: Peer): {
+  id: string;
+  from: string;
+  to: string;
+  fromName: string;
+  toName: string;
+  content: string;
+  submissionId: string;
+  entryId?: string;
+  createdAt: string;
+  delivery: "steer";
+} {
+  return {
+    id: record.id,
+    from: record.from,
+    to: record.to,
+    fromName: record.fromName,
+    toName: record.toName,
+    content: record.content,
+    submissionId: record.submissionId,
+    ...(record.entryId ? { entryId: record.entryId } : {}),
+    createdAt: record.createdAt,
+    delivery: "steer",
+  };
+}
+
+function rememberPeer(record: Peer): void {
+  peers.push(record);
+  if (peers.length > PEER_LEDGER_MAX) peers = peers.slice(peers.length - PEER_LEDGER_MAX);
 }
 
 function send(res: ServerResponse, status: number, body: unknown): void {
@@ -398,7 +428,7 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
       return;
     }
     if (rest.length === 3 && rest[2] === "peers" && req.method === "GET") {
-      send(res, 200, { peers: peers.filter((item) => item.from === bot.id || item.to === bot.id) });
+      send(res, 200, { peers: peers.filter((item) => item.from === bot.id || item.to === bot.id).map(publicPeer) });
       return;
     }
     if (rest.length === 3 && rest[2] === "messages" && req.method === "POST") {
@@ -448,11 +478,10 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
         content,
         submissionId: `local-${id}`,
         createdAt: new Date().toISOString(),
-        delivery: "steer",
       };
-      peers.push(record);
+      rememberPeer(record);
       bot.busyUntil = Date.now() + PEER_BUSY_MS;
-      send(res, 202, record);
+      send(res, 202, publicPeer(record));
       return;
     }
   }

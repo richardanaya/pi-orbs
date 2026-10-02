@@ -11,7 +11,7 @@ Draft notes for 0.2.0. The package version stays 0.1.0 until that release is cut
 
 ### Added
 
-- Cross-bot traffic inspector. **Peers** opens a panel beside the thread (under it on a narrow window) and lists steers: who sent it, who received it, when, and the message. The open thread stays the conversation with you. A roster orb pulses while that bot is working. The local simulator uses the same panel, including one seeded Ada and Kepler exchange.
+- Cross-bot traffic inspector. **Peers** opens a panel beside the thread (under it on a narrow window) and lists steers: who sent it, who received it, when, and the message. The open thread stays the conversation with you. A roster orb pulses while that bot is working. The local simulator uses the same panel, including one seeded Ada and Kepler exchange. Its ledger keeps the latest 1000 steers, the same cap as the sprite.
 - **Settings → Download all conversations**. One zip of every bot thread as JSON transcripts (id, name, timestamps). API keys and connector credentials are left out. The local simulator returns the seeded threads, or a zip that says there are no conversations when the roster is empty.
 - Cross-bot steering. One bot can steer a message into another bot on the same sprite. The server uses Pi’s `whenBusy: "steer"` submit. The open thread leaves that traffic out. The local simulator records the same exchange.
 - Bot configuration dialog for create and edit: name, instruction, and a glass-orb look. The instruction is stored on the bot and applied to its Pi conversation, including a later edit. The local simulator accepts and returns the same fields.
