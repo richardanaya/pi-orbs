@@ -30,7 +30,7 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
-  button, input { font: inherit; color: inherit; }
+  button, input, select, textarea { font: inherit; color: inherit; }
   button { cursor: pointer; }
   button[disabled] { opacity: 0.4; cursor: default; }
   ::placeholder { color: #7e868e; }
@@ -131,10 +131,17 @@
   .card select, .card input, #send input, #bot-dialog input, #bot-dialog textarea {
     width: 100%;
     border: 1px solid var(--line-strong);
-    background: #000;
+    background-color: #000;
     border-radius: 14px;
     padding: 14px 16px;
     outline: none;
+  }
+  .card select {
+    appearance: none;
+    padding-right: 42px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23f3f4f5' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
   }
   .card input, .card select { margin: 0; }
   .setup-field { display: block; margin: 0 0 10px; text-align: left; }
@@ -146,7 +153,7 @@
     font-weight: 600;
   }
   .card input[readonly] { color: var(--muted); }
-  .card input:focus, #send:focus-within, #bot-dialog input:focus, #bot-dialog textarea:focus {
+  .card input:focus, .card select:focus, #send:focus-within, #bot-dialog input:focus, #bot-dialog textarea:focus {
     border-color: rgba(255, 255, 255, 0.72);
     box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.06);
   }
@@ -223,18 +230,24 @@
   }
   #roster-peers {
     margin-left: auto;
-    border: 0;
-    background: transparent;
-    color: var(--muted);
-    font-size: 11px;
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--line-strong);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text);
+    font-size: 12px;
     font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+    letter-spacing: -0.01em;
     border-radius: 999px;
-    padding: 4px 8px;
+    padding: 4px 10px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   }
-  #roster-peers:hover { color: var(--text); background: var(--fill); }
-  #roster-peers[aria-expanded="true"] { color: var(--text); background: var(--fill-strong); }
+  #roster-peers:hover { background: var(--fill); }
+  #roster-peers[aria-expanded="true"] {
+    background: #fff;
+    color: #0a0a0a;
+    border-color: #fff;
+  }
   #bots {
     flex: 1;
     overflow: auto;
@@ -351,9 +364,9 @@
   #settings-toggle[aria-expanded="true"]::after {
     transform: rotate(225deg) translate(-1px, -1px);
   }
-  #settings { display: none; padding: 4px 8px 2px; }
+  #settings { display: none; padding: 2px 8px 4px; }
   #settings.open { display: block; }
-  #settings p, #sprite-meta {
+  #settings p {
     color: var(--muted);
     font-size: 13px;
     line-height: 1.45;
@@ -365,32 +378,45 @@
     line-height: 1.55;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-    padding: 0 4px;
+    margin: 0 4px 12px;
+    padding: 10px 12px;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.035);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
   #settings .hint { padding: 0 4px; }
   #settings button {
-    margin: 0 8px 8px 0;
+    display: block;
+    width: calc(100% - 8px);
+    margin: 0 4px 8px;
     border-radius: 999px;
-    padding: 8px 12px;
+    padding: 9px 14px;
     background: transparent;
     border: 1px solid var(--line-strong);
     color: var(--text);
     font-size: 13px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   }
   #settings button:hover { background: var(--fill); }
-  #export {
-    display: block;
-    width: 100%;
-    margin: 0 0 8px;
-    text-align: center;
+  #settings button:focus-visible { outline-offset: 2px; }
+  #settings #export {
+    background: #fff;
+    color: #0a0a0a;
+    border-color: #fff;
   }
+  #settings #export:hover { background: #eceeed; }
   #export-status:empty { display: none; }
-  #destroy {
+  #export-status { margin-top: -2px; }
+  #settings #destroy {
     color: var(--danger);
     border-color: rgba(255, 140, 148, 0.4);
     background: rgba(255, 80, 90, 0.06);
   }
-  #destroy:hover { background: rgba(255, 80, 90, 0.12); }
+  #settings #destroy:hover { background: rgba(255, 80, 90, 0.12); }
 
   .thread {
     display: flex;
@@ -581,12 +607,21 @@
     line-height: 1.4;
     font-variant-numeric: tabular-nums;
   }
+  .peer-route .avatar { flex: none; width: 36px; height: 36px; font-size: 14px; }
   .peer-body {
-    margin: 10px 0 0;
+    margin: 12px 0 0;
+    padding: 10px 12px;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     line-height: 1.5;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px 16px 16px 16px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
+  .peers .empty { padding: 12px 8px 28px; }
+  .peers .empty-glow, .peers .empty-mark { width: 56px; height: 56px; }
+  .peers .empty-title { font-size: 18px; }
   .peers-error { color: var(--danger); margin: 8px 0 0; font-size: 13px; }
   .thread-sub { color: var(--muted); font-size: 13px; line-height: 1.3; }
   .thread-sub:empty, .thread-sub[hidden], #thread-avatar[hidden] { display: none; }
@@ -699,7 +734,15 @@
     font-weight: 600;
     letter-spacing: -0.03em;
   }
-  .dialog-copy { margin: 8px 0 18px; color: var(--muted); font-size: 13px; text-wrap: pretty; }
+  .dialog-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 0 0 18px;
+  }
+  .dialog-head .avatar { width: 56px; height: 56px; font-size: 20px; flex: none; }
+  .dialog-intro { min-width: 0; }
+  .dialog-copy { margin: 6px 0 0; color: var(--muted); font-size: 13px; text-wrap: pretty; }
   .field { display: block; margin: 0 0 14px; }
   .field > span, .looks-field legend {
     display: block;
@@ -726,6 +769,7 @@
     cursor: pointer;
   }
   .look .avatar { width: 44px; height: 44px; }
+  .look input:focus-visible { outline: none; }
   .look input:checked + .avatar {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.35),
@@ -733,7 +777,10 @@
       0 0 0 2px #000,
       0 0 0 4px #fff;
   }
-  .look:focus-within .avatar { outline: 2px solid #fff; outline-offset: 4px; }
+  .look:focus-within:not(:has(input:checked)) .avatar {
+    outline: 2px solid #fff;
+    outline-offset: 3px;
+  }
   #bot-dialog-error { color: var(--danger); margin: 8px 0 0; font-size: 13px; }
   #bot-dialog-error:empty { display: none; }
   .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
@@ -816,8 +863,8 @@
         <p class="hint">Downloads a zip of every bot thread: JSON transcripts with id, name, and timestamps. API keys stay on this machine.</p>
         <button id="export" type="button">Download all conversations</button>
         <p id="export-status" class="hint" role="status"></p>
-        <p class="hint">Destroying the sprite deletes its disk, bots, and URL.</p>
         <button id="deploy" type="button">Push server build</button>
+        <p class="hint">Destroying the sprite deletes its disk, bots, and URL.</p>
         <button id="destroy" type="button">Destroy sprite</button>
       </div>
     </div>
@@ -870,8 +917,13 @@
 </main>
 <dialog id="bot-dialog" aria-labelledby="bot-dialog-title">
   <form id="bot-form">
-    <h2 id="bot-dialog-title">New bot</h2>
-    <p id="bot-dialog-copy" class="dialog-copy">Name it, steer it with an instruction, and choose a glass orb.</p>
+    <div class="dialog-head">
+      <div class="avatar" id="dialog-avatar" aria-hidden="true"></div>
+      <div class="dialog-intro">
+        <h2 id="bot-dialog-title">New bot</h2>
+        <p id="bot-dialog-copy" class="dialog-copy">Name it, give it an instruction, and choose a glass orb.</p>
+      </div>
+    </div>
     <label class="field" for="bot-name">
       <span>Name</span>
       <input id="bot-name" name="name" maxlength="80" autocomplete="off" required>
@@ -1364,7 +1416,11 @@ for (const look of LOOKS) {
   const caption = document.createElement("span");
   caption.className = "sr-only";
   caption.textContent = look.label;
-  input.addEventListener("change", () => { if (input.checked) lookName.textContent = look.label; });
+  input.addEventListener("change", () => {
+    if (!input.checked) return;
+    lookName.textContent = "· " + look.label;
+    paintDialogAvatar();
+  });
   label.append(input, face, caption);
   looksBox.append(label);
 }
@@ -1372,10 +1428,24 @@ function selectedLook() {
   const picked = botForm.querySelector('input[name="look"]:checked');
   return picked ? picked.value : "";
 }
+function paintDialogAvatar() {
+  const face = document.querySelector("#dialog-avatar");
+  const name = botName.value.trim();
+  const look = selectedLook();
+  if (!name) {
+    face.textContent = "";
+    face.dataset.look = look;
+    delete face.dataset.tone;
+    face.hidden = false;
+    return;
+  }
+  paintAvatar(face, { name, look });
+}
 function selectLook(id) {
   const match = LOOKS.find((item) => item.id === id) || LOOKS[0];
   for (const input of botForm.querySelectorAll('input[name="look"]')) input.checked = input.value === match.id;
-  lookName.textContent = match.label;
+  lookName.textContent = "· " + match.label;
+  paintDialogAvatar();
 }
 function openBotDialog(bot) {
   dialogOpener = document.activeElement;
@@ -1384,7 +1454,7 @@ function openBotDialog(bot) {
   document.querySelector("#bot-dialog-title").textContent = bot ? "Edit bot" : "New bot";
   document.querySelector("#bot-dialog-copy").textContent = bot
     ? "Update the name, instruction, or glass orb. Leave the instruction empty to clear it."
-    : "Name it, steer it with an instruction, and choose a glass orb. The instruction can be empty.";
+    : "Name it, give it an instruction, and choose a glass orb. The instruction can be empty.";
   document.querySelector("#bot-save").textContent = bot ? "Save" : "Create";
   botName.value = bot ? bot.name : "";
   botInstruction.value = bot && bot.instruction ? bot.instruction : "";
@@ -1395,7 +1465,10 @@ function openBotDialog(bot) {
   botDialog.showModal();
   botName.focus();
 }
-botName.addEventListener("input", () => botName.setCustomValidity(""));
+botName.addEventListener("input", () => {
+  botName.setCustomValidity("");
+  paintDialogAvatar();
+});
 botDialog.addEventListener("cancel", (event) => {
   if (dialogSaving) event.preventDefault();
 });

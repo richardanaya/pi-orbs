@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Draft notes for 0.2.0. The package version stays 0.1.0 until that release is cut. No tag and no npm publish in this change.
+
 ### Added
 
 - Cross-bot traffic inspector. **Peers** opens a panel beside the thread (under it on a narrow window) and lists steers: who sent it, who received it, when, and the message. The open thread stays the conversation with you. A roster orb pulses while that bot is working. The local simulator uses the same panel, including one seeded Ada and Kepler exchange.
@@ -20,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Dialog, Peers, and Settings use the same black glass chrome as the roster and thread. The bot dialog shows the chosen orb. Settings stacks **Download all conversations**, **Push server build**, and **Destroy sprite**. Focus rings stay on the controls. Motion stays limited to the working pulse.
+- README and homepage stills show the current page, including Peers. The public try path remains `npx pi-orbs`. The homepage hero stays the landscape launch video.
 - Brand mark. The app icon, homepage, and README use the white orb with a pi mouth. The Open Graph image is the black lockup of that orb beside the name. Page chrome stays black and white.
 - Client UI. Glass-orb avatars, message bubbles, a quieter composer, brand glow, and an empty thread. Setup, roster, thread, add bot, and Settings behave as before.
 - Homepage at [piorbs.com](https://piorbs.com/). Spacing, type, screenshot frames, a launch video near the top, and an Open Graph image. The public try path is `npx pi-orbs`. Copy stays on Fly.io Sprites and the sprite CLI.
