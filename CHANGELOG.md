@@ -7,27 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Draft notes for 0.2.0. The package version stays 0.1.0 until that release is cut. No tag and no npm publish in this change.
+## [0.2.0] - 2026-10-02
 
 ### Added
 
-- Cross-bot traffic inspector. **Peers** opens a panel beside the thread (under it on a narrow window) and lists steers: who sent it, who received it, when, and the message. The open thread stays the conversation with you. A roster orb pulses while that bot is working. The local simulator uses the same panel, including one seeded Ada and Kepler exchange. Its ledger keeps the latest 1000 steers, the same cap as the sprite.
+- Cross-bot traffic in the open thread. A steer for that bot is a line you can open: who sent it or who received it, the other bot’s face, and the message. A roster orb pulses while that bot is working. The local simulator uses the same lines, including one seeded Ada and Kepler exchange. Its ledger keeps the latest 1000 steers, the same cap as the sprite.
 - **Settings → Download all conversations**. One zip of every bot thread as JSON transcripts (id, name, timestamps). API keys and connector credentials are left out. The local simulator returns the seeded threads, or a zip that says there are no conversations when the roster is empty.
-- Cross-bot steering. One bot can steer a message into another bot on the same sprite. The server uses Pi’s `whenBusy: "steer"` submit. The open thread leaves that traffic out. The local simulator records the same exchange. Every bot’s instructions gain a shared need-to-know rule. A steer chain stops after one forward: hop 3, and a second steer of the same incoming message, are refused.
-- Bot configuration dialog for create and edit: name, instruction, and a glass-orb look. The instruction is stored on the bot and applied to its Pi conversation, including a later edit. The local simulator accepts and returns the same fields.
-- Setup connector types. The default is xAI. OpenAI, Anthropic, and Custom are the other choices. One shared model from that form is what every bot uses. The API key stays in the Sprites connection.
+- Cross-bot steering. One bot can steer a message into another bot on the same sprite. The server uses Pi’s `whenBusy: "steer"` submit. Those steers show in that bot’s thread as a line you can open. The local simulator records the same exchange. Every bot’s instructions gain a shared need-to-know rule. A steer chain stops after one forward: hop 3, and a second steer of the same incoming message, are refused.
+- Bot configuration dialog for create and edit: name, instruction, and a glass-orb look. The instruction is stored on the bot and applied to its Pi conversation, including a later edit. **Delete** in the edit dialog removes that bot. The local simulator accepts and returns the same fields.
+- Setup connector types, limited to xAI, OpenAI, Anthropic, and Custom. The default is xAI. One shared model from that form is what every bot uses. The API key stays in the Sprites connection.
 - Local simulator API tests in `client/test`. Root `npm test` runs them before the server tests. CI runs them on Node 20 and, with the server tests, on Node 22. No sprite CLI and no xAI key.
 - A Local simulator badge on the client page when local mode is on. The Sprite-backed client does not show it.
 - [Architecture](docs/architecture.md): client and Sprite, `~/.pi-orbs/state.json`, the xAI connector, shared `/home/sprite/work`, and troubleshooting. The README links to it.
 
 ### Changed
 
-- Dialog, Peers, and Settings use the same black glass chrome as the roster and thread. The bot dialog shows the chosen orb. Settings stacks **Download all conversations**, **Push server build**, and **Destroy sprite**. Focus rings stay on the controls. Motion stays limited to the working pulse.
-- README and homepage stills show the current page, including Peers. The public try path remains `npx pi-orbs`. The homepage hero stays the landscape launch video.
+- Dialog and Settings use the same black glass chrome as the roster and thread. The bot dialog shows the chosen orb. Settings stacks **Download all conversations**, **Push server build**, and **Destroy sprite**. Focus rings stay on the controls. Motion stays limited to the working pulse.
+- Roster. The version and the Peers button are hidden. **Add** is a plus on the right. Faces are flat pi marks in the bot’s color. The site favicon is the current orb.
+- Homepage on a phone. The header is one row: the mark, Pi Orbs, and Menu. The hero is the landscape launch video in a 16:9 frame, so the video controls cannot stretch it.
+- README and homepage stills show the page, including Peers. The public try path remains `npx pi-orbs`.
 - Brand mark. The app icon, homepage, and README use the white orb with a pi mouth. The Open Graph image is the black lockup of that orb beside the name. Page chrome stays black and white.
 - Client UI. Glass-orb avatars, message bubbles, a quieter composer, brand glow, and an empty thread. Setup, roster, thread, add bot, and Settings behave as before.
 - Homepage at [piorbs.com](https://piorbs.com/). Spacing, type, screenshot frames, a launch video near the top, and an Open Graph image. The public try path is `npx pi-orbs`. Copy stays on Fly.io Sprites and the sprite CLI.
 - README. The public try path is `npx pi-orbs`. Refreshed interface screenshots in `docs/`.
+- Version `0.2.0` in the root `package.json`, `server/package.json`, `server/VERSION`, and the private client package. `GET /version` returns `server/VERSION`.
 
 ## [0.1.0] - 2026-10-02
 
@@ -55,6 +58,7 @@ Draft notes for 0.2.0. The package version stays 0.1.0 until that release is cut
 
 There was no `v0.0.1` git tag.
 
-[Unreleased]: https://github.com/richardanaya/pi-orbs/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/richardanaya/pi-orbs/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/richardanaya/pi-orbs/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/richardanaya/pi-orbs/compare/bbead96...v0.1.0
 [0.0.1]: https://github.com/richardanaya/pi-orbs/commit/6074692
