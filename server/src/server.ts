@@ -1,15 +1,18 @@
-import { timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import type { Context } from "@earendil-works/chord";
+import { Type } from "@earendil-works/pi-ai";
 import { createModels } from "@earendil-works/pi-ai/models";
-import { ConversationBusy, createRegistry, Harness, type Conversation, type ConversationId, type Cursor, type EntryRecord } from "@earendil-works/pi-durable";
+import { ConversationBusy, createRegistry, defineExtension, defineTool, Harness, section, type Conversation, type ConversationId, type Cursor, type EntryRecord, type Extension, type SubmissionId } from "@earendil-works/pi-durable";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { installSharedModel, sharedModel } from "./model.js";
+import { hiddenThreadEntryIds, normalizePeers, PEER_CONTENT_MAX, PEER_LEDGER_MAX, PEER_REQUEST_PREFIX, peerPrompt, publicPeer, readSteer, resolvePeerTarget, type PeerRecord, type PublicPeer } from "./peers.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const version = (await readFile(join(here, "../VERSION"), "utf8").catch(() => readFile(join(here, "VERSION"), "utf8"))).trim();
@@ -17,6 +20,7 @@ const port = Number(process.env.PORT ?? 8080);
 const secret = process.env.PI_API_SECRET ?? "";
 const dbPath = process.env.PI_DB ?? "./data/agent.sqlite";
 const botsPath = process.env.PI_BOTS ?? dbPath.replace(/[^/]+$/, "bots.json");
+const peersPath = process.env.PI_PEERS ?? botsPath.replace(/[^/]+$/, "peers.json");
 const workdir = process.env.PI_CWD ?? process.cwd();
 const context = BACKGROUND_CONTEXT;
 
@@ -144,13 +148,103 @@ async function saveBots(bots: BotRecord[]): Promise<void> {
   await writeFile(botsPath, JSON.stringify({ bots }, null, 2));
 }
 
+let peerExtension: Extension | undefined;
+let peerQueue: Promise<unknown> = Promise.resolve();
+
+function botExtensions() {
+  return peerExtension ? [CodingTools, peerExtension] : [CodingTools];
+}
+
+function enqueuePeers<T>(work: () => Promise<T>): Promise<T> {
+  const run = peerQueue.then(work, work);
+  peerQueue = run.then(() => undefined, () => undefined);
+  return run;
+}
+
+async function loadPeers(): Promise<PeerRecord[]> {
+  try {
+    return normalizePeers(JSON.parse(await readFile(peersPath, "utf8")) as unknown);
+  } catch {
+    return [];
+  }
+}
+
+async function savePeers(peers: PeerRecord[]): Promise<void> {
+  const kept = peers.length > PEER_LEDGER_MAX ? peers.slice(peers.length - PEER_LEDGER_MAX) : peers;
+  await mkdir(dirname(peersPath), { recursive: true });
+  await writeFile(peersPath, JSON.stringify({ peers: kept }, null, 2));
+}
+
+async function peerEntryIds(): Promise<Set<string>> {
+  return enqueuePeers(async () => {
+    const peers = await loadPeers();
+    let changed = false;
+    const ids = new Set<string>();
+    for (const peer of peers) {
+      if (!peer.entryId && /^\d+$/.test(peer.submissionId)) {
+        const handle = await harness.submission(Number(peer.submissionId) as SubmissionId, context);
+        const admitted = handle ? await handle.status(context) : undefined;
+        if (admitted && admitted.type === "input" && admitted.status !== "queued" && admitted.entry != null) {
+          peer.entryId = String(admitted.entry);
+          changed = true;
+        }
+      }
+      if (peer.entryId) ids.add(peer.entryId);
+    }
+    if (changed) await savePeers(peers);
+    return ids;
+  });
+}
+
+type SteerResult = { status: number; body: PublicPeer | { error: string } };
+
+async function steerPeer(targetId: string, fromId: string, content: string, requestId: string, callContext: Context = context): Promise<SteerResult> {
+  const trimmed = content.trim();
+  if (!trimmed) return { status: 400, body: { error: "content is required" } };
+  if (trimmed.length > PEER_CONTENT_MAX) return { status: 400, body: { error: "content is too long" } };
+  if (fromId === targetId) return { status: 400, body: { error: "a bot cannot steer itself" } };
+  const bots = await loadBots();
+  const target = bots.find((item) => item.id === targetId);
+  const source = bots.find((item) => item.id === fromId);
+  if (!target || !source) return { status: 404, body: { error: "bot not found" } };
+  return enqueuePeers(async () => {
+    const peers = await loadPeers();
+    const prior = peers.find((item) => item.requestId === requestId);
+    if (prior) return { status: 202, body: publicPeer(prior) };
+    const conversation = await conversationFor(target.id);
+    const submission = await conversation.submit({
+      type: "input",
+      content: peerPrompt(source.name, source.id, trimmed),
+      whenBusy: "steer",
+      requestId,
+    }, callContext);
+    const admitted = await submission.status(callContext);
+    const entryId = admitted.status === "placed" || admitted.status === "done" ? String(admitted.entry) : undefined;
+    const record: PeerRecord = {
+      id: requestId.startsWith(PEER_REQUEST_PREFIX) ? requestId.slice(PEER_REQUEST_PREFIX.length) : requestId,
+      from: source.id,
+      to: target.id,
+      fromName: source.name,
+      toName: target.name,
+      content: trimmed,
+      requestId,
+      submissionId: String(submission.id),
+      ...(entryId ? { entryId } : {}),
+      createdAt: new Date().toISOString(),
+    };
+    peers.push(record);
+    await savePeers(peers);
+    return { status: 202, body: publicPeer(record) };
+  });
+}
+
 async function conversationFor(id: string): Promise<Conversation> {
   let conversation = conversations.get(id);
   if (!conversation) {
     const opened = await harness.conversation(Number(id) as ConversationId, context);
     if (!opened) throw new Error("missing conversation");
     conversation = opened;
-    await conversation.configure({ extensions: [CodingTools], cwd: workdir }, context);
+    await conversation.configure({ extensions: botExtensions(), cwd: workdir }, context);
     conversations.set(id, conversation);
   }
   const agent = await conversation.agent(context);
@@ -320,7 +414,7 @@ const http = createServer(async (req, res) => {
           ...(instruction ? { instructions: instruction } : {}),
         },
       }, context);
-      await conversation.configure({ extensions: [CodingTools], cwd: workdir }, context);
+      await conversation.configure({ extensions: botExtensions(), cwd: workdir }, context);
       const bot: BotRecord = {
         id: String(conversation.id),
         name: fields.name ?? "",
@@ -343,12 +437,14 @@ const http = createServer(async (req, res) => {
         return;
       }
       const conversation = await conversationFor(bot.id);
+      const peerIds = await peerEntryIds();
       const entries = await conversation.entries({}, 200, undefined, context);
-      const messages = entries.items
-        .filter((entry) => entry.kind === "pi.user" || entry.kind === "pi.assistant")
+      const chronological = [...entries.items].reverse();
+      const hidden = hiddenThreadEntryIds(chronological.map((entry) => ({ id: String(entry.id), kind: entry.kind })), peerIds);
+      const messages = chronological
+        .filter((entry) => (entry.kind === "pi.user" || entry.kind === "pi.assistant") && !hidden.has(String(entry.id)))
         .map((entry) => ({ id: entry.id, kind: entry.kind, text: textOf(entry) }))
-        .filter((entry) => entry.text.trim().length > 0)
-        .reverse();
+        .filter((entry) => entry.text.trim().length > 0);
       send(res, 200, { bot, messages });
       return;
     }
@@ -384,6 +480,28 @@ const http = createServer(async (req, res) => {
       send(res, 200, bot);
       return;
     }
+    const peerRoute = url.pathname.match(/^\/api\/bots\/([^/]+)\/(steer|peers)$/);
+    if (peerRoute && req.method === "GET" && peerRoute[2] === "peers") {
+      const bots = await loadBots();
+      const bot = bots.find((item) => item.id === peerRoute[1]);
+      if (!bot) {
+        send(res, 404, { error: "bot not found" });
+        return;
+      }
+      const peers = (await loadPeers()).filter((item) => item.from === bot.id || item.to === bot.id);
+      send(res, 200, { peers: peers.map(publicPeer) });
+      return;
+    }
+    if (peerRoute && req.method === "POST" && peerRoute[2] === "steer") {
+      const fields = readSteer(await readBody(req));
+      if ("error" in fields) {
+        send(res, 400, { error: fields.error });
+        return;
+      }
+      const steered = await steerPeer(peerRoute[1], fields.from, fields.content, `${PEER_REQUEST_PREFIX}${randomBytes(8).toString("hex")}`);
+      send(res, steered.status, steered.body);
+      return;
+    }
     if (messageRoute && req.method === "POST" && messageRoute[2]) {
       const body = await readBody(req) as { content?: string; whenBusy?: "followUp" | "steer" | "reject" };
       const content = body.content?.trim();
@@ -409,6 +527,57 @@ const http = createServer(async (req, res) => {
     send(res, 500, { error: error instanceof Error ? error.message : "error" });
   }
 });
+
+peerExtension = defineExtension({
+  name: "peers",
+  tools: [
+    defineTool({
+      name: "steer_peer",
+      description: "Steer a message into another bot on this sprite. It joins that bot's Pi conversation (after the current tool round if that bot is busy). The human's thread does not show it.",
+      parameters: Type.Object({
+        bot: Type.String({ description: "Name or id of the other bot" }),
+        content: Type.String({ description: "What to tell that bot" }),
+      }),
+      replay: "safe",
+      execute: async (args, api, toolContext) => {
+        const bots = await loadBots();
+        const fromId = String(api.conversationId);
+        const target = resolvePeerTarget(bots, fromId, args.bot);
+        if ("error" in target) {
+          return { content: [{ type: "text", text: target.error }], isError: true };
+        }
+        const steered = await steerPeer(
+          target.id,
+          fromId,
+          args.content,
+          `${PEER_REQUEST_PREFIX}tool:${api.taskId}:${api.callId}`,
+          toolContext,
+        );
+        if ("error" in steered.body) {
+          return { content: [{ type: "text", text: steered.body.error }], isError: true };
+        }
+        const name = steered.body.toName || target.id;
+        return { content: [{ type: "text", text: `Steered to ${name}.` }] };
+      },
+    }),
+  ],
+  sections: [
+    section("peers", async (input) => {
+      const bots = await loadBots();
+      const self = String(input.conversationId);
+      const others = bots.filter((item) => item.id !== self && item.conversationId !== self);
+      if (others.length === 0) return undefined;
+      const lines = others.map((item) => `${item.name} (id ${item.id})`);
+      return [
+        "Other bots on this sprite share the work directory and the model.",
+        "Use steer_peer to message one by name or id.",
+        "That call steers the message into their Pi conversation. The human's thread does not show it.",
+        ...lines,
+      ].join("\n");
+    }),
+  ],
+});
+registry.install(peerExtension);
 
 http.listen(port, () => {
   console.log(`pi-orbs server ${version} on ${port}`);

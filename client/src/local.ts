@@ -7,10 +7,22 @@ import { localVersion } from "./deploy.js";
 const LOOKS = ["slate", "silver", "mist", "tide", "pine", "amber", "clay", "plum"] as const;
 const NAME_MAX = 80;
 const INSTRUCTION_MAX = 8_000;
+const PEER_CONTENT_MAX = 8_000;
 
 type Look = (typeof LOOKS)[number];
 type Kind = "pi.user" | "pi.assistant";
 type Message = { id: string; kind: Kind; text: string; createdAt: string };
+type Peer = {
+  id: string;
+  from: string;
+  to: string;
+  fromName: string;
+  toName: string;
+  content: string;
+  submissionId: string;
+  createdAt: string;
+  delivery: "steer";
+};
 type Bot = {
   id: string;
   name: string;
@@ -28,9 +40,11 @@ const seedStart = Date.parse("2026-03-02T15:04:00.000Z");
 
 let nextMessage = 1;
 let nextBot = 1;
+let nextPeer = 1;
 let seedClock = 0;
 let sprite: Sprite | null = null;
 let bots: Bot[] = [];
+let peers: Peer[] = [];
 
 function message(kind: Kind, text: string, createdAt?: string): Message {
   const id = `m${nextMessage++}`;
@@ -89,6 +103,8 @@ function seedBots(): Bot[] {
 function reset(name: string, connector: SpriteConnector = defaultConnector()): void {
   sprite = { name, url: localUrl, ...connector };
   bots = seedBots();
+  peers = [];
+  nextPeer = 1;
 }
 
 reset("atlas");
@@ -267,6 +283,7 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
   if (rest.length === 0 && req.method === "DELETE") {
     sprite = null;
     bots = [];
+    peers = [];
     send(res, 200, { ok: true });
     return;
   }
@@ -342,6 +359,10 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
       send(res, 200, publicBot(bot));
       return;
     }
+    if (rest.length === 3 && rest[2] === "peers" && req.method === "GET") {
+      send(res, 200, { peers: peers.filter((item) => item.from === bot.id || item.to === bot.id) });
+      return;
+    }
     if (rest.length === 3 && rest[2] === "messages" && req.method === "POST") {
       const content = textField(await readJson(req), "content");
       if (!content) {
@@ -352,6 +373,47 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
       bot.messages.push(message("pi.user", content, at.toISOString()));
       bot.messages.push(message("pi.assistant", cannedReply(content), new Date(at.getTime() + 1000).toISOString()));
       send(res, 202, { submissionId: `local-${bot.messages.at(-1)?.id ?? "reply"}` });
+      return;
+    }
+    if (rest.length === 3 && rest[2] === "steer" && req.method === "POST") {
+      const body = await readJson(req);
+      const fromId = textField(body, "from");
+      const content = textField(body, "content");
+      if (!fromId) {
+        send(res, 400, { error: "from is required" });
+        return;
+      }
+      if (!content) {
+        send(res, 400, { error: "content is required" });
+        return;
+      }
+      if (content.length > PEER_CONTENT_MAX) {
+        send(res, 400, { error: "content is too long" });
+        return;
+      }
+      if (fromId === bot.id) {
+        send(res, 400, { error: "a bot cannot steer itself" });
+        return;
+      }
+      const source = bots.find((item) => item.id === fromId);
+      if (!source) {
+        send(res, 404, { error: "bot not found" });
+        return;
+      }
+      const id = `peer-${nextPeer++}`;
+      const record: Peer = {
+        id,
+        from: source.id,
+        to: bot.id,
+        fromName: source.name,
+        toName: bot.name,
+        content,
+        submissionId: `local-${id}`,
+        createdAt: new Date().toISOString(),
+        delivery: "steer",
+      };
+      peers.push(record);
+      send(res, 202, record);
       return;
     }
   }

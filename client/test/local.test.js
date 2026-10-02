@@ -497,4 +497,96 @@ describe("local simulator API", { concurrency: 1 }, () => {
     const unchanged = await fetch(`${session.base}/api/sprites/atlas/bots/${bot.id}`);
     assert.equal((await unchanged.json()).bot.look, "mist");
   });
+
+  test("two bots exchange steered messages outside the open thread", async () => {
+    const seeded = await fetch(`${session.base}/api/sprites`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "atlas", apiKey: "local-simulator-test" }),
+    });
+    assert.equal(seeded.status, 201);
+
+    async function thread(id) {
+      const response = await fetch(`${session.base}/api/sprites/atlas/bots/${id}`);
+      assert.equal(response.status, 200);
+      return response.json();
+    }
+    const adaBefore = await thread("ada");
+    const keplerBefore = await thread("kepler");
+
+    const toKepler = await fetch(`${session.base}/api/sprites/atlas/bots/kepler/steer`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ from: "ada", content: "token-ada-to-kepler" }),
+    });
+    assert.equal(toKepler.status, 202);
+    const steerBody = await toKepler.json();
+    assert.equal(steerBody.from, "ada");
+    assert.equal(steerBody.to, "kepler");
+    assert.equal(steerBody.fromName, "Ada");
+    assert.equal(steerBody.toName, "Kepler");
+    assert.equal(steerBody.content, "token-ada-to-kepler");
+    assert.equal(steerBody.delivery, "steer");
+    assert.match(steerBody.submissionId, /^local-peer-/);
+
+    const toAda = await fetch(`${session.base}/api/sprites/atlas/bots/ada/steer`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ from: "kepler", content: "token-kepler-to-ada" }),
+    });
+    assert.equal(toAda.status, 202);
+
+    const adaAfter = await thread("ada");
+    const keplerAfter = await thread("kepler");
+    assert.deepEqual(adaAfter.messages, adaBefore.messages);
+    assert.deepEqual(keplerAfter.messages, keplerBefore.messages);
+    assert.equal(JSON.stringify(adaAfter.messages).includes("token-ada-to-kepler"), false);
+    assert.equal(JSON.stringify(keplerAfter.messages).includes("token-kepler-to-ada"), false);
+
+    const adaPeers = await fetch(`${session.base}/api/sprites/atlas/bots/ada/peers`);
+    const keplerPeers = await fetch(`${session.base}/api/sprites/atlas/bots/kepler/peers`);
+    assert.equal(adaPeers.status, 200);
+    assert.equal(keplerPeers.status, 200);
+    const adaList = (await adaPeers.json()).peers;
+    const keplerList = (await keplerPeers.json()).peers;
+    assert.deepEqual(adaList.map((item) => item.content), ["token-ada-to-kepler", "token-kepler-to-ada"]);
+    assert.deepEqual(keplerList.map((item) => item.content), ["token-ada-to-kepler", "token-kepler-to-ada"]);
+    assert.equal(adaList.every((item) => item.delivery === "steer"), true);
+
+    const noted = await fetch(`${session.base}/api/sprites/atlas/bots/ada/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: "still a human message" }),
+    });
+    assert.equal(noted.status, 202);
+    const adaHuman = await thread("ada");
+    assert.equal(adaHuman.messages.at(-2).text, "still a human message");
+    assert.equal(adaHuman.messages.some((item) => item.text === "token-kepler-to-ada"), false);
+
+    const self = await fetch(`${session.base}/api/sprites/atlas/bots/ada/steer`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ from: "ada", content: "nope" }),
+    });
+    assert.equal(self.status, 400);
+    const missing = await fetch(`${session.base}/api/sprites/atlas/bots/ada/steer`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ from: "missing", content: "nope" }),
+    });
+    assert.equal(missing.status, 404);
+    const empty = await fetch(`${session.base}/api/sprites/atlas/bots/kepler/steer`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ from: "ada", content: "   " }),
+    });
+    assert.equal(empty.status, 400);
+  });
+});
+
+test("the open thread does not treat peer traffic as user messages", async () => {
+  const html = await readFile(join(clientRoot, "public", "index.html"), "utf8");
+  assert.match(html, /function visibleThreadMessages/);
+  assert.match(html, /message\.peer !== true && message\.source !== "peer"/);
+  assert.match(html, /signature === threadView && log\.childElementCount > 0\) return/);
 });
