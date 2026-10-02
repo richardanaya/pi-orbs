@@ -1,10 +1,11 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deleteXaiConnector, ensureXaiConnector, gatewayBaseUrl } from "./connector.js";
 import { deploySprite, localVersion, newSecret, remoteVersion } from "./deploy.js";
+import { handleLocal, localMode } from "./local.js";
 import { listSprites, sprite } from "./sprite.js";
 
 type SavedSprite = { name: string; url: string; secret: string; xaiKey: string; connectorId?: string };
@@ -54,6 +55,47 @@ function send(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body));
 }
 
+function contentType(file: string): string {
+  switch (extname(file)) {
+    case ".html": return "text/html; charset=utf-8";
+    case ".png": return "image/png";
+    case ".jpg":
+    case ".jpeg": return "image/jpeg";
+    case ".svg": return "image/svg+xml";
+    case ".ico": return "image/x-icon";
+    case ".webp": return "image/webp";
+    default: return "application/octet-stream";
+  }
+}
+
+function publicFile(pathname: string): string | null {
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    return null;
+  }
+  const rel = (decoded === "/" ? "index.html" : decoded).replace(/^\/+/, "");
+  if (!rel || rel.includes("\0")) return null;
+  const root = resolve(publicDir);
+  const file = resolve(root, rel);
+  if (file !== root && !file.startsWith(root + sep)) return null;
+  return file;
+}
+
+async function servePublic(pathname: string, res: ServerResponse): Promise<boolean> {
+  const file = publicFile(pathname);
+  if (!file) return false;
+  try {
+    const body = await readFile(file);
+    res.writeHead(200, { "content-type": contentType(file) });
+    res.end(body);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function spriteFetch(saved: SavedSprite, path: string, init?: RequestInit): Promise<Response> {
   return fetch(new URL(path, saved.url), {
     ...init,
@@ -64,10 +106,13 @@ async function spriteFetch(saved: SavedSprite, path: string, init?: RequestInit)
 const http = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://localhost");
   try {
-    if (url.pathname === "/" || url.pathname === "/index.html") {
-      const html = await readFile(join(publicDir, "index.html"));
-      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      res.end(html);
+    if (await servePublic(url.pathname, res)) return;
+    if (localMode()) {
+      if (url.pathname.startsWith("/api/")) {
+        await handleLocal(url, req, res);
+        return;
+      }
+      send(res, 404, { error: "not found" });
       return;
     }
     const state = await loadState();
@@ -178,4 +223,10 @@ const http = createServer(async (req, res) => {
   }
 });
 
-http.listen(8787, () => console.log("pi-orbs client http://127.0.0.1:8787"));
+http.listen(8787, () => {
+  if (localMode()) {
+    console.log("pi-orbs local simulator http://127.0.0.1:8787 (no Sprite, no xAI)");
+    return;
+  }
+  console.log("pi-orbs client http://127.0.0.1:8787");
+});
