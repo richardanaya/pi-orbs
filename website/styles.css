@@ -325,16 +325,17 @@ button {
 .meta a { color: var(--text); }
 
 .hero-film {
-  margin: 36px auto 0;
+  margin: 28px auto 0;
   width: min(960px, 100%);
   max-width: 100%;
   min-width: 0;
 }
 
-.hero-video {
+.hero-frame {
+  position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
-  display: block;
+  overflow: hidden;
   background: #000;
   border-radius: 20px;
   border: 1px solid var(--line);
@@ -343,8 +344,21 @@ button {
     0 28px 80px rgba(0, 0, 0, 0.45);
 }
 
+.hero-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  display: block;
+  background: #000;
+  border: 0;
+  border-radius: 0;
+}
+
 .hero-film figcaption {
-  margin-top: 12px;
+  margin-top: 10px;
   text-align: center;
 }
 
@@ -556,6 +570,30 @@ footer {
 @media (max-width: 42.5rem) {
   .wrap { width: min(var(--max), calc(100% - 40px)); }
 
+  .nav-inner {
+    gap: 8px;
+    min-height: 52px;
+  }
+
+  .word {
+    gap: 8px;
+    font-size: 15px;
+  }
+
+  .glow-nav,
+  .glow-nav img {
+    width: 22px;
+    height: 22px;
+  }
+
+  .glow-nav::before { display: none; }
+
+  .nav-toggle {
+    min-width: 44px;
+    padding: 0 12px;
+    font-size: 14px;
+  }
+
   html.js .nav-toggle { display: inline-flex; }
 
   html.js .nav-links { display: none; }
@@ -626,7 +664,7 @@ footer {
   body.nav-locked { overflow: hidden; }
 
   .hero {
-    padding: 28px 0 8px;
+    padding: 12px 0 0;
     overflow-x: clip;
   }
 
@@ -646,19 +684,23 @@ footer {
   h1 { font-size: clamp(2.75rem, 13vw, 3.5rem); }
 
   .one-liner {
-    margin-top: 14px;
+    margin-top: 10px;
     font-size: 1.0625rem;
   }
 
   .command {
-    margin-top: 22px;
+    margin-top: 14px;
     padding-left: 16px;
   }
 
-  .hero-film { margin-top: 22px; }
+  .meta { margin-top: 10px; }
 
-  .hero-video,
+  .hero-film { margin-top: 12px; }
+
+  .hero-frame,
   .shot { border-radius: 16px; }
+
+  .hero-film figcaption { margin-top: 8px; }
 
   .meta,
   figcaption { font-size: 15px; }
