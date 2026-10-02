@@ -6,6 +6,8 @@
 
 Named Pi bots on one shared Fly.io Sprite — install the client, it deploys the server.
 
+Homepage: [`index.html`](index.html) at the repository root, with assets in [`website/`](website/). [GitHub Pages setup](#site).
+
 [Contributing](CONTRIBUTING.md)
 
 ![Pi Orbs mark, a glass orb whose pi symbol reads as a pair of eyes](docs/logo.png)
@@ -74,6 +76,24 @@ npm test
 ```
 
 That builds the server and runs its smoke tests: `/version` is public, requests without the API secret get 401, and a Bearer token can create a bot and list it. Use Node 22. The server process needs `node:sqlite`, which Node 20 does not include.
+
+## Site
+
+The project homepage is static. Nothing has to be built to view it.
+
+`index.html` is the entrypoint, at the repository root. `website/` holds the rest of the page: `website/styles.css`, `website/site.js`, and `website/logo.png` (the same mark as `docs/logo.png`). The local-mode pictures are the README files, referenced with relative paths:
+
+- `docs/local-roster.png`
+- `docs/local-thread.png`
+- `docs/local-reply.png`
+
+Those paths resolve when the site is served from the repository root, including GitHub Pages.
+
+To publish with GitHub Pages: repository **Settings → Pages → Build and deployment → Source: Deploy from a branch**. Branch: `master`. Folder: **/ (root)**. Use the root, not `/docs`. `/docs` would publish only the screenshot folder. The entrypoint is `index.html` next to `website/`.
+
+`.nojekyll` is at the root so Pages copies the files as committed and does not run Jekyll.
+
+After that source is saved, the site is https://richardanaya.github.io/pi-orbs/.
 
 ## Publish
 
