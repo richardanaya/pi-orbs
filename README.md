@@ -1,6 +1,12 @@
 # Pi Orbs
 
 [![CI](https://github.com/richardanaya/pi-orbs/actions/workflows/ci.yml/badge.svg)](https://github.com/richardanaya/pi-orbs/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/pi-orbs)](https://www.npmjs.com/package/pi-orbs)
+[![License: MIT](https://img.shields.io/github/license/richardanaya/pi-orbs)](LICENSE)
+
+Named Pi bots on one shared Fly.io Sprite — install the client, it deploys the server.
+
+[Contributing](CONTRIBUTING.md)
 
 ![Pi Orbs mark, a glass orb whose pi symbol reads as a pair of eyes](docs/logo.png)
 
