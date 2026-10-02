@@ -1,0 +1,145 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>pi-orbs</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; font: 15px/1.4 system-ui, sans-serif; background: #14120e; color: #f3ead7; }
+  header { padding: 16px 20px; border-bottom: 1px solid #3a3428; display: flex; justify-content: space-between; }
+  main { display: grid; grid-template-columns: 240px 260px 1fr; height: calc(100vh - 58px); }
+  section { min-height: 0; overflow: auto; border-right: 1px solid #3a3428; padding: 12px; }
+  button, input { font: inherit; }
+  button { background: #e6c36a; color: #1a150c; border: 0; border-radius: 8px; padding: 6px 10px; }
+  input { width: 100%; box-sizing: border-box; margin: 6px 0; padding: 8px; background: #211d16; color: inherit; border: 1px solid #3a3428; border-radius: 8px; }
+  .row { padding: 8px; border-radius: 8px; cursor: pointer; }
+  .row.on { background: #2a2418; }
+  #log { white-space: pre-wrap; }
+  .msg { margin: 10px 0; }
+  .msg b { display: block; color: #e6c36a; font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <strong>pi-orbs</strong>
+  <span id="version"></span>
+</header>
+<main>
+  <section>
+    <h2>Sprites</h2>
+    <form id="create-sprite">
+      <input name="name" placeholder="sprite name" required>
+      <input name="xai" placeholder="xai key" type="password" required>
+      <button>Create and deploy</button>
+    </form>
+    <div id="sprites"></div>
+  </section>
+  <section>
+    <h2>Bots</h2>
+    <p id="sprite-meta"></p>
+    <form id="create-bot">
+      <input name="name" placeholder="bot name" required>
+      <button>New bot</button>
+    </form>
+    <div id="bots"></div>
+    <button id="deploy" type="button">Push server build</button>
+  </section>
+  <section>
+    <h2 id="thread-title">Thread</h2>
+    <div id="log"></div>
+    <form id="send">
+      <input name="content" placeholder="Message this bot" required>
+      <button>Send</button>
+    </form>
+  </section>
+</main>
+<script>
+const state = { sprite: null, bot: null };
+async function api(path, options) {
+  const response = await fetch(path, options);
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || response.statusText);
+  return body;
+}
+function selectedSprite() {
+  return state.sprite;
+}
+async function refreshSprites() {
+  const body = await api("/api/sprites");
+  document.querySelector("#version").textContent = "server build " + body.localVersion;
+  const box = document.querySelector("#sprites");
+  box.innerHTML = "";
+  for (const sprite of body.sprites) {
+    const row = document.createElement("div");
+    row.className = "row" + (state.sprite === sprite.name ? " on" : "");
+    row.textContent = sprite.name + (sprite.remoteVersion ? " · " + sprite.remoteVersion : "");
+    row.onclick = () => { state.sprite = sprite.name; state.bot = null; refreshSprites(); refreshBots(); };
+    box.appendChild(row);
+  }
+}
+async function refreshBots() {
+  const meta = document.querySelector("#sprite-meta");
+  const box = document.querySelector("#bots");
+  box.innerHTML = "";
+  if (!state.sprite) { meta.textContent = "Pick a sprite."; return; }
+  const body = await api("/api/sprites/" + state.sprite);
+  meta.textContent = body.url + "\nrunning " + (body.remoteVersion || "nothing") + (body.update ? " · update available" : "");
+  for (const bot of body.bots) {
+    const row = document.createElement("div");
+    row.className = "row" + (state.bot === bot.id ? " on" : "");
+    row.textContent = bot.name;
+    row.onclick = () => { state.bot = bot.id; refreshBots(); refreshThread(); };
+    box.appendChild(row);
+  }
+  if (state.bot) refreshThread();
+}
+async function refreshThread() {
+  const log = document.querySelector("#log");
+  if (!state.sprite || !state.bot) { log.textContent = ""; return; }
+  const body = await api("/api/sprites/" + state.sprite + "/bots/" + state.bot);
+  document.querySelector("#thread-title").textContent = body.bot.name;
+  log.innerHTML = "";
+  for (const message of body.messages) {
+    const block = document.createElement("div");
+    block.className = "msg";
+    const who = document.createElement("b");
+    who.textContent = message.kind === "pi.user" ? "You" : "Bot";
+    block.append(who, document.createTextNode(message.text));
+    log.append(block);
+  }
+}
+document.querySelector("#create-sprite").onsubmit = async (event) => {
+  event.preventDefault();
+  const data = new FormData(event.target);
+  await api("/api/sprites", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: data.get("name"), xaiKey: data.get("xai") }) });
+  event.target.reset();
+  await refreshSprites();
+};
+document.querySelector("#create-bot").onsubmit = async (event) => {
+  event.preventDefault();
+  if (!state.sprite) return;
+  const data = new FormData(event.target);
+  const bot = await api("/api/sprites/" + state.sprite + "/bots", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: data.get("name") }) });
+  state.bot = bot.id;
+  event.target.reset();
+  await refreshBots();
+};
+document.querySelector("#deploy").onclick = async () => {
+  if (!state.sprite) return;
+  document.querySelector("#sprite-meta").textContent = "Pushing build…";
+  await api("/api/sprites/" + state.sprite + "/deploy", { method: "POST" });
+  await refreshBots();
+};
+document.querySelector("#send").onsubmit = async (event) => {
+  event.preventDefault();
+  if (!state.sprite || !state.bot) return;
+  const data = new FormData(event.target);
+  await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/messages", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ content: data.get("content") }) });
+  event.target.reset();
+  setTimeout(refreshThread, 1500);
+};
+refreshSprites();
+setInterval(() => { if (state.bot) refreshThread(); }, 3000);
+</script>
+</body>
+</html>

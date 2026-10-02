@@ -1,0 +1,38 @@
+{
+  "name": "pi-orbs",
+  "version": "0.1.0",
+  "description": "Run named Pi bots on a Fly.io Sprite. The client is what you install; it ships the server.",
+  "type": "module",
+  "bin": {
+    "pi-orbs": "./bin/pi-orbs.js"
+  },
+  "files": [
+    "bin",
+    "client/dist",
+    "client/public",
+    "server/dist",
+    "server/package.json",
+    "server/package-lock.json",
+    "server/VERSION",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "npm run build --prefix server && npm run build --prefix client",
+    "start": "node ./bin/pi-orbs.js",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/richardanaya/pi-orbs.git"
+  },
+  "bugs": {
+    "url": "https://github.com/richardanaya/pi-orbs/issues"
+  },
+  "homepage": "https://github.com/richardanaya/pi-orbs#readme",
+  "license": "MIT",
+  "keywords": ["pi", "sprites", "flyio", "bots"]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@pi-orbs/client",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "scripts": {
+    "build": "tsc",
+    "start": "node ../bin/pi-orbs.js"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}
