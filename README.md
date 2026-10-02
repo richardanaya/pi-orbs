@@ -1,5 +1,7 @@
 # Pi Orbs
 
+[![CI](https://github.com/richardanaya/pi-orbs/actions/workflows/ci.yml/badge.svg)](https://github.com/richardanaya/pi-orbs/actions/workflows/ci.yml)
+
 ![Pi Orbs mark, a glass orb whose pi symbol reads as a pair of eyes](docs/logo.png)
 
 Named bots, each one a durable Pi thread, sharing one Fly.io Sprite as their computer.
