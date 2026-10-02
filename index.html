@@ -2,12 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pi Orbs</title>
 <meta name="description" content="Named Pi bots share one Fly.io Sprite as their computer. Try it with npx pi-orbs. The sprite CLI must be installed and logged in.">
 <link rel="icon" href="website/logo.png" type="image/png">
 <link rel="apple-touch-icon" href="website/logo.png">
 <link rel="stylesheet" href="website/styles.css">
+<script>document.documentElement.classList.add("js")</script>
 <link rel="canonical" href="https://piorbs.com/">
 <meta property="og:title" content="Pi Orbs">
 <meta property="og:description" content="Named Pi bots share one Fly.io Sprite as their computer. Try it with npx pi-orbs. The sprite CLI must be installed and logged in.">
@@ -31,7 +32,10 @@
 <header class="nav">
   <div class="wrap nav-inner">
     <a class="word" href="#top"><span class="glow glow-nav"><img src="website/logo.png" alt="" width="28" height="28"></span>Pi Orbs</a>
-    <nav class="nav-links" aria-label="Page">
+    <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="site-nav">
+      <span class="nav-toggle-label">Menu</span>
+    </button>
+    <nav id="site-nav" class="nav-links" aria-label="Page">
       <a href="#product">What it is</a>
       <a href="#run">Run</a>
       <a href="#page">The page</a>
@@ -51,9 +55,11 @@
       </div>
       <p class="meta">Named bots share one Fly.io Sprite as their computer. You need the <a href="https://sprites.dev">sprite CLI</a> installed and logged in.</p>
       <figure class="hero-film">
-        <video class="hero-video" controls playsinline preload="metadata" poster="website/launch-poster.jpg" width="1920" height="1080" aria-label="Pi Orbs. The mark opens, then the app.">
-          <source src="website/pi-orbs-site-hero.mp4" type="video/mp4">
-        </video>
+        <div class="hero-frame">
+          <video class="hero-video" controls playsinline preload="metadata" poster="website/launch-poster.jpg" width="1920" height="1080" aria-label="Pi Orbs. The mark opens, then the app.">
+            <source src="website/pi-orbs-site-hero.mp4" type="video/mp4">
+          </video>
+        </div>
         <figcaption><code>npx pi-orbs</code></figcaption>
       </figure>
     </div>
@@ -123,7 +129,7 @@
   <div class="wrap foot">
     <span class="glow glow-foot"><img src="website/logo.png" alt="" width="28" height="28"></span>
     <p>Pi Orbs. Named bots on one Fly.io Sprite. The client is what you install.</p>
-    <p class="foot-links"><a href="https://github.com/richardanaya/pi-orbs">GitHub</a> · <a href="https://github.com/richardanaya/pi-orbs#readme">README</a> · <a href="https://www.npmjs.com/package/pi-orbs">npm</a> · <a href="LICENSE">MIT License</a></p>
+    <p class="foot-links"><a href="https://github.com/richardanaya/pi-orbs">GitHub</a><a href="https://github.com/richardanaya/pi-orbs#readme">README</a><a href="https://www.npmjs.com/package/pi-orbs">npm</a><a href="LICENSE">MIT License</a></p>
   </div>
 </footer>
 <script src="website/site.js"></script>
