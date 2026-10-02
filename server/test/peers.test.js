@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hiddenThreadEntryIds, normalizePeers, publicPeer, readSteer, resolvePeerTarget } from "../dist/peers.js";
+import { hiddenThreadEntryIds, normalizePeers, outgoingHop, peerChainUsed, peerPrompt, peerTurn, publicPeer, readSteer, resolvePeerTarget, withPeerInstruction } from "../dist/peers.js";
 
 const bots = [
   { id: "1", name: "Ada" },
@@ -24,14 +24,14 @@ test("resolvePeerTarget finds an id or a unique name", () => {
   assert.deepEqual(resolvePeerTarget(bots, "1", "  "), { error: "bot is required" });
 });
 
-test("a peer-only turn is hidden and a shared human turn keeps its answer", () => {
+test("a peer user entry is hidden and the assistant reply stays", () => {
   const peerOnly = hiddenThreadEntryIds([
     { id: "u1", kind: "pi.user" },
     { id: "a1", kind: "pi.assistant" },
     { id: "t1", kind: "pi.tool" },
     { id: "a2", kind: "pi.assistant" },
   ], new Set(["u1"]));
-  assert.deepEqual([...peerOnly].sort(), ["a1", "a2", "t1", "u1"]);
+  assert.deepEqual([...peerOnly], ["u1"]);
 
   const shared = hiddenThreadEntryIds([
     { id: "human", kind: "pi.user" },
@@ -47,9 +47,22 @@ test("a peer-only turn is hidden and a shared human turn keeps its answer", () =
     { id: "answer", kind: "pi.assistant" },
   ], new Set(["peer"]));
   assert.equal(later.has("peer"), true);
-  assert.equal(later.has("reply"), true);
+  assert.equal(later.has("reply"), false);
   assert.equal(later.has("human"), false);
   assert.equal(later.has("answer"), false);
+});
+
+test("a peer chain starts at hop 1 and closes after one forward", () => {
+  assert.match(withPeerInstruction("Keep notes short."), /Keep notes short\.\n\nCross-bot messages are need-to-know\./);
+  assert.match(withPeerInstruction("  "), /^Cross-bot messages are need-to-know\./);
+  const prompt = peerPrompt("Ada", "1", "The file is ready.", 1, "tool:9:1");
+  assert.deepEqual(peerTurn(prompt), { hop: 1, id: "tool:9:1" });
+  assert.equal(peerTurn("Hello from the human"), null);
+  assert.deepEqual(outgoingHop(null), { hop: 1 });
+  assert.deepEqual(outgoingHop({ hop: 1 }), { hop: 2 });
+  assert.deepEqual(outgoingHop({ hop: 2 }), { error: "peer chain is closed" });
+  assert.equal(peerChainUsed([{ from: "2", parentId: "tool:9:1" }], "2", "tool:9:1"), true);
+  assert.equal(peerChainUsed([{ from: "2", parentId: "tool:9:1" }], "3", "tool:9:1"), false);
 });
 
 test("normalizePeers drops broken rows and publicPeer marks delivery", () => {

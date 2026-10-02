@@ -361,14 +361,14 @@ test("one bot can steer another without putting it on the open thread", async ()
 
   const lumenThread = await fetch(`${state.base}/api/bots/${lumen.id}`, { headers });
   const lumenBody = await lumenThread.json();
-  assert.equal(JSON.stringify(lumenBody.messages).includes("hidden-peer-line"), false);
+  assert.equal(lumenBody.messages.some((item) => item.kind === "pi.peer" && item.text === "hidden-peer-line" && item.fromName === "Moss"), true);
   assert.equal(JSON.stringify(lumenBody.messages).includes("Message from bot"), false);
 
   const mossThread = await fetch(`${state.base}/api/bots/${moss.id}`, { headers });
   const mossBody = await mossThread.json();
   assert.equal(JSON.stringify(mossBody.messages).includes("visible-user-line"), true);
-  assert.equal(JSON.stringify(mossBody.messages).includes("hidden-reply-line"), false);
-  assert.equal(JSON.stringify(mossBody.messages).includes("hidden-peer-line"), false);
+  assert.equal(mossBody.messages.some((item) => item.kind === "pi.peer" && item.text === "hidden-reply-line"), true);
+  assert.equal(mossBody.messages.some((item) => item.kind === "pi.user" && item.text === "hidden-reply-line"), false);
 
   const lumenPeers = await fetch(`${state.base}/api/bots/${lumen.id}/peers`, { headers });
   assert.equal(lumenPeers.status, 200);

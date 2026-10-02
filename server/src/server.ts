@@ -12,7 +12,7 @@ import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { installSharedModel, sharedModel } from "./model.js";
-import { hiddenThreadEntryIds, normalizePeers, PEER_CONTENT_MAX, PEER_LEDGER_MAX, PEER_REQUEST_PREFIX, peerPrompt, publicPeer, readSteer, resolvePeerTarget, type PeerRecord, type PublicPeer } from "./peers.js";
+import { hiddenThreadEntryIds, normalizePeers, outgoingHop, PEER_CONTENT_MAX, PEER_LEDGER_MAX, PEER_REQUEST_PREFIX, peerChainUsed, peerPrompt, peerTurn, publicPeer, readSteer, resolvePeerTarget, withPeerInstruction, withPeerLines, type PeerRecord, type PublicPeer } from "./peers.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const version = (await readFile(join(here, "../VERSION"), "utf8").catch(() => readFile(join(here, "VERSION"), "utf8"))).trim();
@@ -140,7 +140,7 @@ async function loadBots(): Promise<BotRecord[]> {
 async function applyInstruction(conversation: Conversation, instruction: string): Promise<void> {
   // The reserved instructions section is rendered on the next request. With
   // supportsMidConvoSystemMessages, that change stays a mid-conversation system update.
-  await conversation.configure({ instructions: instruction.length > 0 ? instruction : null }, context);
+  await conversation.configure({ instructions: withPeerInstruction(instruction) }, context);
 }
 
 async function saveBots(bots: BotRecord[]): Promise<void> {
@@ -198,7 +198,7 @@ async function peerEntryIds(): Promise<Set<string>> {
 
 type SteerResult = { status: number; body: PublicPeer | { error: string } };
 
-async function steerPeer(targetId: string, fromId: string, content: string, requestId: string, callContext: Context = context): Promise<SteerResult> {
+async function steerPeer(targetId: string, fromId: string, content: string, requestId: string, hop = 1, parentId?: string, callContext: Context = context): Promise<SteerResult> {
   const trimmed = content.trim();
   if (!trimmed) return { status: 400, body: { error: "content is required" } };
   if (trimmed.length > PEER_CONTENT_MAX) return { status: 400, body: { error: "content is too long" } };
@@ -211,10 +211,13 @@ async function steerPeer(targetId: string, fromId: string, content: string, requ
     const peers = await loadPeers();
     const prior = peers.find((item) => item.requestId === requestId);
     if (prior) return { status: 202, body: publicPeer(prior) };
+    if (parentId && peerChainUsed(peers, fromId, parentId)) {
+      return { status: 409, body: { error: "peer chain is closed" } };
+    }
     const conversation = await conversationFor(target.id);
     const submission = await conversation.submit({
       type: "input",
-      content: peerPrompt(source.name, source.id, trimmed),
+      content: peerPrompt(source.name, source.id, trimmed, hop, requestId.startsWith(PEER_REQUEST_PREFIX) ? requestId.slice(PEER_REQUEST_PREFIX.length) : requestId),
       whenBusy: "steer",
       requestId,
     }, callContext);
@@ -230,6 +233,8 @@ async function steerPeer(targetId: string, fromId: string, content: string, requ
       requestId,
       submissionId: String(submission.id),
       ...(entryId ? { entryId } : {}),
+      hop,
+      ...(parentId ? { parentId } : {}),
       createdAt: new Date().toISOString(),
     };
     peers.push(record);
@@ -246,6 +251,9 @@ async function conversationFor(id: string): Promise<Conversation> {
     conversation = opened;
     await conversation.configure({ extensions: botExtensions(), cwd: workdir }, context);
     conversations.set(id, conversation);
+    const bots = await loadBots();
+    const bot = bots.find((item) => item.id === id);
+    if (bot) await applyInstruction(conversation, bot.instruction);
   }
   const agent = await conversation.agent(context);
   const shared = sharedModel();
@@ -422,7 +430,7 @@ const http = createServer(async (req, res) => {
         agent: {
           model: sharedModel(),
           cwd: workdir,
-          ...(instruction ? { instructions: instruction } : {}),
+          instructions: withPeerInstruction(instruction),
         },
       }, context);
       await conversation.configure({ extensions: botExtensions(), cwd: workdir }, context);
@@ -456,11 +464,12 @@ const http = createServer(async (req, res) => {
       const entries = await conversation.entries({}, 200, undefined, context);
       const chronological = [...entries.items].reverse();
       const hidden = hiddenThreadEntryIds(chronological.map((entry) => ({ id: String(entry.id), kind: entry.kind })), peerIds);
-      const messages = chronological
+      const visible = chronological
         .filter((entry) => (entry.kind === "pi.user" || entry.kind === "pi.assistant") && !hidden.has(String(entry.id)))
-        .map((entry) => ({ id: entry.id, kind: entry.kind, text: textOf(entry) }))
+        .map((entry) => ({ id: String(entry.id), kind: entry.kind, text: textOf(entry), createdAt: createdAtOf(entry) }))
         .filter((entry) => entry.text.trim().length > 0);
-      send(res, 200, { bot, messages });
+      const peers = (await loadPeers()).filter((item) => item.from === bot.id || item.to === bot.id);
+      send(res, 200, { bot, messages: withPeerLines(visible, peers.map(publicPeer)) });
       return;
     }
     if (messageRoute && req.method === "PATCH" && !messageRoute[2]) {
@@ -564,7 +573,7 @@ peerExtension = defineExtension({
   tools: [
     defineTool({
       name: "steer_peer",
-      description: "Steer a message into another bot on this sprite. It joins that bot's Pi conversation (after the current tool round if that bot is busy). The human's thread does not show it.",
+      description: "Send a need-to-know message into another bot on this sprite. Call it in the same turn the human asks you to contact that bot. Saying you will does not send it. Also call it once to return a result the other bot asked for. The server refuses a further steer. The human's thread does not show the tool call.",
       parameters: Type.Object({
         bot: Type.String({ description: "Name or id of the other bot" }),
         content: Type.String({ description: "What to tell that bot" }),
@@ -577,11 +586,24 @@ peerExtension = defineExtension({
         if ("error" in target) {
           return { content: [{ type: "text", text: target.error }], isError: true };
         }
+        const conversation = await conversationFor(fromId);
+        const entries = await conversation.entries({}, 20, undefined, toolContext);
+        const latestUser = entries.items.find((entry) => entry.kind === "pi.user");
+        const turn = peerTurn(latestUser ? textOf(latestUser) : undefined);
+        const hop = outgoingHop(turn);
+        if ("error" in hop) {
+          return { content: [{ type: "text", text: hop.error }], isError: true };
+        }
+        if (turn && peerChainUsed(await loadPeers(), fromId, turn.id)) {
+          return { content: [{ type: "text", text: "peer chain is closed" }], isError: true };
+        }
         const steered = await steerPeer(
           target.id,
           fromId,
           args.content,
           `${PEER_REQUEST_PREFIX}tool:${api.taskId}:${api.callId}`,
+          hop.hop,
+          turn?.id,
           toolContext,
         );
         if ("error" in steered.body) {
@@ -601,8 +623,9 @@ peerExtension = defineExtension({
       const lines = others.map((item) => `${item.name} (id ${item.id})`);
       return [
         "Other bots on this sprite share the work directory and the model.",
-        "Use steer_peer to message one by name or id.",
-        "That call steers the message into their Pi conversation. The human's thread does not show it.",
+        "When the human names one of these bots and asks you to tell them something or have them do something, call steer_peer in this turn. Saying you will does not send it.",
+        "When one of them asks you for something, steer the result back once. That is the one forward the server allows.",
+        "Do not steer acknowledgements or a second follow-up. The server then closes the chain.",
         ...lines,
       ].join("\n");
     }),

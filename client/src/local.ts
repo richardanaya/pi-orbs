@@ -60,6 +60,36 @@ function publicMessage(item: Message): { id: string; kind: Kind; text: string } 
   return { id: item.id, kind: item.kind, text: item.text };
 }
 
+function threadMessages(bot: Bot) {
+  const lines: {
+    id: string;
+    kind: string;
+    text: string;
+    createdAt: string;
+    from?: string;
+    to?: string;
+    fromName?: string;
+    toName?: string;
+  }[] = bot.messages.map((item) => ({ ...publicMessage(item), createdAt: item.createdAt }));
+  const mine = peers.filter((item) => item.from === bot.id || item.to === bot.id);
+  for (const peer of [...mine].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))) {
+    const line = {
+      id: `peer:${peer.id}`,
+      kind: "pi.peer",
+      text: peer.content,
+      createdAt: peer.createdAt,
+      from: peer.from,
+      to: peer.to,
+      fromName: peer.fromName,
+      toName: peer.toName,
+    };
+    const index = lines.findIndex((item) => item.createdAt > peer.createdAt);
+    if (index < 0) lines.push(line);
+    else lines.splice(index, 0, line);
+  }
+  return lines;
+}
+
 function seedBots(): Bot[] {
   nextMessage = 1;
   nextBot = 1;
@@ -412,7 +442,7 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
       return;
     }
     if (rest.length === 2 && req.method === "GET") {
-      send(res, 200, { bot: publicBot(bot), messages: bot.messages.map(publicMessage) });
+      send(res, 200, { bot: publicBot(bot), messages: threadMessages(bot) });
       return;
     }
     if (rest.length === 2 && req.method === "PATCH") {

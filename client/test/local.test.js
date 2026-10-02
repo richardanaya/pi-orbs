@@ -252,7 +252,8 @@ describe("local simulator API", { concurrency: 1 }, () => {
     const ada = await fetch(`${session.base}/api/sprites/atlas/bots/ada`);
     assert.equal(ada.status, 200);
     const adaBody = await ada.json();
-    assert.equal(JSON.stringify(adaBody.messages).includes("Same muted gray as the roster"), false);
+    assert.equal(adaBody.messages.some((item) => item.kind === "pi.peer" && item.text.includes("Same muted gray as the roster")), true);
+    assert.equal(adaBody.messages.some((item) => item.kind === "pi.user" && item.text.includes("Same muted gray as the roster")), false);
     const peers = await fetch(`${session.base}/api/sprites/atlas/bots/ada/peers`);
     assert.equal(peers.status, 200);
     const list = (await peers.json()).peers;
@@ -323,10 +324,10 @@ describe("local simulator API", { concurrency: 1 }, () => {
     const body = await response.json();
     assert.equal(body.bot.id, "ada");
     assert.equal(body.bot.name, "Ada");
-    assert.equal(body.messages.length, 4);
-    assert.deepEqual(body.messages.map((message) => message.kind), ["pi.user", "pi.assistant", "pi.user", "pi.assistant"]);
+    assert.equal(body.messages.length, 6);
+    assert.deepEqual(body.messages.map((message) => message.kind), ["pi.user", "pi.assistant", "pi.user", "pi.assistant", "pi.peer", "pi.peer"]);
     assert.match(body.messages[0].text, /status page/);
-    assert.match(body.messages.at(-1).text, /status\.html/);
+    assert.match(body.messages[3].text, /status\.html/);
   });
 
   test("GET conversations.zip packs the seeded transcripts", async () => {
@@ -407,7 +408,7 @@ describe("local simulator API", { concurrency: 1 }, () => {
     const added = body.messages.slice(-2);
     assert.equal(added[0].kind, "pi.user");
     assert.equal(added[0].text, content);
-    assert.deepEqual(Object.keys(added[1]).sort(), ["id", "kind", "text"]);
+    assert.deepEqual(Object.keys(added[1]).sort(), ["createdAt", "id", "kind", "text"]);
     assert.equal(added[1].kind, "pi.assistant");
     assert.equal(
       added[1].text,
@@ -757,10 +758,10 @@ describe("local simulator API", { concurrency: 1 }, () => {
 
     const adaAfter = await thread("ada");
     const keplerAfter = await thread("kepler");
-    assert.deepEqual(adaAfter.messages, adaBefore.messages);
-    assert.deepEqual(keplerAfter.messages, keplerBefore.messages);
-    assert.equal(JSON.stringify(adaAfter.messages).includes("token-ada-to-kepler"), false);
-    assert.equal(JSON.stringify(keplerAfter.messages).includes("token-kepler-to-ada"), false);
+    assert.equal(adaAfter.messages.some((item) => item.kind === "pi.peer" && item.text === "token-ada-to-kepler"), true);
+    assert.equal(keplerAfter.messages.some((item) => item.kind === "pi.peer" && item.text === "token-kepler-to-ada"), true);
+    assert.equal(adaAfter.messages.some((item) => item.kind === "pi.user" && item.text === "token-ada-to-kepler"), false);
+    assert.equal(keplerAfter.messages.some((item) => item.kind === "pi.user" && item.text === "token-kepler-to-ada"), false);
 
     const adaPeers = await fetch(`${session.base}/api/sprites/atlas/bots/ada/peers`);
     const keplerPeers = await fetch(`${session.base}/api/sprites/atlas/bots/kepler/peers`);
@@ -803,8 +804,8 @@ describe("local simulator API", { concurrency: 1 }, () => {
     });
     assert.equal(noted.status, 202);
     const adaHuman = await thread("ada");
-    assert.equal(adaHuman.messages.at(-2).text, "still a human message");
-    assert.equal(adaHuman.messages.some((item) => item.text === "token-kepler-to-ada"), false);
+    assert.equal(adaHuman.messages.filter((item) => item.kind !== "pi.peer").at(-2).text, "still a human message");
+    assert.equal(adaHuman.messages.some((item) => item.kind === "pi.peer" && item.text === "token-kepler-to-ada"), true);
 
     const self = await fetch(`${session.base}/api/sprites/atlas/bots/ada/steer`, {
       method: "POST",
@@ -872,7 +873,9 @@ describe("local simulator API", { concurrency: 1 }, () => {
     assert.equal(peers.some((item) => item.content === "steer-0"), false);
     assert.equal(peers.every((item) => item.delivery === "steer" && item.from === "ada" && item.to === "kepler"), true);
     const thread = await fetch(`${session.base}/api/sprites/atlas/bots/kepler`);
-    assert.equal(JSON.stringify((await thread.json()).messages).includes("steer-1000"), false);
+    const keplerThread = await thread.json();
+    assert.equal(keplerThread.messages.some((item) => item.kind === "pi.peer" && item.text === "steer-1000"), true);
+    assert.equal(keplerThread.messages.some((item) => item.kind === "pi.user" && item.text === "steer-1000"), false);
   });
 });
 
@@ -881,13 +884,11 @@ test("the open thread does not treat peer traffic as user messages", async () =>
   assert.match(html, /function visibleThreadMessages/);
   assert.match(html, /message\.peer !== true && message\.source !== "peer"/);
   assert.match(html, /signature === threadView && log\.childElementCount > 0\) return/);
-  assert.match(html, /<section id="peers"/);
-  assert.match(html, /id="peers-toggle"/);
+  assert.match(html, /function steerChip/);
+  assert.match(html, /Message from /);
+  assert.doesNotMatch(html, /id="peers-toggle"/);
   assert.doesNotMatch(html, /id="roster-peers"/);
-  assert.match(html, /id="peers-log"/);
-  assert.match(html, /function refreshPeers/);
-  assert.match(html, /body\.peers-open main/);
-  assert.match(html, /Steers stay out of this thread/);
+  assert.doesNotMatch(html, /<section id="peers"/);
   assert.doesNotMatch(html, /querySelector\("#peers"\)\.showModal/);
   const main = await readFile(join(clientRoot, "src", "main.ts"), "utf8");
   assert.match(main, /\/api\/bots\/activity/);
