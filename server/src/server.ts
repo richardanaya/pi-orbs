@@ -5,33 +5,39 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
-import { xaiProvider } from "@earendil-works/pi-ai/providers/xai";
 import { ConversationBusy, createRegistry, Harness, type Conversation, type ConversationId } from "@earendil-works/pi-durable";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
 import type { EntryRecord } from "@earendil-works/pi-durable";
+import { installSharedModel, sharedModel } from "./model.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const version = (await readFile(join(here, "../VERSION"), "utf8").catch(() => readFile(join(here, "VERSION"), "utf8"))).trim();
 const port = Number(process.env.PORT ?? 8080);
 const secret = process.env.PI_API_SECRET ?? "";
-const modelId = process.env.PI_MODEL ?? "grok-4.7";
 const dbPath = process.env.PI_DB ?? "./data/agent.sqlite";
 const botsPath = process.env.PI_BOTS ?? dbPath.replace(/[^/]+$/, "bots.json");
 const workdir = process.env.PI_CWD ?? process.cwd();
 const context = BACKGROUND_CONTEXT;
 
-type BotRecord = { id: string; name: string; conversationId: string };
+const LOOKS = ["slate", "silver", "mist", "tide", "pine", "amber", "clay", "plum"] as const;
+const NAME_MAX = 80;
+const INSTRUCTION_MAX = 8_000;
+
+type Look = (typeof LOOKS)[number];
+type BotRecord = {
+  id: string;
+  name: string;
+  conversationId: string;
+  instruction: string;
+  look: Look;
+};
 type BotsFile = { bots: BotRecord[] };
+type FieldPatch = { name?: string; instruction?: string; look?: Look };
 
 const models = createModels();
-models.setProvider(xaiProvider());
-const grok = models.getModel("xai", modelId);
-if (grok) {
-  grok.compat = { ...grok.compat, supportsMidConvoSystemMessages: true };
-  if (process.env.PI_XAI_BASE_URL) grok.baseUrl = process.env.PI_XAI_BASE_URL;
-}
+installSharedModel(models);
 
 await mkdir(dirname(dbPath), { recursive: true });
 const storage = await openNodeSqliteStorage(dbPath);
@@ -45,13 +51,93 @@ harness.resume();
 
 const conversations = new Map<string, Conversation>();
 
+function isLook(value: unknown): value is Look {
+  return typeof value === "string" && (LOOKS as readonly string[]).includes(value);
+}
+
+function nextLook(used: readonly string[]): Look {
+  let best: Look = LOOKS[0];
+  let bestCount = Number.POSITIVE_INFINITY;
+  for (const look of LOOKS) {
+    let count = 0;
+    for (const item of used) if (item === look) count += 1;
+    if (count < bestCount) {
+      best = look;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
+function asRecord(body: unknown): Record<string, unknown> {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return {};
+  return body as Record<string, unknown>;
+}
+
+function readFields(body: unknown, mode: "create" | "edit"): FieldPatch | { error: string } {
+  const record = asRecord(body);
+  const has = (key: string) => Object.prototype.hasOwnProperty.call(record, key);
+  const patch: FieldPatch = {};
+  if (mode === "create" || has("name")) {
+    const name = record.name;
+    if (typeof name !== "string" || name.trim().length === 0) return { error: "name is required" };
+    const trimmed = name.trim();
+    if (trimmed.length > NAME_MAX) return { error: "name is too long" };
+    patch.name = trimmed;
+  }
+  if (mode === "create" || has("instruction")) {
+    if (mode === "create" && !has("instruction")) {
+      patch.instruction = "";
+    } else {
+      const instruction = record.instruction;
+      if (typeof instruction !== "string") return { error: "instruction must be a string" };
+      const trimmed = instruction.trim();
+      if (trimmed.length > INSTRUCTION_MAX) return { error: "instruction is too long" };
+      patch.instruction = trimmed;
+    }
+  }
+  if (has("look")) {
+    if (!isLook(record.look)) return { error: "look is not recognized" };
+    patch.look = record.look;
+  }
+  if (mode === "edit" && patch.name === undefined && patch.instruction === undefined && patch.look === undefined) {
+    return { error: "nothing to update" };
+  }
+  return patch;
+}
+
+function normalizeBots(parsed: unknown): BotRecord[] {
+  const list = parsed && typeof parsed === "object" && Array.isArray((parsed as BotsFile).bots)
+    ? (parsed as BotsFile).bots
+    : [];
+  const used: string[] = [];
+  const bots: BotRecord[] = [];
+  for (const item of list) {
+    if (!item || typeof item !== "object") continue;
+    const id = typeof item.id === "string" ? item.id : "";
+    const name = typeof item.name === "string" ? item.name.trim() : "";
+    const conversationId = typeof item.conversationId === "string" && item.conversationId ? item.conversationId : id;
+    if (!id || !name || !conversationId) continue;
+    const instruction = typeof item.instruction === "string" ? item.instruction.trim().slice(0, INSTRUCTION_MAX) : "";
+    const look = isLook(item.look) ? item.look : nextLook(used);
+    used.push(look);
+    bots.push({ id, name: name.slice(0, NAME_MAX), conversationId, instruction, look });
+  }
+  return bots;
+}
+
 async function loadBots(): Promise<BotRecord[]> {
   try {
-    const parsed = JSON.parse(await readFile(botsPath, "utf8")) as BotsFile;
-    return parsed.bots ?? [];
+    return normalizeBots(JSON.parse(await readFile(botsPath, "utf8")) as unknown);
   } catch {
     return [];
   }
+}
+
+async function applyInstruction(conversation: Conversation, instruction: string): Promise<void> {
+  // The reserved instructions section is rendered on the next request. With
+  // supportsMidConvoSystemMessages, that change stays a mid-conversation system update.
+  await conversation.configure({ instructions: instruction.length > 0 ? instruction : null }, context);
 }
 
 async function saveBots(bots: BotRecord[]): Promise<void> {
@@ -60,12 +146,19 @@ async function saveBots(bots: BotRecord[]): Promise<void> {
 }
 
 async function conversationFor(id: string): Promise<Conversation> {
-  const cached = conversations.get(id);
-  if (cached) return cached;
-  const conversation = await harness.conversation(Number(id) as ConversationId, context);
-  if (!conversation) throw new Error("missing conversation");
-  await conversation.configure({ extensions: [CodingTools], cwd: workdir }, context);
-  conversations.set(id, conversation);
+  let conversation = conversations.get(id);
+  if (!conversation) {
+    const opened = await harness.conversation(Number(id) as ConversationId, context);
+    if (!opened) throw new Error("missing conversation");
+    conversation = opened;
+    await conversation.configure({ extensions: [CodingTools], cwd: workdir }, context);
+    conversations.set(id, conversation);
+  }
+  const agent = await conversation.agent(context);
+  const shared = sharedModel();
+  if (agent.model?.provider !== shared.provider || agent.model?.modelId !== shared.modelId) {
+    await conversation.configure({ model: shared }, context);
+  }
   return conversation;
 }
 
@@ -121,7 +214,7 @@ const http = createServer(async (req, res) => {
     res.writeHead(204, {
       "access-control-allow-origin": "*",
       "access-control-allow-headers": "authorization, content-type, x-api-key",
-      "access-control-allow-methods": "GET, POST, OPTIONS",
+      "access-control-allow-methods": "GET, POST, PATCH, OPTIONS",
     });
     res.end();
     return;
@@ -140,20 +233,31 @@ const http = createServer(async (req, res) => {
       return;
     }
     if (url.pathname === "/api/bots" && req.method === "POST") {
-      const body = await readBody(req) as { name?: string };
-      const name = body.name?.trim();
-      if (!name) {
-        send(res, 400, { error: "name is required" });
+      const fields = readFields(await readBody(req), "create");
+      if ("error" in fields) {
+        send(res, 400, { error: fields.error });
         return;
       }
+      const bots = await loadBots();
+      const look = fields.look ?? nextLook(bots.map((item) => item.look));
+      const instruction = fields.instruction ?? "";
       const conversation = await harness.createConversation({
         ownership: { kind: "ownerless" },
-        agent: { model: { provider: "xai", modelId }, cwd: workdir },
+        agent: {
+          model: sharedModel(),
+          cwd: workdir,
+          ...(instruction ? { instructions: instruction } : {}),
+        },
       }, context);
       await conversation.configure({ extensions: [CodingTools], cwd: workdir }, context);
-      const bot: BotRecord = { id: String(conversation.id), name, conversationId: String(conversation.id) };
+      const bot: BotRecord = {
+        id: String(conversation.id),
+        name: fields.name ?? "",
+        conversationId: String(conversation.id),
+        instruction,
+        look,
+      };
       conversations.set(bot.id, conversation);
-      const bots = await loadBots();
       bots.push(bot);
       await saveBots(bots);
       send(res, 201, bot);
@@ -175,6 +279,38 @@ const http = createServer(async (req, res) => {
         .filter((entry) => entry.text.trim().length > 0)
         .reverse();
       send(res, 200, { bot, messages });
+      return;
+    }
+    if (messageRoute && req.method === "PATCH" && !messageRoute[2]) {
+      const fields = readFields(await readBody(req), "edit");
+      if ("error" in fields) {
+        send(res, 400, { error: fields.error });
+        return;
+      }
+      const bots = await loadBots();
+      const index = bots.findIndex((item) => item.id === messageRoute[1]);
+      if (index < 0) {
+        send(res, 404, { error: "bot not found" });
+        return;
+      }
+      const current = bots[index];
+      if (!current) {
+        send(res, 404, { error: "bot not found" });
+        return;
+      }
+      const instruction = fields.instruction !== undefined ? fields.instruction : current.instruction;
+      if (instruction !== current.instruction) {
+        await applyInstruction(await conversationFor(current.id), instruction);
+      }
+      const bot: BotRecord = {
+        ...current,
+        ...(fields.name !== undefined ? { name: fields.name } : {}),
+        instruction,
+        ...(fields.look !== undefined ? { look: fields.look } : {}),
+      };
+      bots[index] = bot;
+      await saveBots(bots);
+      send(res, 200, bot);
       return;
     }
     if (messageRoute && req.method === "POST" && messageRoute[2]) {

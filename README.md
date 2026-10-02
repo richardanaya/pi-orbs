@@ -40,7 +40,7 @@ Open http://127.0.0.1:8787.
 
 ![Roster of Ada, Kepler, and Nova, then a message and a reply](docs/local-demo.gif)
 
-Until a sprite is running, the page is the setup form: a sprite name, an xAI key, and **Create and deploy**. That creates the Sprite, makes its URL public, stores the key in a Sprites connector named `pi-orbs xAI`, and installs the server. The connector id, the sprite URL, and an API secret are written to `~/.pi-orbs/state.json`. The xAI key is not copied into the sprite service environment.
+Until a sprite is running, the page is the setup form: a sprite name, a connector, an API key, and **Create and deploy**. xAI is the default connector. That creates the Sprite, makes its URL public, stores the key in a Sprites connection, and installs the server. The connection id, the sprite URL, and an API secret are written to `~/.pi-orbs/state.json`. The API key is not copied into the sprite service environment.
 
 ## The interface
 
@@ -54,7 +54,7 @@ Ada, Kepler, and Nova. The selected bot’s thread is open beside the roster.
 
 A thread. Each bot keeps its own.
 
-Name a bot and choose **Add**. Each bot is its own Pi conversation. They share `/home/sprite/work`. Send a message in the bar at the bottom. The thread refreshes every few seconds.
+Choose **Add** to name a bot, write its instruction, and pick a glass orb. The same dialog edits a bot from the roster. Each bot is its own Pi conversation. They share `/home/sprite/work` and the one model from setup. Send a message in the bar at the bottom. The thread refreshes every few seconds.
 
 ![Ada’s thread after a message is sent](docs/local-reply.png)
 

@@ -128,7 +128,7 @@
   #status:empty { display: none; }
   #status { margin-top: 16px; min-height: 1.5em; }
   #create-sprite { margin-top: 28px; text-align: left; }
-  .card input, #send input, #create-bot input {
+  .card select, .card input, #send input, #bot-dialog input, #bot-dialog textarea {
     width: 100%;
     border: 1px solid var(--line-strong);
     background: #000;
@@ -136,12 +136,21 @@
     padding: 14px 16px;
     outline: none;
   }
-  .card input { margin: 0 0 10px; }
-  .card input:focus, #create-bot:focus-within, #send:focus-within {
+  .card input, .card select { margin: 0; }
+  .setup-field { display: block; margin: 0 0 10px; text-align: left; }
+  .setup-field > span {
+    display: block;
+    margin: 0 0 6px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .card input[readonly] { color: var(--muted); }
+  .card input:focus, #send:focus-within, #bot-dialog input:focus, #bot-dialog textarea:focus {
     border-color: rgba(255, 255, 255, 0.72);
     box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.06);
   }
-  #create-button, .send, #create-bot button {
+  #create-button, .send, #add-bot, #bot-save {
     border: 0;
     background: #fff;
     color: #0a0a0a;
@@ -154,8 +163,8 @@
     padding: 14px 18px;
     letter-spacing: -0.01em;
   }
-  #create-button:hover, #create-bot button:hover, .send:hover { background: #eceeed; }
-  #create-button:focus-visible, .send:focus-visible, #create-bot button:focus-visible { outline-offset: 3px; }
+  #create-button:hover, #add-bot:hover, #bot-save:hover, .send:hover { background: #eceeed; }
+  #create-button:focus-visible, .send:focus-visible, #add-bot:focus-visible, #bot-save:focus-visible, #bot-cancel:focus-visible { outline-offset: 3px; }
 
   main {
     display: none;
@@ -214,19 +223,40 @@
     scrollbar-color: #2a2e32 transparent;
   }
   .row {
-    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 16px;
+  }
+  .row:hover { background: var(--fill); }
+  .row.on { background: var(--fill-strong); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
+  .row-main {
+    flex: 1;
+    min-width: 0;
     display: flex;
     gap: 12px;
     align-items: center;
-    padding: 8px;
+    padding: 6px;
     border: 0;
     border-radius: 14px;
     background: transparent;
     text-align: left;
     color: inherit;
   }
-  .row:hover { background: var(--fill); }
-  .row.on { background: var(--fill-strong); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
+  .row-edit {
+    width: 36px;
+    height: 36px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--muted);
+  }
+  .row-edit:hover, .row-edit:focus-visible { background: var(--fill); color: var(--text); }
+  .row-edit svg { display: block; }
   .avatar {
     --orb: #2c3136;
     width: 40px;
@@ -252,31 +282,27 @@
   .avatar[data-tone="0"] { --orb: #2a2f34; }
   .avatar[data-tone="1"] { --orb: #353b41; }
   .avatar[data-tone="2"] { --orb: #22272c; }
+  .avatar[data-look="slate"] { --orb: #46515e; }
+  .avatar[data-look="silver"] { --orb: #8b949e; }
+  .avatar[data-look="mist"] { --orb: #6d8eaa; }
+  .avatar[data-look="tide"] { --orb: #2f7c86; }
+  .avatar[data-look="pine"] { --orb: #3e7a5a; }
+  .avatar[data-look="amber"] { --orb: #a0783c; }
+  .avatar[data-look="clay"] { --orb: #a15a52; }
+  .avatar[data-look="plum"] { --orb: #7a5a88; }
   .avatar.sm { width: 32px; height: 32px; font-size: 13px; }
+  .row .copy { min-width: 0; }
+  .row .name, .row .sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .row .name { font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; }
   .row .sub { color: var(--muted); font-size: 13px; line-height: 1.3; }
-  #create-bot {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  #add-bot {
     margin: 4px 12px 12px;
-    padding: 4px 4px 4px 16px;
-    border: 1px solid var(--line-strong);
     border-radius: 999px;
-    background: #000;
-  }
-  #create-bot input {
-    border: 0;
-    background: transparent;
-    padding: 8px 0;
-    border-radius: 0;
-    min-width: 0;
-  }
-  #create-bot input:focus { box-shadow: none; }
-  #create-bot button {
-    border-radius: 999px;
-    padding: 8px 14px;
-    flex: none;
+    padding: 10px 16px;
   }
   .side-foot { border-top: 1px solid var(--line); padding: 8px 8px 12px; }
   #settings-toggle {
@@ -446,6 +472,74 @@
     text-wrap: pretty;
   }
 
+  #bot-dialog {
+    width: min(440px, calc(100vw - 32px));
+    max-height: min(640px, calc(100vh - 32px));
+    overflow: auto;
+    margin: auto;
+    padding: 22px;
+    border: 1px solid var(--line-strong);
+    border-radius: 20px;
+    background:
+      radial-gradient(420px 180px at 50% -40px, rgba(255, 255, 255, 0.08), transparent 70%),
+      #0a0a0a;
+    color: var(--text);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 24px 80px rgba(0, 0, 0, 0.55);
+  }
+  #bot-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.66);
+    backdrop-filter: blur(10px);
+  }
+  #bot-dialog h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+  }
+  .dialog-copy { margin: 8px 0 18px; color: var(--muted); font-size: 13px; text-wrap: pretty; }
+  .field { display: block; margin: 0 0 14px; }
+  .field > span, .looks-field legend {
+    display: block;
+    margin: 0 0 6px;
+    padding: 0;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  #bot-dialog textarea {
+    min-height: 96px;
+    resize: vertical;
+    line-height: 1.45;
+  }
+  .looks-field { border: 0; margin: 0 0 8px; padding: 0; }
+  #look-name { color: var(--text); }
+  #looks { display: flex; flex-wrap: wrap; gap: 10px; }
+  .look { position: relative; width: 44px; height: 44px; }
+  .look input {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .look .avatar { width: 44px; height: 44px; }
+  .look input:checked + .avatar {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      inset 0 -10px 14px rgba(0, 0, 0, 0.35),
+      0 0 0 2px #000,
+      0 0 0 4px #fff;
+  }
+  .look:focus-within .avatar { outline: 2px solid #fff; outline-offset: 4px; }
+  #bot-dialog-error { color: var(--danger); margin: 8px 0 0; font-size: 13px; }
+  #bot-dialog-error:empty { display: none; }
+  .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  #bot-cancel, #bot-save { border-radius: 999px; padding: 8px 16px; }
+  #bot-cancel { background: transparent; border: 1px solid var(--line-strong); color: var(--text); font-weight: 600; }
+  #bot-cancel:hover { background: var(--fill); }
+
   @media (max-width: 760px) {
     main { grid-template-columns: 1fr; grid-template-rows: minmax(220px, 42vh) minmax(0, 1fr); }
     aside { border-right: 0; border-bottom: 1px solid var(--line); }
@@ -459,6 +553,7 @@
       scroll-behavior: auto !important;
     }
     .glow::before { filter: none; }
+    #bot-dialog::backdrop { backdrop-filter: none; }
   }
 </style>
 </head>
@@ -468,12 +563,28 @@
   <div class="card">
     <div class="glow setup-glow"><img class="setup-mark" src="/logo.png" alt="Pi Orbs"></div>
     <h1>Pi Orbs</h1>
-    <p id="setup-copy">Name the computer and give it an xAI key. Nothing else runs until that sprite is up.</p>
+    <p id="setup-copy">Name the computer and choose a connector. Nothing else runs until that sprite is up.</p>
     <form id="create-sprite">
-      <label class="sr-only" for="sprite-name">Sprite name</label>
-      <input id="sprite-name" name="name" placeholder="Sprite name" autocomplete="off" required>
-      <label class="sr-only" for="xai-key">xAI key</label>
-      <input id="xai-key" name="xai" placeholder="xAI key" type="password" autocomplete="off" required>
+      <label class="setup-field" for="sprite-name">
+        <span>Sprite name</span>
+        <input id="sprite-name" name="name" autocomplete="off" required>
+      </label>
+      <label class="setup-field" for="connector-type">
+        <span>Connector</span>
+        <select id="connector-type" name="connectorType" required></select>
+      </label>
+      <label class="setup-field" for="api-key">
+        <span>API key</span>
+        <input id="api-key" name="apiKey" type="password" autocomplete="off" required>
+      </label>
+      <label class="setup-field" for="base-url">
+        <span>Base URL</span>
+        <input id="base-url" name="baseApiUrl" autocomplete="off" required>
+      </label>
+      <label class="setup-field" for="shared-model">
+        <span>Model</span>
+        <input id="shared-model" name="model" maxlength="200" autocomplete="off" required>
+      </label>
       <button id="create-button" type="submit">Create and deploy</button>
     </form>
     <p id="status" role="status"></p>
@@ -488,11 +599,7 @@
     </div>
     <div class="side-label">Bots</div>
     <div id="bots"></div>
-    <form id="create-bot">
-      <label class="sr-only" for="new-bot">New bot name</label>
-      <input id="new-bot" name="name" placeholder="New bot" autocomplete="off" required>
-      <button type="submit">Add</button>
-    </form>
+    <button id="add-bot" type="button">Add</button>
     <div class="side-foot">
       <button id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings">Settings</button>
       <div id="settings">
@@ -525,17 +632,73 @@
     </div>
   </section>
 </main>
+<dialog id="bot-dialog" aria-labelledby="bot-dialog-title">
+  <form id="bot-form">
+    <h2 id="bot-dialog-title">New bot</h2>
+    <p id="bot-dialog-copy" class="dialog-copy">Name it, steer it with an instruction, and choose a glass orb.</p>
+    <label class="field" for="bot-name">
+      <span>Name</span>
+      <input id="bot-name" name="name" maxlength="80" autocomplete="off" required>
+    </label>
+    <label class="field" for="bot-instruction">
+      <span>Instruction</span>
+      <textarea id="bot-instruction" name="instruction" maxlength="8000" rows="4" placeholder="Optional. How this bot should behave."></textarea>
+    </label>
+    <fieldset class="looks-field">
+      <legend>Look <span id="look-name"></span></legend>
+      <div id="looks"></div>
+    </fieldset>
+    <p id="bot-dialog-error" role="alert"></p>
+    <div class="dialog-actions">
+      <button id="bot-cancel" type="button">Cancel</button>
+      <button id="bot-save" type="submit">Create</button>
+    </div>
+  </form>
+</dialog>
 <script>
-const state = { sprite: null, bot: null };
+const LOOKS = [
+  { id: "slate", label: "Slate" },
+  { id: "silver", label: "Silver" },
+  { id: "mist", label: "Mist" },
+  { id: "tide", label: "Tide" },
+  { id: "pine", label: "Pine" },
+  { id: "amber", label: "Amber" },
+  { id: "clay", label: "Clay" },
+  { id: "plum", label: "Plum" },
+];
+const state = { sprite: null, bot: null, bots: [] };
+let dialogOpener = null;
+let dialogSaving = false;
 function initial(name) { return (name || "?").trim().slice(0, 1).toUpperCase(); }
 function tone(name) {
   let h = 0;
   for (const c of name || "?") h = (h + c.charCodeAt(0)) % 3;
   return String(h);
 }
-function paintAvatar(node, name) {
+function knownLook(id) { return LOOKS.some((item) => item.id === id); }
+function nextLook(used) {
+  let best = LOOKS[0].id;
+  let bestCount = Infinity;
+  for (const look of LOOKS) {
+    const count = used.filter((item) => item === look.id).length;
+    if (count < bestCount) {
+      best = look.id;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+function paintAvatar(node, bot) {
+  const name = bot && typeof bot === "object" ? bot.name : bot;
+  const look = bot && typeof bot === "object" ? bot.look : "";
   node.textContent = initial(name);
-  node.dataset.tone = tone(name);
+  if (knownLook(look)) {
+    node.dataset.look = look;
+    delete node.dataset.tone;
+  } else {
+    delete node.dataset.look;
+    node.dataset.tone = tone(name);
+  }
   node.hidden = false;
 }
 async function api(path, options) {
@@ -548,7 +711,7 @@ function showSetup(copy) {
   document.body.classList.remove("ready");
   document.querySelector("#setup-copy").textContent = copy;
 }
-function setThreadHead(name, sub) {
+function setThreadHead(name, sub, look) {
   document.querySelector("#thread-name").textContent = name;
   const subEl = document.querySelector("#thread-sub");
   const face = document.querySelector("#thread-avatar");
@@ -560,7 +723,7 @@ function setThreadHead(name, sub) {
   }
   subEl.hidden = false;
   subEl.textContent = sub;
-  paintAvatar(face, name);
+  paintAvatar(face, { name, look });
 }
 function setComposer(enabled, placeholder) {
   const input = document.querySelector("#message");
@@ -597,7 +760,12 @@ async function refreshHome() {
   if (!body.sprite) {
     state.sprite = null;
     state.bot = null;
-    showSetup("Name the computer and give it an xAI key. Nothing else runs until that sprite is up.");
+    showSetup("Name the computer and choose a connector. Nothing else runs until that sprite is up.");
+    if (connectorPresets.length) {
+      connectorSelect.value = presetById("xai") ? "xai" : connectorPresets[0].id;
+      applyPreset(true);
+    }
+    resetSetupKey(true);
     return;
   }
   state.sprite = body.sprite.name;
@@ -605,12 +773,12 @@ async function refreshHome() {
     showSetup(body.sprite.name + " exists, but its server is not answering. Finish deploy uses the key already saved on this machine.");
     const form = document.querySelector("#create-sprite");
     form.querySelector("[name=name]").value = body.sprite.name;
-    form.querySelector("[name=xai]").required = false;
-    form.querySelector("[name=xai]").placeholder = "xAI key, only to replace it";
+    showSavedConnector(body.sprite);
+    resetSetupKey(false);
     document.querySelector("#create-button").textContent = "Finish deploy";
     return;
   }
-  document.querySelector("#create-sprite [name=xai]").required = true;
+  resetSetupKey(true);
   document.querySelector("#create-button").textContent = "Create and deploy";
   document.body.classList.add("ready");
   await refreshBots(body.sprite);
@@ -621,27 +789,39 @@ async function refreshBots(sprite) {
   const body = sprite && sprite.bots ? sprite : await api("/api/sprites/" + state.sprite);
   meta.textContent = body.url + "\nrunning " + (body.remoteVersion || "nothing") + (body.update ? " · update available" : "");
   const bots = body.bots || [];
+  state.bots = bots;
   if (!state.bot && bots[0]) state.bot = bots[0].id;
   if (state.bot && !bots.some((bot) => bot.id === state.bot)) state.bot = bots[0] ? bots[0].id : null;
   box.innerHTML = "";
   for (const bot of bots) {
-    const row = document.createElement("button");
-    row.type = "button";
+    const row = document.createElement("div");
     row.className = "row" + (state.bot === bot.id ? " on" : "");
-    row.setAttribute("aria-pressed", state.bot === bot.id ? "true" : "false");
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "row-main";
+    open.setAttribute("aria-pressed", state.bot === bot.id ? "true" : "false");
     const face = document.createElement("div");
     face.className = "avatar";
-    paintAvatar(face, bot.name);
+    paintAvatar(face, bot);
     const text = document.createElement("div");
+    text.className = "copy";
     const name = document.createElement("div");
     name.className = "name";
     name.textContent = bot.name;
     const sub = document.createElement("div");
     sub.className = "sub";
-    sub.textContent = state.sprite;
+    sub.textContent = bot.instruction ? bot.instruction : state.sprite;
     text.append(name, sub);
-    row.append(face, text);
-    row.onclick = () => { state.bot = bot.id; refreshBots(); refreshThread(); };
+    open.append(face, text);
+    open.onclick = () => { state.bot = bot.id; refreshBots(); refreshThread(); };
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "row-edit";
+    edit.setAttribute("aria-label", "Edit " + bot.name);
+    edit.dataset.id = bot.id;
+    edit.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6.1 6.1l1.5 1.5M16.4 16.4l1.5 1.5M17.9 6.1l-1.5 1.5M7.6 16.4l-1.5 1.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+    edit.onclick = () => openBotDialog(bot);
+    row.append(open, edit);
     box.appendChild(row);
   }
   if (state.bot) refreshThread();
@@ -662,7 +842,7 @@ async function refreshThread() {
     return;
   }
   const body = await api("/api/sprites/" + state.sprite + "/bots/" + state.bot);
-  setThreadHead(body.bot.name, state.sprite);
+  setThreadHead(body.bot.name, state.sprite, body.bot.look);
   setComposer(true, "Message " + body.bot.name);
   log.innerHTML = "";
   if (!body.messages.length) {
@@ -679,7 +859,7 @@ async function refreshThread() {
     if (!mine) {
       const face = document.createElement("div");
       face.className = "avatar sm";
-      paintAvatar(face, body.bot.name);
+      paintAvatar(face, body.bot);
       block.append(face);
     }
     const bubble = document.createElement("div");
@@ -699,11 +879,16 @@ document.querySelector("#create-sprite").onsubmit = async (event) => {
   status.textContent = "Creating the sprite and installing the server. This takes a few minutes.";
   try {
     const name = data.get("name");
+    const apiKey = String(data.get("apiKey") || "");
+    const connectorType = String(data.get("connectorType") || "");
+    const baseApiUrl = String(data.get("baseApiUrl") || "").trim();
+    const model = String(data.get("model") || "").trim();
     const existing = state.sprite === name;
-    if (existing && !data.get("xai")) {
-      await api("/api/sprites/" + name + "/deploy", { method: "POST" });
+    const fields = { connectorType, baseApiUrl, model };
+    if (existing && !apiKey) {
+      await api("/api/sprites/" + name + "/deploy", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(fields) });
     } else {
-      await api("/api/sprites", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, xaiKey: data.get("xai") }) });
+      await api("/api/sprites", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, apiKey, ...fields }) });
     }
     event.target.reset();
     status.textContent = "";
@@ -714,19 +899,114 @@ document.querySelector("#create-sprite").onsubmit = async (event) => {
     button.disabled = false;
   }
 };
-document.querySelector("#create-bot").onsubmit = async (event) => {
+const botDialog = document.querySelector("#bot-dialog");
+const botForm = document.querySelector("#bot-form");
+const botName = document.querySelector("#bot-name");
+const botInstruction = document.querySelector("#bot-instruction");
+const botError = document.querySelector("#bot-dialog-error");
+const lookName = document.querySelector("#look-name");
+const looksBox = document.querySelector("#looks");
+for (const look of LOOKS) {
+  const label = document.createElement("label");
+  label.className = "look";
+  const input = document.createElement("input");
+  input.type = "radio";
+  input.name = "look";
+  input.value = look.id;
+  input.required = true;
+  const face = document.createElement("span");
+  face.className = "avatar";
+  face.dataset.look = look.id;
+  face.setAttribute("aria-hidden", "true");
+  const caption = document.createElement("span");
+  caption.className = "sr-only";
+  caption.textContent = look.label;
+  input.addEventListener("change", () => { if (input.checked) lookName.textContent = look.label; });
+  label.append(input, face, caption);
+  looksBox.append(label);
+}
+function selectedLook() {
+  const picked = botForm.querySelector('input[name="look"]:checked');
+  return picked ? picked.value : "";
+}
+function selectLook(id) {
+  const match = LOOKS.find((item) => item.id === id) || LOOKS[0];
+  for (const input of botForm.querySelectorAll('input[name="look"]')) input.checked = input.value === match.id;
+  lookName.textContent = match.label;
+}
+function openBotDialog(bot) {
+  dialogOpener = document.activeElement;
+  botDialog.dataset.mode = bot ? "edit" : "create";
+  botDialog.dataset.id = bot ? bot.id : "";
+  document.querySelector("#bot-dialog-title").textContent = bot ? "Edit bot" : "New bot";
+  document.querySelector("#bot-dialog-copy").textContent = bot
+    ? "Update the name, instruction, or glass orb. Leave the instruction empty to clear it."
+    : "Name it, steer it with an instruction, and choose a glass orb. The instruction can be empty.";
+  document.querySelector("#bot-save").textContent = bot ? "Save" : "Create";
+  botName.value = bot ? bot.name : "";
+  botInstruction.value = bot && bot.instruction ? bot.instruction : "";
+  botName.setCustomValidity("");
+  botError.textContent = "";
+  const used = state.bots.map((item) => item.look);
+  selectLook(bot && knownLook(bot.look) ? bot.look : nextLook(used));
+  botDialog.showModal();
+  botName.focus();
+}
+botName.addEventListener("input", () => botName.setCustomValidity(""));
+botDialog.addEventListener("cancel", (event) => {
+  if (dialogSaving) event.preventDefault();
+});
+botDialog.addEventListener("click", (event) => {
+  if (event.target === botDialog && !dialogSaving) botDialog.close();
+});
+botDialog.addEventListener("close", () => {
+  const opener = dialogOpener;
+  dialogOpener = null;
+  if (opener && typeof opener.focus === "function") opener.focus();
+});
+document.querySelector("#bot-cancel").onclick = () => {
+  if (!dialogSaving) botDialog.close();
+};
+document.querySelector("#add-bot").onclick = () => openBotDialog(null);
+botForm.onsubmit = async (event) => {
   event.preventDefault();
-  if (!state.sprite) return;
-  const data = new FormData(event.target);
-  const button = event.target.querySelector("button");
-  button.disabled = true;
+  if (!state.sprite || dialogSaving) return;
+  botName.value = botName.value.trim();
+  botInstruction.value = botInstruction.value.trim();
+  if (!botName.value) {
+    botName.setCustomValidity("Name is required.");
+    botName.reportValidity();
+    return;
+  }
+  botName.setCustomValidity("");
+  const editing = botDialog.dataset.mode === "edit";
+  const id = botDialog.dataset.id;
+  const save = document.querySelector("#bot-save");
+  const payload = { name: botName.value, instruction: botInstruction.value, look: selectedLook() };
+  dialogSaving = true;
+  save.disabled = true;
+  botError.textContent = "";
   try {
-    const bot = await api("/api/sprites/" + state.sprite + "/bots", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: data.get("name") }) });
-    state.bot = bot.id;
-    event.target.reset();
+    if (editing) {
+      await api("/api/sprites/" + state.sprite + "/bots/" + id, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+    } else {
+      const bot = await api("/api/sprites/" + state.sprite + "/bots", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+      state.bot = bot.id;
+    }
+    dialogOpener = null;
+    botDialog.close();
     await refreshBots();
+    const focusId = editing ? id : state.bot;
+    const next = document.querySelector('.row-edit[data-id="' + CSS.escape(focusId) + '"]');
+    const row = next && next.closest(".row");
+    const mainButton = row && row.querySelector(".row-main");
+    if (mainButton) mainButton.focus();
+  } catch (error) {
+    botError.textContent = error.message;
+    botName.focus();
   } finally {
-    button.disabled = false;
+    dialogSaving = false;
+    save.disabled = false;
   }
 };
 document.querySelector("#settings-toggle").onclick = () => {
@@ -769,7 +1049,59 @@ document.querySelector("#send").onsubmit = async (event) => {
     button.disabled = false;
   }
 };
-refreshHome().catch((error) => { document.querySelector("#status").textContent = error.message; });
+const connectorSelect = document.querySelector("#connector-type");
+const baseUrlInput = document.querySelector("#base-url");
+const modelInput = document.querySelector("#shared-model");
+let connectorPresets = [];
+function presetById(id) {
+  return connectorPresets.find((item) => item.id === id);
+}
+function applyPreset(overwrite) {
+  const preset = presetById(connectorSelect.value) || connectorPresets[0];
+  if (!preset) return;
+  const custom = preset.id === "custom";
+  baseUrlInput.readOnly = !custom;
+  if (overwrite) {
+    baseUrlInput.value = custom ? "" : preset.baseApiUrl;
+    modelInput.value = custom ? "" : preset.model;
+  }
+  baseUrlInput.placeholder = custom ? "https://api.example.com/v1" : "";
+  modelInput.placeholder = custom ? "Model id" : "";
+}
+function showSavedConnector(sprite) {
+  const type = sprite && sprite.connectorType && presetById(sprite.connectorType) ? sprite.connectorType : "xai";
+  connectorSelect.value = type;
+  applyPreset(true);
+  if (sprite && sprite.baseApiUrl) baseUrlInput.value = sprite.baseApiUrl;
+  if (sprite && sprite.model) modelInput.value = sprite.model;
+  baseUrlInput.readOnly = type !== "custom";
+}
+function resetSetupKey(required) {
+  const input = document.querySelector("#api-key");
+  input.required = required;
+  input.placeholder = required ? "" : "API key, only to replace it";
+  input.value = "";
+}
+function fillConnectorSelect() {
+  connectorSelect.innerHTML = "";
+  for (const preset of connectorPresets) {
+    const option = document.createElement("option");
+    option.value = preset.id;
+    option.textContent = preset.label;
+    connectorSelect.append(option);
+  }
+  connectorSelect.value = presetById("xai") ? "xai" : (connectorPresets[0] ? connectorPresets[0].id : "");
+  applyPreset(true);
+}
+connectorSelect.addEventListener("change", () => applyPreset(true));
+async function loadPresets() {
+  const body = await api("/api/connector-presets");
+  connectorPresets = body.connectors || [];
+  fillConnectorSelect();
+  document.querySelector("#create-button").disabled = false;
+}
+document.querySelector("#create-button").disabled = true;
+loadPresets().then(() => refreshHome()).catch((error) => { document.querySelector("#status").textContent = error.message; });
 setInterval(() => { if (state.bot) refreshThread(); }, 3000);
 </script>
 </body>
