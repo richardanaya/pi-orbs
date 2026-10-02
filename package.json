@@ -1,6 +1,6 @@
 {
   "name": "pi-orbs",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Run named Pi bots on a Fly.io Sprite. The client is what you install; it ships the server.",
   "type": "module",
   "bin": {

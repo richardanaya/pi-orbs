@@ -2,7 +2,7 @@
   "name": "@pi-orbs/client",
   "private": true,
   "type": "module",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "scripts": {
     "build": "tsc",
     "start": "node ../bin/pi-orbs.js"
