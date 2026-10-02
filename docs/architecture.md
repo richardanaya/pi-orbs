@@ -64,7 +64,7 @@ Each bot is one Pi conversation in a single pi-durable harness. The harness data
 
 The coding tools for every bot use `PI_CWD`, which deploy sets to `/home/sprite/work`, and the `web` service uses that directory as its working directory. Bots on the sprite share that disk.
 
-Sending a message submits text to that conversation and returns immediately (`202`). The page reloads the thread every few seconds. A reload that does not change the visible messages leaves the scroll where it is.
+Sending a message submits text to that conversation and returns immediately (`202`). The page reloads the thread every few seconds. A reload that does not change the visible messages leaves the scroll where it is. Sending a message still follows the new line.
 
 ## Cross-bot steering
 

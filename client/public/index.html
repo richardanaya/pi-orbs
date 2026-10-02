@@ -844,6 +844,7 @@ async function refreshBots(sprite) {
   }
 }
 let threadView = "";
+let stickToBottom = false;
 function visibleThreadMessages(messages) {
   return (messages || []).filter((message) => message && message.peer !== true && message.source !== "peer");
 }
@@ -867,8 +868,10 @@ async function refreshThread() {
   const messages = visibleThreadMessages(body.messages);
   const signature = threadSignature(requested, messages);
   if (signature === threadView && log.childElementCount > 0) return;
+  const followSend = stickToBottom;
+  stickToBottom = false;
   const distance = log.scrollHeight - log.scrollTop - log.clientHeight;
-  const pinned = !threadView.startsWith(requested + "\n") || distance < 48;
+  const pinned = followSend || !threadView.startsWith(requested + "\n") || distance < 48;
   const kept = log.scrollTop;
   threadView = signature;
   log.innerHTML = "";
@@ -1100,10 +1103,14 @@ document.querySelector("#send").onsubmit = async (event) => {
   const data = new FormData(event.target);
   const button = event.target.querySelector("button");
   button.disabled = true;
+  stickToBottom = true;
   try {
     await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/messages", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ content: data.get("content") }) });
     event.target.reset();
     setTimeout(refreshThread, 1500);
+  } catch (error) {
+    stickToBottom = false;
+    throw error;
   } finally {
     button.disabled = false;
   }
