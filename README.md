@@ -26,6 +26,8 @@ npx pi-orbs
 
 Open http://127.0.0.1:8787.
 
+![Roster of Ada, Kepler, and Nova, a message to Ada, and her reply](docs/local-demo.gif)
+
 From a checkout of this repo:
 
 ```bash
