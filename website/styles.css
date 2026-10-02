@@ -151,6 +151,25 @@ code {
   height: 28px;
 }
 
+.nav-github {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.nav-github:hover { background: var(--hover); }
+
 .nav-toggle {
   display: none;
   margin-left: auto;
@@ -614,18 +633,26 @@ footer {
   .glow-nav::before { display: none; }
 
   /* Menu is in the bar even when the js class never lands (inline script
-     blocked, or a browser that drops html.js rules). */
-  .nav-toggle {
+     blocked, or a browser that drops html.js rules). GitHub stays in that
+     row too, so the source link is visible before Menu opens. */
+  .nav-github {
     display: inline-flex;
     margin-left: auto;
+    min-height: 44px;
+    padding: 0 10px;
+  }
+
+  .nav-toggle {
+    display: inline-flex;
+    margin-left: 0;
     flex: 0 0 auto;
     min-width: 44px;
-    padding: 0 12px;
+    padding: 0 10px;
     font-size: 14px;
   }
 
-  /* Closed bar is mark + wordmark + Menu only. Links leave the flex row
-     even if display:none is ignored on <nav>. */
+  /* Closed bar is mark + wordmark + GitHub + Menu. Page links leave the
+     flex row even if display:none is ignored on <nav>. */
   header.nav:not(.is-open) .nav-links {
     display: none;
     position: absolute;
@@ -684,7 +711,10 @@ footer {
     background: var(--hover);
   }
 
-  /* Without site.js the toggle cannot open, so put the links back. */
+  /* Without site.js the toggle cannot open, so put the links back.
+     The in-nav GitHub item is on screen, so the extra header pill hides. */
+  html:not(.js) .nav-github { display: none; }
+
   html:not(.js) .nav-toggle { display: none; }
 
   html:not(.js) .nav-inner {
