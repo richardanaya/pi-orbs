@@ -9,7 +9,7 @@ Closes #
 <!-- Commands you ran, or which docs you compared against the code. -->
 
 - [ ] `npm run build` (builds the server, then the client)
-- [ ] `npm test` (server auth and bots smoke tests; Node 22)
+- [ ] `npm test` (client simulator API tests, then server auth and bots smoke tests; full run needs Node 22)
 
 ## Checklist
 

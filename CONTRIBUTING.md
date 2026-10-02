@@ -36,9 +36,17 @@ That script builds the server, then the client (`npm run build --prefix server &
 npm test
 ```
 
-`npm test` at the repo root runs the server package tests. That builds the server, then starts it on a free port with a throwaway database and `PI_API_SECRET`, and checks three things with Node's built-in test runner: `/version` is public, a missing or wrong secret gets 401, and a Bearer token can create a bot and list it. No sprite CLI and no xAI key.
+`npm test` at the repo root runs the client simulator tests, then the server package tests. Both use Node's built-in test runner. No sprite CLI and no xAI key.
 
-The server process uses `node:sqlite`, which Node 20 does not include, so run these tests on Node 22. CI runs `npm test` on the Node 22 job. The Node 20 job still builds both packages.
+The client tests call the in-memory simulator in `client/src/local.ts` over HTTP. They check the seeded sprite `atlas` and `localVersion`, the bots Ada, Kepler, and Nova, the seeded thread, a canned assistant reply, creating a bot, and stubbed deploy and destroy. Deploy and destroy do not write `~/.pi-orbs/state.json`. After destroy, the sprite is gone, and create reseeds it. Node 20 can run these on their own:
+
+```bash
+npm test --prefix client
+```
+
+The server tests build the server, then start it on a free port with a throwaway database and `PI_API_SECRET`, and check three things: `/version` is public, a missing or wrong secret gets 401, and a Bearer token can create a bot and list it.
+
+The server process uses `node:sqlite`, which Node 20 does not include, so the full `npm test` needs Node 22. CI runs `npm test` on the Node 22 job, and runs `npm test --prefix client` on the Node 20 job. Both jobs build both packages.
 
 ## Run locally
 
@@ -54,6 +62,10 @@ Creating a Sprite from that page needs the sprite CLI and an xAI key. The key is
 
 `npm run dev:local` builds the client and opens the same page against an in-memory simulator. No sprite CLI, no Sprite, and no xAI key. The roster starts with seeded bots and a thread. Sending a message appends a canned reply. The simulator leaves `~/.pi-orbs/state.json` untouched.
 
+The page shows a **Local simulator** badge while this mode is on. The badge sits above the setup form and the roster, not inside Settings. `GET /api/sprites` returns `simulator: true` only from the in-memory handler, and that flag is what turns the badge on. The Sprite-backed client does not send the flag, and the badge stays hidden there.
+
+Create, deploy, and destroy are stubbed in local mode. They succeed without calling the sprite CLI or installing a server, and they do not write `~/.pi-orbs/state.json`. Destroy clears the in-memory sprite. Creating again reseeds Ada, Kepler, and Nova.
+
 ```bash
 npm install --prefix client
 npm run dev:local
@@ -61,7 +73,7 @@ npm run dev:local
 
 `PI_ORBS_MODE=local` or `node ./bin/pi-orbs.js --local` is the same switch. With the mode off, `npm start` is the Sprite-backed client above.
 
-The simulator covers the roster, thread, compose box, and adding a bot. Sprite create, deploy, and destroy, the xAI connector, Pi conversations, and the server that runs on a Sprite stay on the real path. Screenshots of this UI are in the README under **The interface**. The public try path is `npx pi-orbs`, not this simulator.
+The simulator covers the roster, thread, compose box, and adding a bot. The xAI connector, Pi conversations, and the server that runs on a Sprite stay on the real path. Screenshots of this UI are in the README under **The interface**. The public try path is `npx pi-orbs`, not this simulator.
 
 ## Pull requests
 

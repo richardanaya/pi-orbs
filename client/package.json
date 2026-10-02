@@ -5,7 +5,8 @@
   "version": "0.1.0",
   "scripts": {
     "build": "tsc",
-    "start": "node ../bin/pi-orbs.js"
+    "start": "node ../bin/pi-orbs.js",
+    "test": "npm run build && node --test test/local.test.js"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

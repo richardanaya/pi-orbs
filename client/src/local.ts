@@ -106,6 +106,7 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
     const version = await localVersion();
     send(res, 200, {
       localVersion: version,
+      simulator: true,
       sprite: sprite
         ? { name: sprite.name, url: sprite.url, remoteVersion: version, update: false }
         : null,

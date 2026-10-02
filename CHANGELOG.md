@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Local simulator API tests in `client/test`. Root `npm test` runs them before the server tests. CI runs them on Node 20 and, with the server tests, on Node 22. No sprite CLI and no xAI key.
+- A Local simulator badge on the client page when local mode is on. The Sprite-backed client does not show it.
 - [Architecture](docs/architecture.md): client and Sprite, `~/.pi-orbs/state.json`, the xAI connector, shared `/home/sprite/work`, and troubleshooting. The README links to it.
 
 ### Changed

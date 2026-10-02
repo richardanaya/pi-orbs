@@ -76,13 +76,13 @@ npm start
 
 ## Test
 
-From a checkout, after server dependencies are installed:
+From a checkout, after client and server dependencies are installed:
 
 ```bash
 npm test
 ```
 
-That builds the server and runs its smoke tests: `/version` is public, requests without the API secret get 401, and a Bearer token can create a bot and list it. Use Node 22. The server process needs `node:sqlite`, which Node 20 does not include.
+That runs the client simulator tests, then builds the server and runs its smoke tests: `/version` is public, requests without the API secret get 401, and a Bearer token can create a bot and list it. The full run needs Node 22. The server process needs `node:sqlite`, which Node 20 does not include. The simulator tests alone run on Node 20 with `npm test --prefix client`.
 
 ## Site
 
