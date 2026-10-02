@@ -41,7 +41,17 @@ npm install --prefix client
 npm run dev:local
 ```
 
-The setup form stays hidden. The roster opens with three bots on a pretend sprite named `atlas`, and the selected thread already has messages. Send a message and the simulator appends your text plus a canned reply. **Add** creates a bot in memory. **Settings → Push server build** reports success and stops there. **Destroy sprite** returns to the setup form; any sprite name and any placeholder in the key field restore a fresh seeded roster. The placeholder is discarded. Local mode leaves `~/.pi-orbs/state.json` untouched.
+The setup form stays hidden. The roster opens with three bots on a pretend sprite named `atlas`, and the selected thread already has messages.
+
+![Roster of Ada, Kepler, and Nova on the local sprite atlas](docs/local-roster.png)
+
+![Ada's thread with the seeded sample messages](docs/local-thread.png)
+
+Send a message and the simulator appends your text plus a canned reply.
+
+![Ada's thread after a sent message, with the canned reply](docs/local-reply.png)
+
+**Add** creates a bot in memory. **Settings → Push server build** reports success and stops there. **Destroy sprite** returns to the setup form; any sprite name and any placeholder in the key field restore a fresh seeded roster. The placeholder is discarded. Local mode leaves `~/.pi-orbs/state.json` untouched.
 
 **Covers:** the client UI — roster, thread, compose, and adding a bot.
 
