@@ -80,15 +80,21 @@ function authorized(req: IncomingMessage): boolean {
 }
 
 function textOf(entry: EntryRecord): string {
-  const model = entry.model as { content?: unknown; text?: unknown } | undefined;
-  if (!model) return "";
-  if (typeof model.text === "string") return model.text;
-  if (!Array.isArray(model.content)) return "";
-  return model.content.map((block) => {
-    if (typeof block === "string") return block;
-    if (block && typeof block === "object" && "text" in block && typeof block.text === "string") return block.text;
-    return "";
-  }).join("");
+  const parts: string[] = [];
+  for (const message of entry.model ?? []) {
+    const content = message.content as unknown;
+    if (typeof content === "string") {
+      parts.push(content);
+      continue;
+    }
+    if (!Array.isArray(content)) continue;
+    for (const block of content) {
+      if (!block || typeof block !== "object" || !("text" in block) || typeof block.text !== "string") continue;
+      if ("type" in block && block.type === "thinking") continue;
+      parts.push(block.text);
+    }
+  }
+  return parts.join("");
 }
 
 async function readBody(req: IncomingMessage): Promise<unknown> {

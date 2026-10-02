@@ -41,3 +41,12 @@ export async function ensureXaiConnector(apiKey: string): Promise<string> {
     await rm(dir, { recursive: true, force: true });
   }
 }
+
+export async function deleteXaiConnector(connectionId: string): Promise<void> {
+  try {
+    await sprite(["api", `/v1/oauth/connections/${connectionId}`, "--", "-sS", "-f", "-X", "DELETE"]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (!/\b404\b/.test(message)) throw error;
+  }
+}

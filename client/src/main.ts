@@ -3,7 +3,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ensureXaiConnector, gatewayBaseUrl } from "./connector.js";
+import { deleteXaiConnector, ensureXaiConnector, gatewayBaseUrl } from "./connector.js";
 import { deploySprite, localVersion, newSecret, remoteVersion } from "./deploy.js";
 import { listSprites, sprite } from "./sprite.js";
 
@@ -129,6 +129,7 @@ const http = createServer(async (req, res) => {
       return;
     }
     if (req.method === "DELETE" && !route[2] && !route[4]) {
+      if (saved.connectorId) await deleteXaiConnector(saved.connectorId);
       await sprite(["destroy", "--force", saved.name]);
       state.sprites = state.sprites.filter((item) => item.name !== saved.name);
       await saveState(state);

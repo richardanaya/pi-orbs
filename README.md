@@ -1,6 +1,6 @@
-# pi-orbs
+# Pi Orbs
 
-![Glass orbs above a dark desk](docs/hero.jpg)
+![Pi Orbs mark, a glass orb whose pi symbol reads as a pair of eyes](docs/logo.png)
 
 Named bots, each one a durable Pi thread, sharing one Fly.io Sprite as their computer.
 
@@ -26,15 +26,11 @@ npm start
 
 ## Use
 
-The page has three columns: Sprites, Bots, and the thread.
+Until a sprite is running, the page shows only the setup form: a sprite name, an xAI key, and **Create and deploy**. That creates the Sprite, makes its URL public, stores the key in a Sprites connector named `pi-orbs xAI`, and installs the server. The connector id, the sprite URL, and an API secret are written to `~/.pi-orbs/state.json`. The xAI key is not copied into the sprite service environment.
 
-1. Under Sprites, enter a sprite name and an xAI API key, then choose **Create and deploy**. The client creates the Sprite, makes its URL public, generates an API secret, and installs the server. The key and the secret are written to `~/.pi-orbs/state.json` on your machine and into that Sprite's service environment. They are not stored in this repo.
-2. Select the sprite. The line under Bots shows its URL, the server version it is running, and whether this package has a newer build.
-3. Name a bot and choose **New bot**. Each bot is its own Pi conversation on that Sprite. They share `/home/sprite/work`.
-4. Select the bot and send a message. The thread shows your lines and the bot's replies. It refreshes every few seconds.
-5. **Push server build** packs this package's server and installs it on the selected Sprite. Use it when the page says an update is available, or any time you want that Sprite on the build you are running.
+After that, the page is a roster and a thread. The first bot is selected on load. Name a bot and choose **Add**. Each bot is its own Pi conversation. They share `/home/sprite/work`. Send a message in the bar at the bottom. The thread refreshes every few seconds.
 
-The header shows the server build bundled with the client.
+**Settings** holds **Push server build** and **Destroy sprite**. Push installs this package's server on the sprite. Destroy deletes that sprite and the connector that was saved with it, then the page returns to setup.
 
 ## Publish
 
