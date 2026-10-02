@@ -8,6 +8,7 @@ const LOOKS = ["slate", "silver", "mist", "tide", "pine", "amber", "clay", "plum
 const NAME_MAX = 80;
 const INSTRUCTION_MAX = 8_000;
 const PEER_CONTENT_MAX = 8_000;
+const PEER_BUSY_MS = 12_000;
 
 type Look = (typeof LOOKS)[number];
 type Kind = "pi.user" | "pi.assistant";
@@ -30,6 +31,7 @@ type Bot = {
   instruction: string;
   look: Look;
   messages: Message[];
+  busyUntil?: number;
 };
 type Sprite = { name: string; url: string } & SpriteConnector;
 type FieldPatch = { name?: string; instruction?: string; look?: Look };
@@ -100,14 +102,46 @@ function seedBots(): Bot[] {
   ];
 }
 
-function reset(name: string, connector: SpriteConnector = defaultConnector()): void {
+function samplePeers(): Peer[] {
+  return [
+    {
+      id: "peer-sample-1",
+      from: "ada",
+      to: "kepler",
+      fromName: "Ada",
+      toName: "Kepler",
+      content: "The status line is in status.html. Same muted gray as the roster.",
+      submissionId: "local-peer-sample-1",
+      createdAt: new Date(seedStart + 120_000).toISOString(),
+      delivery: "steer",
+    },
+    {
+      id: "peer-sample-2",
+      from: "kepler",
+      to: "ada",
+      fromName: "Kepler",
+      toName: "Ada",
+      content: "I see it. The work directory is shared, so that file is on my disk too.",
+      submissionId: "local-peer-sample-2",
+      createdAt: new Date(seedStart + 180_000).toISOString(),
+      delivery: "steer",
+    },
+  ];
+}
+
+function reset(name: string, connector: SpriteConnector = defaultConnector(), sample = false): void {
   sprite = { name, url: localUrl, ...connector };
   bots = seedBots();
-  peers = [];
+  peers = sample ? samplePeers() : [];
   nextPeer = 1;
 }
 
-reset("atlas");
+function busyIds(): string[] {
+  const now = Date.now();
+  return bots.filter((bot) => (bot.busyUntil ?? 0) > now).map((bot) => bot.id);
+}
+
+reset("atlas", defaultConnector(), true);
 
 export function localMode(): boolean {
   const mode = (process.env.PI_ORBS_MODE ?? "").trim().toLowerCase();
@@ -303,6 +337,10 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
     send(res, 200, { ok: true, version: await localVersion() });
     return;
   }
+  if (rest.length === 1 && rest[0] === "activity" && req.method === "GET") {
+    send(res, 200, { busy: busyIds() });
+    return;
+  }
   if (rest.length === 0 && req.method === "GET") {
     const version = await localVersion();
     send(res, 200, {
@@ -413,6 +451,7 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
         delivery: "steer",
       };
       peers.push(record);
+      bot.busyUntil = Date.now() + PEER_BUSY_MS;
       send(res, 202, record);
       return;
     }

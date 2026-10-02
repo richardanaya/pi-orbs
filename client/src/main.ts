@@ -273,6 +273,17 @@ const http = createServer(async (req, res) => {
       res.end(archive.zip);
       return;
     }
+    const activityRoute = url.pathname.match(/^\/api\/sprites\/([^/]+)\/activity$/);
+    if (activityRoute && req.method === "GET") {
+      const saved = state.sprites.find((item) => item.name === activityRoute[1]);
+      if (!saved) {
+        send(res, 404, { error: "sprite is not managed by this client" });
+        return;
+      }
+      const response = await spriteFetch(saved, "/api/bots/activity");
+      send(res, response.status, await response.json());
+      return;
+    }
     const peerRoute = url.pathname.match(/^\/api\/sprites\/([^/]+)\/bots\/([^/]+)\/(steer|peers)$/);
     if (peerRoute) {
       const saved = state.sprites.find((item) => item.name === peerRoute[1]);

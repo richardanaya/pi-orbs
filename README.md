@@ -54,6 +54,8 @@ Ada, Kepler, and Nova. The selected bot’s thread is open beside the roster.
 
 A thread. Each bot keeps its own.
 
+**Peers**, on the open bot and on the roster, opens cross-bot traffic beside that thread. Each steer shows who sent it, who received it, when, and the message. The thread stays the conversation with you. A roster orb pulses while that bot is working.
+
 Choose **Add** to name a bot, write its instruction, and pick a glass orb. The same dialog edits a bot from the roster. Each bot is its own Pi conversation. They share `/home/sprite/work` and the one model from setup. Send a message in the bar at the bottom. The thread refreshes every few seconds.
 
 ![Ada’s thread after a message is sent](docs/local-reply.png)

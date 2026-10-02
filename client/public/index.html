@@ -207,14 +207,34 @@
     padding: 3px 8px;
     line-height: 1.4;
   }
+  .side-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 12px 2px 18px;
+  }
   .side-label {
-    margin: 4px 18px 2px;
+    margin: 0;
     color: var(--muted);
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
   }
+  #roster-peers {
+    margin-left: auto;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    border-radius: 999px;
+    padding: 4px 8px;
+  }
+  #roster-peers:hover { color: var(--text); background: var(--fill); }
+  #roster-peers[aria-expanded="true"] { color: var(--text); background: var(--fill-strong); }
   #bots {
     flex: 1;
     overflow: auto;
@@ -259,6 +279,7 @@
   .row-edit svg { display: block; }
   .avatar {
     --orb: #2c3136;
+    position: relative;
     width: 40px;
     height: 40px;
     border-radius: 50%;
@@ -388,12 +409,185 @@
     padding: 12px 28px;
     border-bottom: 1px solid var(--line);
   }
+  .thread-id { min-width: 0; flex: 1; }
+  .thread-name, .thread-sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .thread-name {
     font-weight: 600;
     letter-spacing: -0.03em;
     font-size: 16px;
     line-height: 1.2;
   }
+  .thread-tools {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: none;
+    min-width: 0;
+  }
+  .peer-activity {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    max-width: 22ch;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .peer-activity[hidden] { display: none; }
+  #peer-activity-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .peer-pulse {
+    width: 8px;
+    height: 8px;
+    flex: none;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.55);
+    animation: peer-pulse 1.8s ease-out infinite;
+  }
+  @keyframes peer-pulse {
+    70% { box-shadow: 0 0 0 6px rgba(255, 255, 255, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+  }
+  .avatar.busy::after {
+    content: "";
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    right: -1px;
+    bottom: -1px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 0 2px #000, 0 0 8px rgba(255, 255, 255, 0.65);
+    animation: peer-pulse 1.8s ease-out infinite;
+  }
+  #peers-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--line-strong);
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 999px;
+    padding: 6px 12px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  #peers-toggle:hover { background: var(--fill); }
+  #peers-toggle[aria-expanded="true"] {
+    background: #fff;
+    color: #0a0a0a;
+    border-color: #fff;
+  }
+  #peers-count {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.4;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  #peers-count[hidden] { display: none; }
+  #peers-toggle[aria-expanded="true"] #peers-count {
+    background: #0a0a0a;
+    color: #fff;
+    border-color: transparent;
+  }
+  body.peers-open main {
+    grid-template-columns: 300px minmax(0, 1fr) minmax(280px, 340px);
+  }
+  .peers {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    border-left: 1px solid var(--line);
+    background:
+      radial-gradient(420px 220px at 50% -40px, rgba(255, 255, 255, 0.06), transparent 70%),
+      #000;
+  }
+  .peers[hidden] { display: none; }
+  .peers-bar {
+    min-height: 68px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .peers-title {
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    font-size: 16px;
+    line-height: 1.2;
+  }
+  .peers-sub { color: var(--muted); font-size: 13px; line-height: 1.3; }
+  #peers-close {
+    width: 36px;
+    height: 36px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--muted);
+  }
+  #peers-close:hover, #peers-close:focus-visible { background: var(--fill); color: var(--text); }
+  #peers-close svg { display: block; }
+  #peers-log {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    scrollbar-width: thin;
+    scrollbar-color: #2a2e32 transparent;
+  }
+  .peer {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.035);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    padding: 12px;
+    margin: 0 0 12px;
+  }
+  .peer-route { display: flex; align-items: center; gap: 8px; }
+  .peer-who { min-width: 0; flex: 1; }
+  .peer-names {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .peer-arrow { color: var(--muted); font-weight: 500; padding: 0 4px; }
+  .peer-meta {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.4;
+    font-variant-numeric: tabular-nums;
+  }
+  .peer-body {
+    margin: 10px 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    line-height: 1.5;
+  }
+  .peers-error { color: var(--danger); margin: 8px 0 0; font-size: 13px; }
   .thread-sub { color: var(--muted); font-size: 13px; line-height: 1.3; }
   .thread-sub:empty, .thread-sub[hidden], #thread-avatar[hidden] { display: none; }
   #log {
@@ -549,7 +743,12 @@
 
   @media (max-width: 760px) {
     main { grid-template-columns: 1fr; grid-template-rows: minmax(220px, 42vh) minmax(0, 1fr); }
+    body.peers-open main {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(140px, 24vh) minmax(0, 1fr) minmax(200px, 40vh);
+    }
     aside { border-right: 0; border-bottom: 1px solid var(--line); }
+    .peers { border-left: 0; border-top: 1px solid var(--line); }
     .thread-bar, .composer { padding-left: 16px; padding-right: 16px; }
     #log { padding-left: 16px; padding-right: 16px; }
   }
@@ -604,7 +803,10 @@
       <strong>Pi Orbs</strong>
       <span id="version" class="version"></span>
     </div>
-    <div class="side-label">Bots</div>
+    <div class="side-head">
+      <div class="side-label">Bots</div>
+      <button id="roster-peers" type="button" data-peers-toggle aria-expanded="false" aria-controls="peers" disabled>Peers</button>
+    </div>
     <div id="bots"></div>
     <button id="add-bot" type="button">Add</button>
     <div class="side-foot">
@@ -623,9 +825,19 @@
   <section class="thread" aria-label="Thread">
     <div class="thread-bar">
       <div class="avatar sm" id="thread-avatar" hidden></div>
-      <div>
+      <div class="thread-id">
         <div class="thread-name" id="thread-name">Choose a bot</div>
         <div class="thread-sub" id="thread-sub" hidden></div>
+      </div>
+      <div class="thread-tools">
+        <p id="peer-activity" class="peer-activity" role="status" hidden>
+          <span class="peer-pulse" aria-hidden="true"></span>
+          <span id="peer-activity-text"></span>
+        </p>
+        <button id="peers-toggle" type="button" data-peers-toggle aria-expanded="false" aria-controls="peers" disabled>
+          Peers
+          <span id="peers-count" hidden></span>
+        </button>
       </div>
     </div>
     <div id="log"></div>
@@ -640,6 +852,20 @@
         </button>
       </form>
     </div>
+  </section>
+  <section id="peers" class="peers" hidden aria-label="Peer traffic">
+    <div class="peers-bar">
+      <div class="thread-id">
+        <div class="peers-title">Peers</div>
+        <div class="peers-sub">Steers stay out of this thread</div>
+      </div>
+      <button id="peers-close" type="button" aria-label="Close peer traffic">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+    <div id="peers-log"></div>
   </section>
 </main>
 <dialog id="bot-dialog" aria-labelledby="bot-dialog-title">
@@ -676,7 +902,7 @@ const LOOKS = [
   { id: "clay", label: "Clay" },
   { id: "plum", label: "Plum" },
 ];
-const state = { sprite: null, bot: null, bots: [] };
+const state = { sprite: null, bot: null, bots: [], peersOpen: false, busy: [] };
 let dialogOpener = null;
 let dialogSaving = false;
 function initial(name) { return (name || "?").trim().slice(0, 1).toUpperCase(); }
@@ -719,12 +945,36 @@ async function api(path, options) {
 }
 function showSetup(copy) {
   document.body.classList.remove("ready");
+  setPeersOpen(false, false);
   document.querySelector("#setup-copy").textContent = copy;
+}
+function setPeerControls(enabled) {
+  for (const button of document.querySelectorAll("[data-peers-toggle]")) button.disabled = !enabled;
+  if (!enabled && state.peersOpen) setPeersOpen(false, false);
+}
+function setPeersOpen(open, focus) {
+  state.peersOpen = open;
+  document.body.classList.toggle("peers-open", open);
+  const panel = document.querySelector("#peers");
+  panel.hidden = !open;
+  for (const button of document.querySelectorAll("[data-peers-toggle]")) {
+    button.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+  if (open) {
+    const log = document.querySelector("#peers-log");
+    log.scrollTop = log.scrollHeight;
+    refreshPeers();
+  }
+  if (focus && typeof focus.focus === "function") {
+    const target = open ? document.querySelector("#peers-close") : focus;
+    if (target) target.focus();
+  }
 }
 function setThreadHead(name, sub, look) {
   document.querySelector("#thread-name").textContent = name;
   const subEl = document.querySelector("#thread-sub");
   const face = document.querySelector("#thread-avatar");
+  setPeerControls(!!sub);
   if (!sub) {
     subEl.hidden = true;
     subEl.textContent = "";
@@ -806,6 +1056,7 @@ async function refreshBots(sprite) {
   for (const bot of bots) {
     const row = document.createElement("div");
     row.className = "row" + (state.bot === bot.id ? " on" : "");
+    row.dataset.id = bot.id;
     const open = document.createElement("button");
     open.type = "button";
     open.className = "row-main";
@@ -842,11 +1093,173 @@ async function refreshBots(sprite) {
     log.innerHTML = "";
     log.append(showEmpty("Choose a bot", "The roster is on the left. Each bot keeps its own thread."));
   }
+  paintBusy();
+  refreshPeers();
+  refreshActivity();
 }
 let threadView = "";
 let stickToBottom = false;
 function visibleThreadMessages(messages) {
   return (messages || []).filter((message) => message && message.peer !== true && message.source !== "peer");
+}
+function formatPeerTime(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(date);
+}
+function botFace(id, fallbackName) {
+  return state.bots.find((item) => item.id === id) || { name: fallbackName, look: "" };
+}
+function paintPeerCount(count) {
+  const badge = document.querySelector("#peers-count");
+  if (!count) {
+    badge.hidden = true;
+    badge.textContent = "";
+    return;
+  }
+  badge.hidden = false;
+  badge.textContent = count > 99 ? "99+" : String(count);
+}
+let peerView = "";
+function peerSignature(botId, peers) {
+  return botId + "\n" + peers.map((item) => [item.id, item.from, item.to, item.createdAt, item.content].join("\t")).join("\n");
+}
+function renderPeers(peers) {
+  const log = document.querySelector("#peers-log");
+  const requested = state.bot || "";
+  const signature = peerSignature(requested, peers);
+  paintPeerCount(peers.length);
+  const panel = document.querySelector("#peers");
+  const visible = panel && !panel.hidden;
+  if (signature === peerView && log.childElementCount > 0) return;
+  const distance = visible ? log.scrollHeight - log.scrollTop - log.clientHeight : 0;
+  const pinned = !visible || !peerView.startsWith(requested + "\n") || distance < 48;
+  const kept = log.scrollTop;
+  peerView = signature;
+  log.innerHTML = "";
+  if (!peers.length) {
+    log.append(showEmpty("No peer traffic", "Steers between bots show up here. This thread stays a conversation with you."));
+    return;
+  }
+  for (const item of peers) {
+    const card = document.createElement("article");
+    card.className = "peer";
+    const route = document.createElement("div");
+    route.className = "peer-route";
+    const fromFace = document.createElement("div");
+    fromFace.className = "avatar sm";
+    paintAvatar(fromFace, botFace(item.from, item.fromName));
+    const who = document.createElement("div");
+    who.className = "peer-who";
+    const names = document.createElement("div");
+    names.className = "peer-names";
+    const fromLabel = item.fromName || item.from;
+    const toLabel = item.toName || item.to;
+    names.setAttribute("aria-label", fromLabel + " to " + toLabel);
+    const fromName = document.createElement("span");
+    fromName.className = "peer-from";
+    fromName.textContent = fromLabel;
+    const arrow = document.createElement("span");
+    arrow.className = "peer-arrow";
+    arrow.setAttribute("aria-hidden", "true");
+    arrow.textContent = " → ";
+    const toName = document.createElement("span");
+    toName.className = "peer-to";
+    toName.textContent = toLabel;
+    names.append(fromName, arrow, toName);
+    const meta = document.createElement("div");
+    meta.className = "peer-meta";
+    const time = document.createElement("time");
+    if (item.createdAt) time.dateTime = item.createdAt;
+    time.textContent = formatPeerTime(item.createdAt);
+    meta.append(time);
+    if (time.textContent) meta.append(document.createTextNode(" · "));
+    meta.append(document.createTextNode("Steer"));
+    who.append(names, meta);
+    const toFace = document.createElement("div");
+    toFace.className = "avatar sm";
+    paintAvatar(toFace, botFace(item.to, item.toName));
+    route.append(fromFace, who, toFace);
+    const body = document.createElement("p");
+    body.className = "peer-body";
+    body.textContent = item.content || "";
+    card.append(route, body);
+    log.append(card);
+  }
+  if (visible) log.scrollTop = pinned ? log.scrollHeight : kept;
+}
+async function refreshPeers() {
+  const log = document.querySelector("#peers-log");
+  if (!state.sprite || !state.bot) {
+    peerView = "";
+    paintPeerCount(0);
+    log.innerHTML = "";
+    log.append(showEmpty("No peer traffic", "Choose a bot to inspect steers with the others."));
+    return;
+  }
+  const requested = state.bot;
+  try {
+    const body = await api("/api/sprites/" + state.sprite + "/bots/" + requested + "/peers");
+    if (state.bot !== requested) return;
+    const peers = (body.peers || []).slice().sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+    renderPeers(peers);
+  } catch (error) {
+    if (state.bot !== requested) return;
+    peerView = "";
+    paintPeerCount(0);
+    log.innerHTML = "";
+    const note = document.createElement("p");
+    note.className = "peers-error";
+    note.textContent = error.message;
+    log.append(note);
+  }
+}
+function paintBusy() {
+  const busy = new Set(state.busy || []);
+  for (const row of document.querySelectorAll("#bots .row")) {
+    const id = row.dataset.id;
+    const face = row.querySelector(".avatar");
+    const open = row.querySelector(".row-main");
+    const bot = state.bots.find((item) => item.id === id);
+    const on = busy.has(id);
+    if (face) face.classList.toggle("busy", on);
+    if (open) {
+      if (on && bot) open.setAttribute("aria-label", bot.name + ", working");
+      else open.removeAttribute("aria-label");
+    }
+  }
+  const activity = document.querySelector("#peer-activity");
+  const text = document.querySelector("#peer-activity-text");
+  const others = state.bots.filter((bot) => bot.id !== state.bot && busy.has(bot.id));
+  if (!others.length) {
+    activity.hidden = true;
+    text.textContent = "";
+    return;
+  }
+  const names = others.map((bot) => bot.name);
+  text.textContent = names.length === 1
+    ? names[0] + " is working"
+    : names.length === 2
+      ? names[0] + " and " + names[1] + " are working"
+      : names.length + " bots are working";
+  activity.hidden = false;
+}
+async function refreshActivity() {
+  if (!state.sprite) {
+    state.busy = [];
+    paintBusy();
+    return;
+  }
+  const requested = state.sprite;
+  try {
+    const body = await api("/api/sprites/" + state.sprite + "/activity");
+    if (state.sprite !== requested) return;
+    state.busy = body.busy || [];
+  } catch {
+    if (state.sprite !== requested) return;
+    state.busy = [];
+  }
+  paintBusy();
 }
 function threadSignature(botId, messages) {
   return botId + "\n" + messages.map((message) => [message.id, message.kind, message.text].join("\t")).join("\n");
@@ -1039,6 +1452,13 @@ botForm.onsubmit = async (event) => {
     save.disabled = false;
   }
 };
+document.querySelector("#peers-toggle").onclick = () => setPeersOpen(!state.peersOpen, document.querySelector("#peers-toggle"));
+document.querySelector("#roster-peers").onclick = () => setPeersOpen(!state.peersOpen, document.querySelector("#roster-peers"));
+document.querySelector("#peers-close").onclick = () => setPeersOpen(false, document.querySelector("#peers-toggle"));
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || !state.peersOpen || botDialog.open) return;
+  setPeersOpen(false, document.querySelector("#peers-toggle"));
+});
 document.querySelector("#settings-toggle").onclick = () => {
   const panel = document.querySelector("#settings");
   const open = panel.classList.toggle("open");
@@ -1168,7 +1588,12 @@ async function loadPresets() {
 }
 document.querySelector("#create-button").disabled = true;
 loadPresets().then(() => refreshHome()).catch((error) => { document.querySelector("#status").textContent = error.message; });
-setInterval(() => { if (state.bot) refreshThread(); }, 3000);
+setInterval(() => {
+  if (!state.sprite || !state.bot) return;
+  refreshThread();
+  refreshPeers();
+  refreshActivity();
+}, 3000);
 </script>
 </body>
 </html>

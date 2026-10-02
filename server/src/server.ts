@@ -357,6 +357,17 @@ function send(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body));
 }
 
+async function busyBotIds(): Promise<string[]> {
+  const bots = await loadBots();
+  const inspection = await harness.inspect(context);
+  const live = new Set<string>();
+  for (const task of inspection.tasks) live.add(String(task.record.conversationId));
+  for (const submission of inspection.submissions) {
+    if (submission.status === "queued" || submission.status === "placed") live.add(String(submission.conversationId));
+  }
+  return bots.filter((bot) => live.has(bot.id) || live.has(bot.conversationId)).map((bot) => bot.id);
+}
+
 const http = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://localhost");
   if (req.method === "OPTIONS") {
@@ -426,6 +437,10 @@ const http = createServer(async (req, res) => {
       bots.push(bot);
       await saveBots(bots);
       send(res, 201, bot);
+      return;
+    }
+    if (url.pathname === "/api/bots/activity" && req.method === "GET") {
+      send(res, 200, { busy: await busyBotIds() });
       return;
     }
     const messageRoute = url.pathname.match(/^\/api\/bots\/([^/]+)(\/messages)?$/);
