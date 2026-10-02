@@ -84,6 +84,7 @@ code {
 .nav-inner {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 18px;
   min-height: 64px;
   min-width: 0;
@@ -98,7 +99,8 @@ code {
   letter-spacing: -0.03em;
   text-decoration: none;
   font-size: 17px;
-  flex: none;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .glow {
@@ -332,9 +334,20 @@ button {
 }
 
 .hero-frame {
+  /* iOS Safari lays out <video controls> from the 1920×1080 attributes and
+     ignores aspect-ratio, so object-fit never gets a short box to fill.
+     Height comes only from padding (9/16 of width). height: 0 stops the
+     video's intrinsic size from adding to that. content-box is required:
+     the global border-box would eat this padding and collapse the frame. */
   position: relative;
-  width: 100%;
-  aspect-ratio: 16 / 9;
+  display: block;
+  box-sizing: content-box;
+  width: calc(100% - 2px);
+  height: 0;
+  margin: 0;
+  /* 1px border on each edge: subtract it so the border box, not the
+     padding box, is width × 9/16. */
+  padding: 0 0 calc(56.25% - 2px);
   overflow: hidden;
   background: #000;
   border-radius: 20px;
@@ -342,15 +355,23 @@ button {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
     0 28px 80px rgba(0, 0, 0, 0.45);
+  line-height: 0;
+  transform: translateZ(0);
 }
 
 .hero-video {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
-  aspect-ratio: 16 / 9;
-  object-fit: contain;
+  max-width: none;
+  max-height: 100%;
+  min-height: 100%;
+  margin: 0;
+  aspect-ratio: auto;
+  object-fit: cover;
+  object-position: center;
   display: block;
   background: #000;
   border: 0;
@@ -571,6 +592,8 @@ footer {
   .wrap { width: min(var(--max), calc(100% - 40px)); }
 
   .nav-inner {
+    flex-wrap: nowrap;
+    align-items: center;
     gap: 8px;
     min-height: 52px;
   }
@@ -578,6 +601,8 @@ footer {
   .word {
     gap: 8px;
     font-size: 15px;
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
 
   .glow-nav,
@@ -588,29 +613,50 @@ footer {
 
   .glow-nav::before { display: none; }
 
+  /* Menu is in the bar even when the js class never lands (inline script
+     blocked, or a browser that drops html.js rules). */
   .nav-toggle {
+    display: inline-flex;
+    margin-left: auto;
+    flex: 0 0 auto;
     min-width: 44px;
     padding: 0 12px;
     font-size: 14px;
   }
 
-  html.js .nav-toggle { display: inline-flex; }
+  /* Closed bar is mark + wordmark + Menu only. Links leave the flex row
+     even if display:none is ignored on <nav>. */
+  header.nav:not(.is-open) .nav-links {
+    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
 
-  html.js .nav-links { display: none; }
-
-  html.js .nav.is-open {
+  header.nav.is-open {
     background: rgba(0, 0, 0, 0.94);
   }
 
-  html.js .nav.is-open .nav-links {
+  header.nav.is-open .nav-links {
     display: flex;
     position: absolute;
     z-index: 1;
     left: 0;
     right: 0;
     top: 100%;
+    width: auto;
+    height: auto;
     margin: 0;
     padding: 8px 20px 16px;
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
     flex-direction: column;
     flex-wrap: nowrap;
     align-items: stretch;
@@ -621,8 +667,8 @@ footer {
     box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
   }
 
-  html.js .nav.is-open .nav-links a,
-  html.js .nav.is-open .nav-links a.ext {
+  header.nav.is-open .nav-links a,
+  header.nav.is-open .nav-links a.ext {
     min-height: 48px;
     justify-content: flex-start;
     padding: 12px 14px;
@@ -633,10 +679,13 @@ footer {
     font-size: 16px;
   }
 
-  html.js .nav.is-open .nav-links a:hover,
-  html.js .nav.is-open .nav-links a.ext:hover {
+  header.nav.is-open .nav-links a:hover,
+  header.nav.is-open .nav-links a.ext:hover {
     background: var(--hover);
   }
+
+  /* Without site.js the toggle cannot open, so put the links back. */
+  html:not(.js) .nav-toggle { display: none; }
 
   html:not(.js) .nav-inner {
     flex-wrap: wrap;
@@ -644,16 +693,24 @@ footer {
     padding: 8px 0 12px;
   }
 
-  html:not(.js) .nav-links {
+  html:not(.js) header.nav .nav-links {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
     flex: 1 0 100%;
     margin: 0;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
+    padding: 0;
+    border: 0;
   }
 
-  html:not(.js) .nav-links a,
-  html:not(.js) .nav-links a.ext {
+  html:not(.js) header.nav .nav-links a,
+  html:not(.js) header.nav .nav-links a.ext {
     min-height: 44px;
     justify-content: center;
     border: 1px solid var(--line);
