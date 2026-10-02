@@ -21,7 +21,9 @@
     "build": "npm run build --prefix server && npm run build --prefix client",
     "start": "node ./bin/pi-orbs.js",
     "dev:local": "npm run build --prefix client && node ./bin/pi-orbs.js --local",
-    "test": "npm test --prefix server",
+    "test": "npm run test:client && npm run test:server",
+    "test:client": "npm test --prefix client",
+    "test:server": "npm test --prefix server",
     "prepublishOnly": "npm run build"
   },
   "engines": {

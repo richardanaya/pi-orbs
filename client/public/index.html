@@ -53,6 +53,31 @@
     border: 0;
   }
 
+  #local-badge {
+    display: none;
+    margin: 0;
+    padding: 7px 16px;
+    background: #fff;
+    color: #0a0a0a;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    flex: none;
+  }
+  body.simulator {
+    display: flex;
+    flex-direction: column;
+  }
+  body.simulator #local-badge { display: block; }
+  body.simulator #setup,
+  body.simulator main {
+    flex: 1;
+    min-height: 0;
+  }
+  body.simulator main { height: auto; }
+
   #setup {
     min-height: 100%;
     display: grid;
@@ -438,6 +463,7 @@
 </style>
 </head>
 <body>
+<p id="local-badge">Local simulator</p>
 <div id="setup">
   <div class="card">
     <div class="glow setup-glow"><img class="setup-mark" src="/logo.png" alt="Pi Orbs"></div>
@@ -561,8 +587,12 @@ function showEmpty(title, copy) {
   empty.append(glow, heading, text);
   return empty;
 }
+function setSimulator(on) {
+  document.body.classList.toggle("simulator", on);
+}
 async function refreshHome() {
   const body = await api("/api/sprites");
+  setSimulator(body.simulator === true);
   document.querySelector("#version").textContent = body.localVersion;
   if (!body.sprite) {
     state.sprite = null;

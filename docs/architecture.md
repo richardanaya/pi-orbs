@@ -76,7 +76,7 @@ sequenceDiagram
   Sprite-->>Client: messages for the page
 ```
 
-`npm run dev:local` (or `PI_ORBS_MODE=local`, or `--local`) stays in the client process. `client/src/local.ts` answers the same `/api` routes from memory, with a seeded roster on a pretend sprite named `atlas`, and leaves `~/.pi-orbs/state.json` untouched.
+`npm run dev:local` (or `PI_ORBS_MODE=local`, or `--local`) stays in the client process. `client/src/local.ts` answers the same `/api` routes from memory, with a seeded roster on a pretend sprite named `atlas`, and leaves `~/.pi-orbs/state.json` untouched. `GET /api/sprites` includes `simulator: true` in this mode. The page shows a Local simulator badge when that flag is set. Create, deploy, and destroy are stubbed: they succeed in memory and do not call the sprite CLI.
 
 ## Troubleshooting
 
@@ -94,7 +94,7 @@ If the CLI is present and not logged in, the page shows the CLI's stderr from th
 
 The client needs Node 20 or newer (`engines` in the root `package.json`). Node 20 can serve the page and run the simulator.
 
-The server process uses `node:sqlite`. Node 20 does not include it. `npm test`, and running `server/dist/server.js` on your machine, need Node 22. On Node 20 the server exits with `ERR_UNKNOWN_BUILTIN_MODULE`. CI builds on Node 20 and Node 22, and runs the tests on Node 22 only.
+The server process uses `node:sqlite`. Node 20 does not include it. The server tests inside `npm test`, and running `server/dist/server.js` on your machine, need Node 22. On Node 20 the server exits with `ERR_UNKNOWN_BUILTIN_MODULE`. The client simulator tests run on Node 20: `npm test --prefix client`. CI builds on Node 20 and Node 22. The Node 22 job runs `npm test`. The Node 20 job runs the client simulator tests.
 
 The Sprite service runs `/.sprite/bin/node` from the Sprite image. The Node on your laptop is only for the client, the simulator, and `npm test`.
 
@@ -119,4 +119,4 @@ The sidebar shows the local `server/VERSION`. Settings shows the Sprite URL, `ru
 
 A code change reaches the Sprite when this client packs and pushes. After a push, `running` should match `server/VERSION`. If the button returns the 502 above, the service came up and `/version` did not answer in time. Push once more.
 
-In the local simulator, **Push server build** returns success and does not install anything.
+In the local simulator, create, deploy, and destroy are stubbed. **Push server build** returns success and does not install anything. Destroy clears the in-memory sprite and does not write `~/.pi-orbs/state.json`.

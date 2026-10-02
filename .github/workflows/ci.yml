@@ -34,7 +34,12 @@ jobs:
       - name: Build
         run: npm run build
 
-      # The server process uses node:sqlite, which Node 20 does not provide.
+      # Server tests need node:sqlite, which Node 20 does not provide.
+      # Client simulator tests run on Node 20. Node 22 runs them via npm test.
+      - name: Test client simulator
+        if: matrix.node-version == 20 || matrix.node-version == '20'
+        run: npm run test:client
+
       - name: Test
         if: matrix.node-version == 22 || matrix.node-version == '22'
         run: npm test
