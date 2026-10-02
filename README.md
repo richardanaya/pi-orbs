@@ -55,6 +55,16 @@ After that, the page is a roster and a thread. The first bot is selected on load
 
 **Settings** holds **Push server build** and **Destroy sprite**. Push installs this package's server on the sprite. Destroy deletes that sprite and the connector that was saved with it, then the page returns to setup.
 
+## Test
+
+From a checkout, after server dependencies are installed:
+
+```bash
+npm test
+```
+
+That builds the server and runs its smoke tests: `/version` is public, requests without the API secret get 401, and a Bearer token can create a bot and list it. Use Node 22. The server process needs `node:sqlite`, which Node 20 does not include.
+
 ## Publish
 
 `npm publish` from this repo runs the build first. The npm package includes the client, the server `dist`, and the server lockfile the Sprite installs from. `node_modules`, `dist` in git, tarballs, and env files stay out of the repository. The git remote is `git@github.com:richardanaya/pi-orbs.git`.

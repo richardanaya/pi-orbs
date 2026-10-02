@@ -30,6 +30,16 @@ npm run build
 
 That script builds the server, then the client (`npm run build --prefix server && npm run build --prefix client`). Each package runs `tsc`. Output lands in `server/dist` and `client/dist`. Those directories are gitignored.
 
+## Test
+
+```bash
+npm test
+```
+
+`npm test` at the repo root runs the server package tests. That builds the server, then starts it on a free port with a throwaway database and `PI_API_SECRET`, and checks three things with Node's built-in test runner: `/version` is public, a missing or wrong secret gets 401, and a Bearer token can create a bot and list it. No sprite CLI and no xAI key.
+
+The server process uses `node:sqlite`, which Node 20 does not include, so run these tests on Node 22. CI runs `npm test` on the Node 22 job. The Node 20 job still builds both packages.
+
 ## Run locally
 
 ```bash
@@ -56,11 +66,11 @@ The simulator covers the roster, thread, compose box, and adding a bot. Sprite c
 ## Pull requests
 
 - Keep the change focused on one problem.
-- Run `npm run build` and describe how you checked the change.
+- Run `npm run build` and `npm test`, and describe how you checked the change.
 - Match the existing TypeScript style (`strict`, ESM, Node 20).
 - Leave generated output out of the commit: `node_modules`, `dist`, tarballs, and env files.
 - Leave secrets out of the commit and the pull request. That includes xAI keys, `PI_API_SECRET`, and `~/.pi-orbs/state.json`.
 - Link the issue the change closes.
 - Do not publish to npm, and do not deploy a shared Sprite, as part of a code or docs change. Publishing is the maintainer's `npm publish` step; `prepublishOnly` already runs the build.
 
-There is no test script in this repo yet. A green `npm run build` is the check to report.
+A green `npm run build` and `npm test` are the checks to report.
