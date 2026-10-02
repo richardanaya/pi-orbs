@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security report
+    url: https://github.com/richardanaya/pi-orbs/blob/master/SECURITY.md
+    about: Report vulnerabilities in private. Do not paste API keys or Sprite secrets into a public issue.
