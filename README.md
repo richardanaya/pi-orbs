@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/logo.png" width="132" alt="Pi Orbs mark, a glass orb whose pi symbol reads as a pair of eyes">
+  <img src="docs/logo.png" width="132" alt="Pi Orbs mark, a white orb with a pi symbol for a mouth">
 </p>
 
 <h1 align="center">Pi Orbs</h1>

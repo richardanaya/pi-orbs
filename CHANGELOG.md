@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Brand mark. The app icon, homepage, and README use the white orb with a pi mouth. The Open Graph image is the black lockup of that orb beside the name. Page chrome stays black and white.
 - Client UI. Glass-orb avatars, message bubbles, a quieter composer, brand glow, and an empty thread. Setup, roster, thread, add bot, and Settings behave as before.
 - Homepage at [piorbs.com](https://piorbs.com/). Spacing, type, screenshot frames, a launch video near the top, and an Open Graph image. The public try path is `npx pi-orbs`. Copy stays on Fly.io Sprites and the sprite CLI.
 - README. The public try path is `npx pi-orbs`. Refreshed interface screenshots in `docs/`.
