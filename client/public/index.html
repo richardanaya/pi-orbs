@@ -5,89 +5,162 @@
 <title>pi-orbs</title>
 <style>
   :root { color-scheme: dark; }
-  body { margin: 0; font: 15px/1.4 system-ui, sans-serif; background: #14120e; color: #f3ead7; }
-  header { padding: 16px 20px; border-bottom: 1px solid #3a3428; display: flex; justify-content: space-between; }
-  main { display: grid; grid-template-columns: 240px 260px 1fr; height: calc(100vh - 58px); }
-  section { min-height: 0; overflow: auto; border-right: 1px solid #3a3428; padding: 12px; }
-  button, input { font: inherit; }
-  button { background: #e6c36a; color: #1a150c; border: 0; border-radius: 8px; padding: 6px 10px; }
-  input { width: 100%; box-sizing: border-box; margin: 6px 0; padding: 8px; background: #211d16; color: inherit; border: 1px solid #3a3428; border-radius: 8px; }
-  .row { padding: 8px; border-radius: 8px; cursor: pointer; }
-  .row.on { background: #2a2418; }
-  #log { white-space: pre-wrap; }
-  .msg { margin: 10px 0; }
-  .msg b { display: block; color: #e6c36a; font-weight: 600; }
+  * { box-sizing: border-box; }
+  body { margin: 0; height: 100vh; font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #000; color: #e7e9ea; }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button[disabled] { opacity: 0.45; cursor: wait; }
+  #setup { min-height: 100vh; display: grid; place-items: center; padding: 32px; }
+  body.ready #setup { display: none; }
+  .card { width: min(440px, 100%); }
+  .card h1 { margin: 0 0 8px; font-size: 28px; font-weight: 650; letter-spacing: -0.03em; }
+  #setup-copy, #status, .hint { color: #71767b; margin: 0 0 22px; }
+  #status:empty { display: none; }
+  .card input, .composer input, #create-bot input {
+    width: 100%; border: 1px solid #2f3336; background: #000; border-radius: 999px; padding: 14px 18px; outline: none;
+  }
+  .card input:focus, .composer input:focus, #create-bot input:focus { border-color: #e7e9ea; }
+  .card input { margin: 0 0 12px; border-radius: 16px; }
+  #create-button, .send {
+    border: 0; background: #fff; color: #000; border-radius: 999px; padding: 12px 18px; font-weight: 650;
+  }
+  #create-button { width: 100%; margin-top: 6px; }
+  main { display: none; height: 100vh; grid-template-columns: 292px 1fr; }
+  body.ready main { display: grid; }
+  aside { border-right: 1px solid #2f3336; display: flex; flex-direction: column; min-height: 0; }
+  .brand { display: flex; align-items: center; justify-content: space-between; padding: 18px 16px 8px; }
+  .brand strong { font-size: 20px; letter-spacing: -0.03em; }
+  #version { color: #71767b; font-size: 12px; }
+  #bots { flex: 1; overflow: auto; padding: 8px; }
+  .row { display: flex; gap: 12px; align-items: center; padding: 10px; border-radius: 16px; cursor: pointer; }
+  .row.on { background: #16181c; }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: #202327; color: #fff; font-weight: 700; flex: none; }
+  .row .name { font-weight: 600; }
+  .row .sub { color: #71767b; font-size: 13px; }
+  #create-bot { display: flex; gap: 8px; padding: 8px 12px 12px; }
+  #create-bot input { border-radius: 999px; padding: 10px 14px; }
+  #create-bot button { border: 0; background: #fff; color: #000; border-radius: 999px; padding: 0 14px; font-weight: 650; }
+  .side-foot { border-top: 1px solid #2f3336; padding: 10px 12px 14px; }
+  #settings-toggle { background: transparent; border: 0; color: #71767b; padding: 8px; }
+  #settings { display: none; padding: 4px 8px 0; }
+  #settings.open { display: block; }
+  #settings p, #sprite-meta { color: #71767b; font-size: 13px; white-space: pre-wrap; }
+  #settings button { margin: 4px 8px 4px 0; border-radius: 999px; padding: 8px 12px; background: transparent; border: 1px solid #2f3336; }
+  #destroy { color: #f4212e; border-color: #67070d; }
+  .thread { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .thread-bar { padding: 16px 22px; border-bottom: 1px solid #2f3336; font-weight: 650; letter-spacing: -0.02em; }
+  #log { flex: 1; overflow: auto; padding: 22px 8vw 12px; }
+  .msg { display: flex; gap: 10px; margin: 14px 0; max-width: 760px; }
+  .msg.user { margin-left: auto; flex-direction: row-reverse; }
+  .msg.user .bubble { background: #202327; border-radius: 22px; padding: 10px 14px; }
+  .msg.bot .bubble { padding: 2px 0; }
+  .bubble { white-space: pre-wrap; }
+  .composer { padding: 12px 8vw 22px; }
+  #send { display: flex; gap: 8px; align-items: center; border: 1px solid #2f3336; border-radius: 28px; padding: 6px 6px 6px 16px; }
+  #send input { border: 0; background: transparent; padding: 10px 0; }
+  .send { width: 36px; height: 36px; padding: 0; }
+  .empty { color: #71767b; margin-top: 18vh; text-align: center; }
 </style>
 </head>
 <body>
-<header>
-  <strong>pi-orbs</strong>
-  <span id="version"></span>
-</header>
-<main>
-  <section>
-    <h2>Sprites</h2>
+<div id="setup">
+  <div class="card">
+    <h1>Set up a sprite</h1>
+    <p id="setup-copy">Name the computer and give it an xAI key. Nothing else runs until that sprite is up.</p>
     <form id="create-sprite">
-      <input name="name" placeholder="sprite name" required>
-      <input name="xai" placeholder="xai key" type="password" required>
-      <button>Create and deploy</button>
+      <input name="name" placeholder="Sprite name" required>
+      <input name="xai" placeholder="xAI key" type="password" required>
+      <button id="create-button">Create and deploy</button>
     </form>
-    <div id="sprites"></div>
-  </section>
-  <section>
-    <h2>Bots</h2>
-    <p id="sprite-meta"></p>
-    <form id="create-bot">
-      <input name="name" placeholder="bot name" required>
-      <button>New bot</button>
-    </form>
+    <p id="status"></p>
+  </div>
+</div>
+<main>
+  <aside>
+    <div class="brand"><strong>pi-orbs</strong><span id="version"></span></div>
     <div id="bots"></div>
-    <button id="deploy" type="button">Push server build</button>
-  </section>
-  <section>
-    <h2 id="thread-title">Thread</h2>
-    <div id="log"></div>
-    <form id="send">
-      <input name="content" placeholder="Message this bot" required>
-      <button>Send</button>
+    <form id="create-bot">
+      <input name="name" placeholder="New bot" required>
+      <button>Add</button>
     </form>
+    <div class="side-foot">
+      <button id="settings-toggle" type="button">Settings</button>
+      <div id="settings">
+        <p id="sprite-meta"></p>
+        <p>Destroying the sprite deletes its disk, bots, and URL.</p>
+        <button id="deploy" type="button">Push server build</button>
+        <button id="destroy" type="button">Destroy sprite</button>
+      </div>
+    </div>
+  </aside>
+  <section class="thread">
+    <div class="thread-bar" id="thread-title">Choose a bot</div>
+    <div id="log"></div>
+    <div class="composer">
+      <form id="send">
+        <input name="content" placeholder="Message" required>
+        <button class="send" aria-label="Send">↑</button>
+      </form>
+    </div>
   </section>
 </main>
 <script>
 const state = { sprite: null, bot: null };
+function initial(name) { return (name || "?").trim().slice(0, 1).toUpperCase(); }
 async function api(path, options) {
   const response = await fetch(path, options);
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || response.statusText);
   return body;
 }
-function selectedSprite() {
-  return state.sprite;
+function showSetup(copy) {
+  document.body.classList.remove("ready");
+  document.querySelector("#setup-copy").textContent = copy;
 }
-async function refreshSprites() {
+async function refreshHome() {
   const body = await api("/api/sprites");
-  document.querySelector("#version").textContent = "server build " + body.localVersion;
-  const box = document.querySelector("#sprites");
-  box.innerHTML = "";
-  for (const sprite of body.sprites) {
-    const row = document.createElement("div");
-    row.className = "row" + (state.sprite === sprite.name ? " on" : "");
-    row.textContent = sprite.name + (sprite.remoteVersion ? " · " + sprite.remoteVersion : "");
-    row.onclick = () => { state.sprite = sprite.name; state.bot = null; refreshSprites(); refreshBots(); };
-    box.appendChild(row);
+  document.querySelector("#version").textContent = body.localVersion;
+  if (!body.sprite) {
+    state.sprite = null;
+    showSetup("Name the computer and give it an xAI key. Nothing else runs until that sprite is up.");
+    return;
   }
+  state.sprite = body.sprite.name;
+  if (!body.sprite.remoteVersion) {
+    showSetup(body.sprite.name + " exists, but its server is not answering. Finish deploy uses the key already saved on this machine.");
+    const form = document.querySelector("#create-sprite");
+    form.querySelector("[name=name]").value = body.sprite.name;
+    form.querySelector("[name=xai]").required = false;
+    form.querySelector("[name=xai]").placeholder = "xAI key, only to replace it";
+    document.querySelector("#create-button").textContent = "Finish deploy";
+    return;
+  }
+  document.querySelector("#create-sprite [name=xai]").required = true;
+  document.querySelector("#create-button").textContent = "Create and deploy";
+  document.body.classList.add("ready");
+  await refreshBots(body.sprite);
 }
-async function refreshBots() {
+async function refreshBots(sprite) {
   const meta = document.querySelector("#sprite-meta");
   const box = document.querySelector("#bots");
-  box.innerHTML = "";
-  if (!state.sprite) { meta.textContent = "Pick a sprite."; return; }
-  const body = await api("/api/sprites/" + state.sprite);
+  const body = sprite && sprite.bots ? sprite : await api("/api/sprites/" + state.sprite);
   meta.textContent = body.url + "\nrunning " + (body.remoteVersion || "nothing") + (body.update ? " · update available" : "");
-  for (const bot of body.bots) {
+  box.innerHTML = "";
+  for (const bot of body.bots || []) {
     const row = document.createElement("div");
     row.className = "row" + (state.bot === bot.id ? " on" : "");
-    row.textContent = bot.name;
+    const face = document.createElement("div");
+    face.className = "avatar";
+    face.textContent = initial(bot.name);
+    const text = document.createElement("div");
+    const name = document.createElement("div");
+    name.className = "name";
+    name.textContent = bot.name;
+    const sub = document.createElement("div");
+    sub.className = "sub";
+    sub.textContent = state.sprite;
+    text.append(name, sub);
+    row.append(face, text);
     row.onclick = () => { state.bot = bot.id; refreshBots(); refreshThread(); };
     box.appendChild(row);
   }
@@ -95,25 +168,62 @@ async function refreshBots() {
 }
 async function refreshThread() {
   const log = document.querySelector("#log");
-  if (!state.sprite || !state.bot) { log.textContent = ""; return; }
+  if (!state.sprite || !state.bot) {
+    log.innerHTML = "";
+    document.querySelector("#thread-title").textContent = "Choose a bot";
+    return;
+  }
   const body = await api("/api/sprites/" + state.sprite + "/bots/" + state.bot);
   document.querySelector("#thread-title").textContent = body.bot.name;
   log.innerHTML = "";
+  if (!body.messages.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "Message " + body.bot.name;
+    log.append(empty);
+    return;
+  }
   for (const message of body.messages) {
+    const mine = message.kind === "pi.user";
     const block = document.createElement("div");
-    block.className = "msg";
-    const who = document.createElement("b");
-    who.textContent = message.kind === "pi.user" ? "You" : "Bot";
-    block.append(who, document.createTextNode(message.text));
+    block.className = "msg " + (mine ? "user" : "bot");
+    if (!mine) {
+      const face = document.createElement("div");
+      face.className = "avatar";
+      face.textContent = initial(body.bot.name);
+      block.append(face);
+    }
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent = message.text;
+    block.append(bubble);
     log.append(block);
   }
+  log.scrollTop = log.scrollHeight;
 }
 document.querySelector("#create-sprite").onsubmit = async (event) => {
   event.preventDefault();
+  const button = document.querySelector("#create-button");
+  const status = document.querySelector("#status");
   const data = new FormData(event.target);
-  await api("/api/sprites", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: data.get("name"), xaiKey: data.get("xai") }) });
-  event.target.reset();
-  await refreshSprites();
+  button.disabled = true;
+  status.textContent = "Creating the sprite and installing the server. This takes a few minutes.";
+  try {
+    const name = data.get("name");
+    const existing = state.sprite === name;
+    if (existing && !data.get("xai")) {
+      await api("/api/sprites/" + name + "/deploy", { method: "POST" });
+    } else {
+      await api("/api/sprites", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, xaiKey: data.get("xai") }) });
+    }
+    event.target.reset();
+    status.textContent = "";
+    await refreshHome();
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
 };
 document.querySelector("#create-bot").onsubmit = async (event) => {
   event.preventDefault();
@@ -124,11 +234,27 @@ document.querySelector("#create-bot").onsubmit = async (event) => {
   event.target.reset();
   await refreshBots();
 };
+document.querySelector("#settings-toggle").onclick = () => {
+  document.querySelector("#settings").classList.toggle("open");
+};
 document.querySelector("#deploy").onclick = async () => {
   if (!state.sprite) return;
   document.querySelector("#sprite-meta").textContent = "Pushing build…";
-  await api("/api/sprites/" + state.sprite + "/deploy", { method: "POST" });
-  await refreshBots();
+  try {
+    await api("/api/sprites/" + state.sprite + "/deploy", { method: "POST" });
+    await refreshBots();
+  } catch (error) {
+    document.querySelector("#sprite-meta").textContent = error.message;
+  }
+};
+document.querySelector("#destroy").onclick = async () => {
+  if (!state.sprite) return;
+  const name = state.sprite;
+  if (!confirm("Destroy " + name + "? This deletes the sprite and its bots.")) return;
+  await api("/api/sprites/" + name, { method: "DELETE" });
+  state.sprite = null;
+  state.bot = null;
+  await refreshHome();
 };
 document.querySelector("#send").onsubmit = async (event) => {
   event.preventDefault();
@@ -138,7 +264,7 @@ document.querySelector("#send").onsubmit = async (event) => {
   event.target.reset();
   setTimeout(refreshThread, 1500);
 };
-refreshSprites();
+refreshHome().catch((error) => { document.querySelector("#status").textContent = error.message; });
 setInterval(() => { if (state.bot) refreshThread(); }, 3000);
 </script>
 </body>

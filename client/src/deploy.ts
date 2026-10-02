@@ -27,7 +27,7 @@ export function newSecret(): string {
 
 export async function remoteVersion(url: string): Promise<string | null> {
   try {
-    const response = await fetch(new URL("/version", url));
+    const response = await fetch(new URL("/version", url), { signal: AbortSignal.timeout(8000) });
     if (!response.ok) return null;
     const body = await response.json() as { version?: string };
     return body.version ?? null;
@@ -39,15 +39,17 @@ export async function remoteVersion(url: string): Promise<string | null> {
 export async function deploySprite(name: string, env: Record<string, string>): Promise<void> {
   const archive = await packServer();
   try {
-    await sprite(["exec", "-s", name, "--", "mkdir", "-p", "/home/sprite/app"]);
+    await sprite(["exec", "-s", name, "--", "mkdir", "-p", "/home/sprite/app", "/home/sprite/work"]);
     await sprite(["exec", "-s", name, "--", "bash", "-lc", "cat > /tmp/pi-orbs-server.tgz"], await readFile(archive));
     await sprite(["exec", "-s", name, "--", "bash", "-lc", "tar -xzf /tmp/pi-orbs-server.tgz -C /home/sprite/app && cd /home/sprite/app && /.sprite/bin/npm install --omit=dev"]);
     const envArg = Object.entries({ ...env, PORT: "8080" }).map(([key, value]) => `${key}=${value}`).join(",");
     const script = `
-      if sprite-env services list | grep -q '"name": "web"'; then
-        sprite-env services delete web || true
-      fi
-      sprite-env services create web --cmd /.sprite/bin/node --args /home/sprite/app/dist/server.js --dir /home/sprite/work --http-port 8080 --no-stream --env ${JSON.stringify(envArg)}
+      set -e
+      sprite-env services delete web || true
+      sprite-env services create web --cmd /.sprite/bin/node --args /home/sprite/app/dist/server.js --dir /home/sprite/work --http-port 8080 --env ${JSON.stringify(envArg)}
+      info=$(sprite-env services get web)
+      printf '%s\n' "$info"
+      printf '%s' "$info" | grep -Eq '"status":[[:space:]]*"running"'
     `;
     await sprite(["exec", "-s", name, "--", "bash", "-lc", script]);
   } finally {

@@ -20,6 +20,21 @@ export function run(command: string, args: string[], input?: Buffer): Promise<{ 
   });
 }
 
+export function spriteJson<T>(raw: string): T {
+  const start = Math.min(...["{", "["].map((mark) => {
+    const index = raw.indexOf(mark);
+    return index === -1 ? raw.length : index;
+  }));
+  if (start >= raw.length) throw new Error(raw.trim() || "sprite api returned no JSON");
+  const slice = raw.slice(start);
+  try {
+    return JSON.parse(slice) as T;
+  } catch {
+    const end = Math.max(slice.lastIndexOf("}"), slice.lastIndexOf("]"));
+    return JSON.parse(slice.slice(0, end + 1)) as T;
+  }
+}
+
 export async function sprite(args: string[], input?: Buffer): Promise<string> {
   const result = await run("sprite", args, input);
   if (result.code !== 0) throw new Error(result.stderr || result.stdout || `sprite ${args[0]} failed`);

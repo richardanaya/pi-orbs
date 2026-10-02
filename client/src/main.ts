@@ -3,10 +3,11 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { ensureXaiConnector, gatewayBaseUrl } from "./connector.js";
 import { deploySprite, localVersion, newSecret, remoteVersion } from "./deploy.js";
 import { listSprites, sprite } from "./sprite.js";
 
-type SavedSprite = { name: string; url: string; secret: string; xaiKey: string };
+type SavedSprite = { name: string; url: string; secret: string; xaiKey: string; connectorId?: string };
 type StateFile = { sprites: SavedSprite[] };
 
 const statePath = join(homedir(), ".pi-orbs", "state.json");
@@ -32,6 +33,22 @@ async function readBody(req: IncomingMessage): Promise<Record<string, string>> {
   return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, string>;
 }
 
+function serviceEnv(saved: SavedSprite): Record<string, string> {
+  if (!saved.connectorId) throw new Error("xAI connector is not set up");
+  return {
+    PI_API_SECRET: saved.secret,
+    PI_MODEL: "grok-4.7",
+    PI_DB: "/home/sprite/app/data/agent.sqlite",
+    PI_CWD: "/home/sprite/work",
+    PI_XAI_BASE_URL: gatewayBaseUrl(saved.connectorId),
+    XAI_API_KEY: "connector",
+  };
+}
+
+async function withConnector(saved: SavedSprite): Promise<SavedSprite> {
+  return { ...saved, connectorId: saved.connectorId ?? await ensureXaiConnector(saved.xaiKey) };
+}
+
 function send(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "content-type": "application/json" });
   res.end(JSON.stringify(body));
@@ -55,14 +72,17 @@ const http = createServer(async (req, res) => {
     }
     const state = await loadState();
     if (url.pathname === "/api/sprites" && req.method === "GET") {
-      const live = await listSprites();
-      const sprites = [];
-      for (const liveSprite of live) {
-        const saved = state.sprites.find((item) => item.name === liveSprite.name);
-        const remote = saved ? await remoteVersion(saved.url) : null;
-        sprites.push({ ...liveSprite, url: saved?.url ?? liveSprite.url, remoteVersion: remote });
+      const local = await localVersion();
+      const saved = state.sprites[0];
+      if (!saved) {
+        send(res, 200, { localVersion: local, sprite: null });
+        return;
       }
-      send(res, 200, { localVersion: await localVersion(), sprites });
+      const remote = await remoteVersion(saved.url);
+      send(res, 200, {
+        localVersion: local,
+        sprite: { name: saved.name, url: saved.url, remoteVersion: remote, update: remote !== local },
+      });
       return;
     }
     if (url.pathname === "/api/sprites" && req.method === "POST") {
@@ -72,26 +92,30 @@ const http = createServer(async (req, res) => {
         send(res, 400, { error: "name and xaiKey are required" });
         return;
       }
-      await sprite(["create", "--skip-console", name]);
+      const live = await listSprites();
+      if (!live.some((item) => item.name === name)) {
+        await sprite(["create", "--skip-console", name]);
+      }
       await sprite(["config", "update", "-s", name, "--url-auth", "public"]);
       const infoRaw = await sprite(["api", `/v1/sprites/${name}`]);
       const info = JSON.parse(infoRaw.slice(infoRaw.indexOf("{"))) as { url: string };
-      const saved: SavedSprite = {
+      const previous = state.sprites.find((item) => item.name === name);
+      const saved = await withConnector({
         name,
         url: info.url,
-        secret: newSecret(),
+        secret: previous?.secret ?? newSecret(),
         xaiKey: body.xaiKey,
-      };
-      await deploySprite(name, {
-        PI_API_SECRET: saved.secret,
-        PI_MODEL: "grok-4.7",
-        PI_DB: "/home/sprite/app/data/agent.sqlite",
-        PI_CWD: "/home/sprite/work",
-        XAI_API_KEY: saved.xaiKey,
+        connectorId: previous?.connectorId,
       });
-      state.sprites = state.sprites.filter((item) => item.name !== name).concat(saved);
+      await deploySprite(name, serviceEnv(saved));
+      const remote = await remoteVersion(saved.url);
+      if (!remote) {
+        send(res, 502, { error: "sprite was created, but the server did not answer /version" });
+        return;
+      }
+      state.sprites = [saved];
       await saveState(state);
-      send(res, 201, { name, url: saved.url });
+      send(res, 201, { name, url: saved.url, remoteVersion: remote });
       return;
     }
     const route = url.pathname.match(/^\/api\/sprites\/([^/]+)(\/bots(?:\/([^/]+)(?:\/messages)?)?)?(\/deploy)?$/);
@@ -104,15 +128,24 @@ const http = createServer(async (req, res) => {
       send(res, 404, { error: "sprite is not managed by this client" });
       return;
     }
+    if (req.method === "DELETE" && !route[2] && !route[4]) {
+      await sprite(["destroy", "--force", saved.name]);
+      state.sprites = state.sprites.filter((item) => item.name !== saved.name);
+      await saveState(state);
+      send(res, 200, { ok: true });
+      return;
+    }
     if (route[4] === "/deploy" && req.method === "POST") {
-      await deploySprite(saved.name, {
-        PI_API_SECRET: saved.secret,
-        PI_MODEL: "grok-4.7",
-        PI_DB: "/home/sprite/app/data/agent.sqlite",
-        PI_CWD: "/home/sprite/work",
-        XAI_API_KEY: saved.xaiKey,
-      });
-      send(res, 200, { ok: true, version: await localVersion() });
+      const ready = await withConnector(saved);
+      state.sprites = state.sprites.map((item) => item.name === ready.name ? ready : item);
+      await saveState(state);
+      await deploySprite(ready.name, serviceEnv(ready));
+      const remote = await remoteVersion(saved.url);
+      if (!remote) {
+        send(res, 502, { error: "deploy finished, but the server did not answer /version" });
+        return;
+      }
+      send(res, 200, { ok: true, version: remote });
       return;
     }
     if (!route[2] && req.method === "GET") {
