@@ -66,6 +66,16 @@ The coding tools for every bot use `PI_CWD`, which deploy sets to `/home/sprite/
 
 Sending a message submits text to that conversation and returns immediately (`202`). The page reloads the thread every few seconds.
 
+**Settings → Download all conversations** asks the sprite for `GET /api/export` (the same Bearer secret as the other bot routes) and downloads a `.zip`. The sprite reads every durable bot and that bot’s user and assistant text, oldest first, including messages past the 200 the thread shows. The client writes the zip. Local simulator mode builds the same zip from the in-memory threads. An older sprite server does not have `/api/export` until **Push server build**.
+
+The archive is `pi-orbs-conversations` version 1:
+
+- `README.txt` describes the layout.
+- `manifest.json` has the sprite name, `exportedAt`, and each bot’s id, name, conversation id, instruction, look, file name, message count, and first and last message times.
+- `bots/<id>.json` is one transcript. Each message has id, kind (`pi.user` or `pi.assistant`), text, and `createdAt`.
+
+An empty roster is still a valid zip. `README.txt` and `manifest.json` say there were no conversations. The zip does not include the API key, the Sprites connection id, or `PI_API_SECRET`. If one of those values appears inside a transcript, the export replaces it with `[redacted]`. Import from the zip is not supported.
+
 **Destroy sprite** deletes the Sprite, which removes that disk, the bots, and the URL.
 
 ## Request path
@@ -129,4 +139,4 @@ The sidebar shows the local `server/VERSION`. Settings shows the Sprite URL, `ru
 
 A code change reaches the Sprite when this client packs and pushes. After a push, `running` should match `server/VERSION`. If the button returns the 502 above, the service came up and `/version` did not answer in time. Push once more.
 
-In the local simulator, create, deploy, and destroy are stubbed. **Push server build** returns success and does not install anything. Destroy clears the in-memory sprite and does not write `~/.pi-orbs/state.json`.
+In the local simulator, create, deploy, and destroy are stubbed. **Push server build** returns success and does not install anything. **Download all conversations** returns a zip of the in-memory threads. Destroy clears the in-memory sprite and does not write `~/.pi-orbs/state.json`.

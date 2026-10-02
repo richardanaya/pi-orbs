@@ -38,13 +38,13 @@ npm test
 
 `npm test` at the repo root runs the client simulator tests, then the server package tests. Both use Node's built-in test runner. No sprite CLI and no xAI key.
 
-The client tests call the in-memory simulator in `client/src/local.ts` over HTTP. They check the seeded sprite `atlas` and `localVersion`, the bots Ada, Kepler, and Nova, the seeded thread, a canned assistant reply, creating a bot, instruction and look on create and edit, connector presets and the shared model, and stubbed deploy and destroy. Deploy and destroy do not write `~/.pi-orbs/state.json`. After destroy, the sprite is gone, and create reseeds it. Node 20 can run these on their own:
+The client tests call the in-memory simulator in `client/src/local.ts` over HTTP. They check the seeded sprite `atlas` and `localVersion`, the bots Ada, Kepler, and Nova, the seeded thread, a zip of those conversations, a canned assistant reply, creating a bot, instruction and look on create and edit, connector presets and the shared model, and stubbed deploy and destroy. Deploy and destroy do not write `~/.pi-orbs/state.json`. After destroy, the sprite is gone, and create reseeds it. Node 20 can run these on their own:
 
 ```bash
 npm test --prefix client
 ```
 
-The server tests build the server, then start it on a free port with a throwaway database and `PI_API_SECRET`, and check three things: `/version` is public, a missing or wrong secret gets 401, and a Bearer token can create a bot and list it.
+The server tests build the server, then start it on a free port with a throwaway database and `PI_API_SECRET`, and check `/version` is public, a missing or wrong secret gets 401, a Bearer token can create a bot and list it, and `GET /api/export` returns those transcripts without the API secret.
 
 The server process uses `node:sqlite`, which Node 20 does not include, so the full `npm test` needs Node 22. CI runs `npm test` on the Node 22 job, and runs `npm test --prefix client` on the Node 20 job. Both jobs build both packages.
 

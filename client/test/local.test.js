@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import { homedir } from "node:os";
+import { tmpdir, homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, before, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+import { conversationsArchive } from "../dist/archive.js";
 import { handleLocal } from "../dist/local.js";
+
+const exec = promisify(execFile);
 
 const clientRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = join(clientRoot, "..");
@@ -29,6 +34,25 @@ function freePort() {
       probe.close((error) => (error ? reject(error) : resolve(port)));
     });
   });
+}
+
+async function unzip(bytes) {
+  const dir = await mkdtemp(join(tmpdir(), "pi-orbs-zip-"));
+  const file = join(dir, "conversations.zip");
+  try {
+    await writeFile(file, Buffer.from(bytes));
+    const { stdout } = await exec("python3", ["-c", `
+import json, sys, zipfile
+archive = zipfile.ZipFile(sys.argv[1])
+bad = archive.testzip()
+if bad:
+    raise SystemExit("bad zip member " + bad)
+print(json.dumps({name: archive.read(name).decode("utf-8") for name in archive.namelist()}))
+`, file], { maxBuffer: 8_000_000 });
+    return JSON.parse(stdout);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 }
 
 async function stateDigest() {
@@ -87,6 +111,74 @@ test("the badge is hidden unless GET /api/sprites says simulator", async () => {
   assert.doesNotMatch(main, /simulator:\s*true/);
 });
 
+test("settings offers a zip of every conversation", async () => {
+  const html = await readFile(join(clientRoot, "public", "index.html"), "utf8");
+  const settingsStart = html.indexOf('<div id="settings">');
+  const settingsEnd = html.indexOf("</div>", html.indexOf('id="destroy"'));
+  const settings = html.slice(settingsStart, settingsEnd);
+  assert.match(settings, /id="export"/);
+  assert.match(settings, /Download all conversations/);
+  assert.match(settings, /JSON transcripts with id, name, and timestamps/);
+  assert.match(html, /conversations\.zip/);
+  assert.match(html, /Preparing…/);
+  assert.doesNotMatch(html, /location\s*=/);
+
+  const main = await readFile(join(clientRoot, "src", "main.ts"), "utf8");
+  assert.match(main, /conversations\\\.zip/);
+  assert.match(main, /spriteFetch\(saved, "\/api\/export"\)/);
+  assert.match(main, /conversationsArchive\(snapshot, \[/);
+  assert.match(main, /saved\.secret/);
+  assert.match(main, /saved\.apiKey \?\? ""/);
+  assert.match(main, /saved\.connectorId \?\? ""/);
+});
+
+test("an empty roster is a zip that says there are no conversations", async () => {
+  const archive = conversationsArchive({
+    sprite: "atlas",
+    exportedAt: "2026-03-02T15:04:00.000Z",
+    bots: [],
+  });
+  assert.equal(archive.filename, "pi-orbs-atlas-conversations-2026-03-02.zip");
+  const files = await unzip(archive.zip);
+  assert.match(files["README.txt"], /no conversations/);
+  const manifest = JSON.parse(files["manifest.json"]);
+  assert.equal(manifest.format, "pi-orbs-conversations");
+  assert.equal(manifest.formatVersion, 1);
+  assert.deepEqual(manifest.bots, []);
+  assert.match(manifest.note, /no conversations/);
+  assert.equal(Object.keys(files).some((name) => name.startsWith("bots/")), false);
+});
+
+test("the zip redacts api keys and connector secrets from transcript text", async () => {
+  const secret = "pi-orbs-test-secret";
+  const archive = conversationsArchive({
+    sprite: "atlas",
+    exportedAt: "2026-03-02T15:04:00.000Z",
+    bots: [{
+      id: "ada",
+      name: "Ada",
+      conversationId: "ada",
+      instruction: `keep ${secret} private`,
+      look: "tide",
+      messages: [{
+        id: "m1",
+        kind: "pi.user",
+        text: `token ${secret} end`,
+        createdAt: "2026-03-02T15:04:00.000Z",
+      }],
+    }],
+  }, [secret, "https://api.sprites.dev/v1/gateway/custom_api/conn-12345678"]);
+  const files = await unzip(archive.zip);
+  const packed = JSON.stringify(files);
+  assert.equal(packed.includes(secret), false);
+  assert.equal(packed.includes("conn-12345678"), false);
+  const bot = JSON.parse(files["bots/ada.json"]);
+  assert.equal(bot.instruction, "keep [redacted] private");
+  assert.equal(bot.messages[0].text, "token [redacted] end");
+  assert.equal(bot.id, "ada");
+  assert.equal(bot.name, "Ada");
+});
+
 describe("local simulator API", { concurrency: 1 }, () => {
   test("GET /api/sprites returns the seeded sprite and localVersion", async () => {
     const response = await fetch(`${session.base}/api/sprites`);
@@ -127,6 +219,41 @@ describe("local simulator API", { concurrency: 1 }, () => {
     assert.deepEqual(body.messages.map((message) => message.kind), ["pi.user", "pi.assistant", "pi.user", "pi.assistant"]);
     assert.match(body.messages[0].text, /status page/);
     assert.match(body.messages.at(-1).text, /status\.html/);
+  });
+
+  test("GET conversations.zip packs the seeded transcripts", async () => {
+    const missing = await fetch(`${session.base}/api/sprites/other/conversations.zip`);
+    assert.equal(missing.status, 404);
+
+    const response = await fetch(`${session.base}/api/sprites/atlas/conversations.zip`);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-type") ?? "", /application\/zip/);
+    assert.match(response.headers.get("content-disposition") ?? "", /pi-orbs-atlas-conversations-/);
+    const files = await unzip(await response.arrayBuffer());
+    assert.match(files["README.txt"], /pi-orbs-conversations version 1/);
+    const manifest = JSON.parse(files["manifest.json"]);
+    assert.equal(manifest.format, "pi-orbs-conversations");
+    assert.equal(manifest.sprite, "atlas");
+    assert.deepEqual(manifest.bots.map((bot) => bot.id), ["ada", "kepler", "nova"]);
+    const ada = JSON.parse(files["bots/ada.json"]);
+    assert.equal(ada.name, "Ada");
+    assert.equal(ada.conversationId, "ada");
+    assert.equal(ada.look, "tide");
+    assert.match(ada.instruction, /status pages/);
+    assert.equal(ada.messages.length, 4);
+    assert.equal(ada.messages[0].kind, "pi.user");
+    assert.match(ada.messages[0].text, /status page/);
+    assert.equal(ada.messages[0].createdAt, "2026-03-02T15:04:00.000Z");
+    assert.ok(Date.parse(ada.messages.at(-1).createdAt) > Date.parse(ada.messages[0].createdAt));
+    const kepler = JSON.parse(files["bots/kepler.json"]);
+    assert.equal(kepler.name, "Kepler");
+    assert.match(kepler.messages[0].text, /other bots/);
+    const nova = JSON.parse(files["bots/nova.json"]);
+    assert.equal(nova.name, "Nova");
+    const packed = JSON.stringify(files);
+    for (const hidden of ["apiKey", "xaiKey", "connectorId", "PI_API_SECRET", "XAI_API_KEY", "OPENAI_API_KEY"]) {
+      assert.equal(packed.includes(hidden), false, hidden);
+    }
   });
 
   test("POST messages appends a user message and a canned assistant reply", async () => {
@@ -188,6 +315,9 @@ describe("local simulator API", { concurrency: 1 }, () => {
     assert.equal(destroyed.status, 200);
     assert.deepEqual(await destroyed.json(), { ok: true });
     assert.equal(await stateDigest(), beforeDigest);
+
+    const missing = await fetch(`${session.base}/api/sprites/atlas/conversations.zip`);
+    assert.equal(missing.status, 404);
   });
 
   test("after destroy GET /api/sprites has sprite null and POST reseeds", async () => {
@@ -226,6 +356,13 @@ describe("local simulator API", { concurrency: 1 }, () => {
     const threadBody = await thread.json();
     assert.equal(threadBody.messages.length, 4);
     assert.match(threadBody.messages[0].text, /status page/);
+
+    const exported = await fetch(`${session.base}/api/sprites/atlas/conversations.zip`);
+    assert.equal(exported.status, 200);
+    const files = await unzip(await exported.arrayBuffer());
+    const packed = JSON.stringify(files);
+    assert.equal(packed.includes("local-simulator-test"), false);
+    assert.match(JSON.parse(files["bots/ada.json"]).messages[0].text, /status page/);
   });
 
   test("connector presets and setup choose one shared model", async () => {

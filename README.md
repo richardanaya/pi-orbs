@@ -60,7 +60,7 @@ Choose **Add** to name a bot, write its instruction, and pick a glass orb. The s
 
 The same thread after a message is sent.
 
-**Settings** holds **Push server build** and **Destroy sprite**. Push installs this package's server on the sprite. Destroy deletes that sprite and the connector that was saved with it, then the page returns to setup.
+**Settings** holds **Download all conversations**, **Push server build**, and **Destroy sprite**. Download saves a zip of every bot thread as JSON transcripts (bot id, name, and message timestamps). It does not include API keys or connector credentials. Push installs this package's server on the sprite. Destroy deletes that sprite and the connector that was saved with it, then the page returns to setup.
 
 How the pieces connect, and what to check when setup fails, is in [Architecture](docs/architecture.md#troubleshooting).
 
@@ -82,7 +82,7 @@ From a checkout, after client and server dependencies are installed:
 npm test
 ```
 
-That runs the client simulator tests, then builds the server and runs its smoke tests: `/version` is public, requests without the API secret get 401, and a Bearer token can create a bot and list it. The full run needs Node 22. The server process needs `node:sqlite`, which Node 20 does not include. The simulator tests alone run on Node 20 with `npm test --prefix client`.
+That runs the client simulator tests, then builds the server and runs its smoke tests: `/version` is public, requests without the API secret get 401, a Bearer token can create a bot and list it, and `GET /api/export` returns those transcripts without the API secret. The simulator tests also unpack a zip of the seeded conversations. The full run needs Node 22. The server process needs `node:sqlite`, which Node 20 does not include. The simulator tests alone run on Node 20 with `npm test --prefix client`.
 
 ## Site
 
