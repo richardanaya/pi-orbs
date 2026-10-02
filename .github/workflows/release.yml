@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  github-release:
+    name: GitHub Release from changelog
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 << 'PY'
+          import json, os, pathlib, re, sys
+
+          tag = os.environ["GITHUB_REF_NAME"]
+          if not tag.startswith("v") or len(tag) < 2:
+              sys.exit(f"tag {tag!r} is not v<version>")
+          version = tag[1:]
+
+          root = json.loads(pathlib.Path("package.json").read_text())["version"]
+          server = json.loads(pathlib.Path("server/package.json").read_text())["version"]
+          file_version = pathlib.Path("server/VERSION").read_text().strip()
+          mismatches = []
+          if root != version:
+              mismatches.append(f"package.json {root}")
+          if server != version:
+              mismatches.append(f"server/package.json {server}")
+          if file_version != version:
+              mismatches.append(f"server/VERSION {file_version}")
+          if mismatches:
+              sys.exit("tag " + tag + " does not match " + ", ".join(mismatches))
+
+          lines = pathlib.Path("CHANGELOG.md").read_text().splitlines()
+          start = None
+          for index, line in enumerate(lines):
+              if line.startswith(f"## [{version}]"):
+                  start = index + 1
+                  break
+          if start is None:
+              sys.exit(f"CHANGELOG.md has no ## [{version}] section")
+          end = len(lines)
+          link_ref = re.compile(r"^\[[^\]]+\]:")
+          for index in range(start, len(lines)):
+              line = lines[index]
+              if line.startswith("## ") or link_ref.match(line):
+                  end = index
+                  break
+          notes = "\n".join(lines[start:end]).strip()
+          if not notes:
+              sys.exit(f"CHANGELOG.md section ## [{version}] is empty")
+          pathlib.Path("release-notes.md").write_text(notes + "\n")
+          PY
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file release-notes.md

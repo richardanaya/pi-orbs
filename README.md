@@ -98,3 +98,11 @@ After that source is saved, the site is https://richardanaya.github.io/pi-orbs/.
 ## Publish
 
 `npm publish` from this repo runs the build first. The npm package includes the client, the server `dist`, and the server lockfile the Sprite installs from. `node_modules`, `dist` in git, tarballs, and env files stay out of the repository. The git remote is `git@github.com:richardanaya/pi-orbs.git`.
+
+Version bumps and the later tag are in [RELEASE.md](RELEASE.md). After the `0.1.0` bump is on `master` and the release is OK:
+
+```bash
+git tag v0.1.0 && git push --tags
+```
+
+That push opens a GitHub Release from the `[0.1.0]` section of [CHANGELOG.md](CHANGELOG.md). It does not publish to npm. `server/VERSION` is what `GET /version` returns, and it matches the package version.
