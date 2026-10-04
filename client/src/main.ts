@@ -119,7 +119,6 @@ function serviceEnv(saved: SavedSprite): Record<string, string> {
     XAI_API_KEY: "connector",
     OPENAI_API_KEY: "connector",
     ...(connector.connectorType === "anthropic" ? { ANTHROPIC_API_KEY: "connector" } : {}),
-    PI_PUBLIC_URL: saved.url,
     ...(saved.cronApiKey ? { CRON_JOB_ORG_API_KEY: saved.cronApiKey } : {}),
   };
 }
