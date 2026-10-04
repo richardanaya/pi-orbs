@@ -94,7 +94,7 @@ That runs the client simulator tests, then builds the server and runs its smoke 
 
 The project homepage is [https://piorbs.com/](https://piorbs.com/). It is static. Nothing has to be built to view it.
 
-`index.html` is the entrypoint, at the repository root. `website/` holds the stylesheet, script, mark, launch video, and share image. The interface pictures are:
+`index.html` is the entrypoint, at the repository root. `website/` holds the stylesheet, script, mark, launch video, and share image. The homepage hero is `website/pi-orbs-0.3-release.mp4` (1920×1080, 32s). It is composed in [`website/remotion/`](website/remotion/README.md) (`npm run preview` and `npm run render` there). `website/pi-orbs-site-hero.mp4` stays as the product-footage source for that composition. The interface pictures are:
 
 - `docs/local-demo.gif`
 - `docs/local-setup.png`

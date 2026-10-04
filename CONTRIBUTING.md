@@ -87,3 +87,5 @@ The simulator covers the roster, thread, compose box, and adding a bot. The xAI 
 - Do not create a `v*` tag or a GitHub Release from a pull request. [RELEASE.md](RELEASE.md) is the bump and the later tag (`git tag v0.1.0 && git push --tags` once the bump is on `master` and the release is OK).
 
 A green `npm run build` and `npm test` are the checks to report.
+
+Site videos are a nested Remotion project in `website/remotion/`. They are not part of root `npm run build` or CI. Preview and render commands are in that folder's README.
