@@ -3,6 +3,24 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { archiveHeaders, conversationsArchive, type ExportSnapshot } from "./archive.js";
 import { defaultConnector, publicConnectors, readDeployUpdate, readSetup, type SpriteConnector } from "./connectors.js";
 import { localVersion } from "./deploy.js";
+import {
+  appendTranscript,
+  chatLines,
+  clearBotSessions,
+  clearSessions,
+  endSession,
+  executeVoiceTool,
+  findSession,
+  isVoiceFailure,
+  matchVoicePath,
+  openSession,
+  publicSession,
+  publicVoice,
+  readVoice,
+  voiceFromSetup,
+  type VoiceConfig,
+  type VoiceMatch,
+} from "./voice.js";
 
 const LOOKS = ["slate", "silver", "mist", "tide", "pine", "amber", "clay", "plum"] as const;
 const NAME_MAX = 80;
@@ -34,7 +52,7 @@ type Bot = {
   messages: Message[];
   busyUntil?: number;
 };
-type Sprite = { name: string; url: string } & SpriteConnector;
+type Sprite = { name: string; url: string; voice: VoiceConfig | null } & SpriteConnector;
 type FieldPatch = { name?: string; instruction?: string; look?: Look };
 
 const localUrl = "http://127.0.0.1:8787";
@@ -158,11 +176,19 @@ function samplePeers(): Peer[] {
   ];
 }
 
-function reset(name: string, connector: SpriteConnector = defaultConnector(), sample = false): void {
-  sprite = { name, url: localUrl, ...connector };
+function reset(name: string, connector: SpriteConnector = defaultConnector(), sample = false, voice: VoiceConfig | null = null): void {
+  clearSessions();
+  sprite = { name, url: localUrl, ...connector, voice };
   bots = seedBots();
   peers = sample ? samplePeers() : [];
   nextPeer = 1;
+}
+
+function submitHuman(bot: Bot, content: string): { submissionId: string } {
+  const at = new Date();
+  bot.messages.push(message("pi.user", content, at.toISOString()));
+  bot.messages.push(message("pi.assistant", cannedReply(content), new Date(at.getTime() + 1000).toISOString()));
+  return { submissionId: `local-${bot.messages.at(-1)?.id ?? "reply"}` };
 }
 
 function busyIds(): string[] {
@@ -321,7 +347,84 @@ function spriteBody(version: string): Record<string, unknown> | null {
     connectorType: sprite.connectorType,
     baseApiUrl: sprite.baseApiUrl,
     model: sprite.model,
+    voice: publicVoice(sprite.voice),
   };
+}
+
+async function handleLocalVoice(match: VoiceMatch, req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (!sprite) {
+    send(res, 404, { error: "sprite is not managed by this client" });
+    return;
+  }
+  if (match.kind === "save") {
+    if (req.method !== "POST") {
+      send(res, 404, { error: "not found" });
+      return;
+    }
+    const read = readVoice(await readJson(req), sprite.voice);
+    if ("error" in read) {
+      send(res, 400, { error: read.error });
+      return;
+    }
+    if (!("unchanged" in read)) sprite.voice = read.voice;
+    send(res, 200, { voice: publicVoice(sprite.voice) });
+    return;
+  }
+  const bot = bots.find((item) => item.id === match.botId);
+  if (!bot) {
+    send(res, 404, { error: "bot not found" });
+    return;
+  }
+  if (match.kind === "start") {
+    if (req.method !== "POST") {
+      send(res, 404, { error: "not found" });
+      return;
+    }
+    if (!sprite.voice) {
+      send(res, 400, { error: "voice is not configured" });
+      return;
+    }
+    send(res, 201, publicSession(openSession(bot.id, "local"), bot.name));
+    return;
+  }
+  const session = findSession(match.sessionId, bot.id);
+  if (!session) {
+    send(res, 404, { error: "voice call not found" });
+    return;
+  }
+  if (match.kind === "session" && req.method === "GET") {
+    send(res, 200, publicSession(session, bot.name));
+    return;
+  }
+  if (match.kind === "session" && req.method === "DELETE") {
+    endSession(session);
+    send(res, 200, { stopped: true });
+    return;
+  }
+  if (match.kind === "transcript" && req.method === "POST") {
+    if (session.stopped) {
+      send(res, 409, { error: "voice call has ended" });
+      return;
+    }
+    const body = await readJson(req);
+    const appended = appendTranscript(session, body.role, body.text);
+    if ("error" in appended) {
+      send(res, 400, { error: appended.error });
+      return;
+    }
+    send(res, 201, { id: appended.turn.id, role: appended.turn.role, createdAt: appended.turn.createdAt });
+    return;
+  }
+  if (match.kind === "tools" && req.method === "POST") {
+    const result = await executeVoiceTool(session, await readJson(req), {
+      lines: async () => chatLines(threadMessages(bot)),
+      submit: async (task) => submitHuman(bot, task),
+      secrets: sprite.voice ? [sprite.voice.apiKey] : [],
+    });
+    send(res, result.status, result.body);
+    return;
+  }
+  send(res, 404, { error: "not found" });
 }
 
 export async function handleLocal(url: URL, req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -339,12 +442,18 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
     return;
   }
   if (url.pathname === "/api/sprites" && req.method === "POST") {
-    const setup = readSetup(await readJson(req));
+    const body = await readJson(req);
+    const setup = readSetup(body);
     if ("error" in setup) {
       send(res, 400, { error: setup.error });
       return;
     }
-    reset(setup.name, { connectorType: setup.connectorType, baseApiUrl: setup.baseApiUrl, model: setup.model });
+    const voice = voiceFromSetup(body, null);
+    if (isVoiceFailure(voice)) {
+      send(res, 400, { error: voice.error });
+      return;
+    }
+    reset(setup.name, { connectorType: setup.connectorType, baseApiUrl: setup.baseApiUrl, model: setup.model }, false, voice);
     send(res, 201, {
       name: setup.name,
       url: localUrl,
@@ -352,6 +461,7 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
       connectorType: setup.connectorType,
       baseApiUrl: setup.baseApiUrl,
       model: setup.model,
+      voice: publicVoice(voice),
     });
     return;
   }
@@ -375,14 +485,20 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
 
   const rest = parts.slice(3);
   if (rest.length === 0 && req.method === "DELETE") {
+    clearSessions();
     sprite = null;
     bots = [];
     peers = [];
     send(res, 200, { ok: true });
     return;
   }
+  const voiceMatch = matchVoicePath(url.pathname);
+  if (voiceMatch && voiceMatch.name === name) {
+    await handleLocalVoice(voiceMatch, req, res);
+    return;
+  }
   if (rest.length === 1 && rest[0] === "conversations.zip" && req.method === "GET") {
-    const archive = conversationsArchive(localSnapshot());
+    const archive = conversationsArchive(localSnapshot(), sprite.voice ? [sprite.voice.apiKey] : []);
     res.writeHead(200, archiveHeaders(archive.filename, archive.zip.length));
     res.end(archive.zip);
     return;
@@ -464,6 +580,7 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
         const peer = peers[i];
         if (peer && (peer.from === bot.id || peer.to === bot.id)) peers.splice(i, 1);
       }
+      clearBotSessions(bot.id);
       send(res, 200, { ok: true });
       return;
     }
@@ -477,10 +594,7 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
         send(res, 400, { error: "content is required" });
         return;
       }
-      const at = new Date();
-      bot.messages.push(message("pi.user", content, at.toISOString()));
-      bot.messages.push(message("pi.assistant", cannedReply(content), new Date(at.getTime() + 1000).toISOString()));
-      send(res, 202, { submissionId: `local-${bot.messages.at(-1)?.id ?? "reply"}` });
+      send(res, 202, submitHuman(bot, content));
       return;
     }
     if (rest.length === 3 && rest[2] === "steer" && req.method === "POST") {

@@ -401,6 +401,33 @@
     background: rgba(255, 80, 90, 0.06);
   }
   #settings #destroy:hover { background: rgba(255, 80, 90, 0.12); }
+  #settings .setup-field { margin: 0 4px 10px; }
+  #settings input, #settings select {
+    width: 100%;
+    border: 1px solid var(--line-strong);
+    background-color: #000;
+    border-radius: 12px;
+    padding: 8px 12px;
+    outline: none;
+  }
+  #settings select {
+    appearance: none;
+    padding-right: 36px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23f3f4f5' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+  }
+  #settings input:focus, #settings select:focus {
+    border-color: rgba(255, 255, 255, 0.72);
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.06);
+  }
+  #voice-status:empty { display: none; }
+  .setup-hint {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.45;
+    margin: 0 0 10px;
+  }
 
   .thread {
     display: flex;
@@ -419,10 +446,64 @@
     padding: 0 28px;
     border-bottom: 0;
   }
-  .thread-bar:has(#peer-activity:not([hidden])) {
+  .thread-bar:has(#peer-activity:not([hidden])),
+  .thread-bar:has(#voice-start:not([hidden])) {
     min-height: 44px;
     padding: 8px 28px;
     border-bottom: 1px solid var(--line);
+  }
+  #voice-start, #voice-stop, #voice-say button {
+    border: 0;
+    background: #fff;
+    color: #0a0a0a;
+    font-weight: 600;
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 13px;
+  }
+  #voice-start[hidden] { display: none; }
+  #voice-start:hover, #voice-stop:hover, #voice-say button:hover { background: #eceeed; }
+  .voice-dock {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 0 0 10px;
+    padding: 8px 8px 8px 10px;
+    border: 1px solid var(--line-strong);
+    border-radius: 18px;
+    background: #050505;
+  }
+  .voice-dock[hidden] { display: none; }
+  .voice-mark { width: 28px; height: 28px; flex: none; }
+  .voice-copy { min-width: 0; flex: 1; }
+  .voice-copy strong {
+    display: block;
+    font-size: 13px;
+    letter-spacing: -0.02em;
+  }
+  #voice-note, #voice-log {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  #voice-log:empty { display: none; }
+  #voice-say {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex: 1 1 180px;
+  }
+  #voice-say[hidden] { display: none; }
+  #voice-line {
+    width: auto;
+    min-width: 0;
+    flex: 1;
+    border: 1px solid var(--line-strong);
+    background: #000;
+    border-radius: 999px;
+    padding: 6px 12px;
   }
   #thread-avatar, #thread-name, #thread-sub { display: none; }
   .thread-id { min-width: 0; flex: 1; }
@@ -733,6 +814,19 @@
         <span>Model</span>
         <input id="shared-model" name="model" maxlength="200" autocomplete="off" required>
       </label>
+      <label class="setup-field" for="setup-voice-provider">
+        <span>Voice</span>
+        <select id="setup-voice-provider" name="voiceProvider">
+          <option value="">Off</option>
+          <option value="grok">Grok</option>
+          <option value="openai">OpenAI</option>
+        </select>
+      </label>
+      <label class="setup-field" for="setup-voice-key">
+        <span>Voice API key</span>
+        <input id="setup-voice-key" name="voiceApiKey" type="password" autocomplete="off" placeholder="Optional">
+      </label>
+      <p class="setup-hint">Optional. Voice stays off until you save a Grok or OpenAI realtime key. The key stays on this machine.</p>
       <button id="create-button" type="submit">Create and deploy</button>
     </form>
     <p id="status" role="status"></p>
@@ -757,6 +851,23 @@
       <button id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings">Settings</button>
       <div id="settings">
         <p id="sprite-meta"></p>
+        <p class="hint">Optional. A Grok or OpenAI realtime key starts a voice call with the open bot. The key stays on this machine.</p>
+        <form id="voice-settings">
+          <label class="setup-field" for="voice-provider">
+            <span>Voice</span>
+            <select id="voice-provider" name="voiceProvider">
+              <option value="">Off</option>
+              <option value="grok">Grok</option>
+              <option value="openai">OpenAI</option>
+            </select>
+          </label>
+          <label class="setup-field" for="voice-key">
+            <span>Voice API key</span>
+            <input id="voice-key" name="voiceApiKey" type="password" autocomplete="off" placeholder="Leave blank to keep the saved key">
+          </label>
+          <button id="voice-save" type="submit">Save voice</button>
+          <p id="voice-status" class="hint" role="status"></p>
+        </form>
         <p class="hint">Downloads a zip of every bot thread: JSON transcripts with id, name, and timestamps. API keys stay on this machine.</p>
         <button id="export" type="button">Download all conversations</button>
         <p id="export-status" class="hint" role="status"></p>
@@ -774,6 +885,7 @@
         <div class="thread-sub" id="thread-sub" hidden></div>
       </div>
       <div class="thread-tools">
+        <button id="voice-start" type="button" hidden>Voice</button>
         <p id="peer-activity" class="peer-activity" role="status" hidden>
           <span class="peer-pulse" aria-hidden="true"></span>
           <span id="peer-activity-text"></span>
@@ -782,6 +894,20 @@
     </div>
     <div id="log"></div>
     <div class="composer">
+      <div id="voice-dock" class="voice-dock" hidden>
+        <img class="voice-mark" src="/logo.png" alt="">
+        <div class="voice-copy">
+          <strong id="voice-title">Voice</strong>
+          <p id="voice-note"></p>
+          <p id="voice-log"></p>
+        </div>
+        <form id="voice-say" hidden>
+          <label class="sr-only" for="voice-line">Say</label>
+          <input id="voice-line" name="text" placeholder="Say" autocomplete="off" maxlength="8000">
+          <button type="submit">Say</button>
+        </form>
+        <button id="voice-stop" type="button">Stop</button>
+      </div>
       <form id="send">
         <label class="sr-only" for="message">Message</label>
         <input id="message" name="content" placeholder="Message" autocomplete="off" required>
@@ -834,7 +960,9 @@ const LOOKS = [
   { id: "clay", label: "Clay" },
   { id: "plum", label: "Plum" },
 ];
-const state = { sprite: null, bot: null, bots: [], busy: [] };
+const state = { sprite: null, bot: null, bots: [], busy: [], voiceConfigured: false, voiceSession: null };
+let voiceHangup = null;
+let voiceLines = [];
 let dialogOpener = null;
 let dialogSaving = false;
 function tone(name) {
@@ -939,6 +1067,7 @@ async function refreshHome() {
   if (!body.sprite) {
     state.sprite = null;
     state.bot = null;
+    applyVoice(null);
     showSetup("Name your Fly Sprite and choose your Model Provider.");
     if (connectorPresets.length) {
       connectorSelect.value = presetById("xai") ? "xai" : connectorPresets[0].id;
@@ -953,6 +1082,7 @@ async function refreshHome() {
     const form = document.querySelector("#create-sprite");
     form.querySelector("[name=name]").value = body.sprite.name;
     showSavedConnector(body.sprite);
+    applyVoice(body.sprite);
     resetSetupKey(false);
     document.querySelector("#create-button").textContent = "Finish deploy";
     return;
@@ -967,6 +1097,7 @@ async function refreshBots(sprite) {
   const box = document.querySelector("#bots");
   const body = sprite && sprite.bots ? sprite : await api("/api/sprites/" + state.sprite);
   meta.textContent = body.url + (body.update ? "\nupdate available" : "");
+  applyVoice(body);
   const bots = body.bots || [];
   state.bots = bots;
   if (!state.bot && bots[0]) state.bot = bots[0].id;
@@ -993,7 +1124,12 @@ async function refreshBots(sprite) {
     sub.textContent = bot.instruction ? bot.instruction : state.sprite;
     text.append(name, sub);
     open.append(face, text);
-    open.onclick = () => { state.bot = bot.id; refreshBots(); refreshThread(); };
+    open.onclick = () => {
+      if (state.voiceSession && state.bot !== bot.id) stopVoiceCall();
+      state.bot = bot.id;
+      refreshBots();
+      refreshThread();
+    };
     const edit = document.createElement("button");
     edit.type = "button";
     edit.className = "row-edit";
@@ -1012,6 +1148,8 @@ async function refreshBots(sprite) {
     log.innerHTML = "";
     log.append(showEmpty("Choose a bot", "The roster is on the left. Each bot keeps its own thread."));
   }
+  if (state.voiceSession && state.voiceSession.botId !== state.bot) stopVoiceCall();
+  paintVoiceButton();
   paintBusy();
   refreshActivity();
 }
@@ -1175,10 +1313,15 @@ document.querySelector("#create-sprite").onsubmit = async (event) => {
     const model = String(data.get("model") || "").trim();
     const existing = state.sprite === name;
     const fields = { connectorType, baseApiUrl, model };
+    const voice = {
+      voiceProvider: String(data.get("voiceProvider") || ""),
+      voiceApiKey: String(data.get("voiceApiKey") || ""),
+    };
     if (existing && !apiKey) {
       await api("/api/sprites/" + name + "/deploy", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(fields) });
+      await api("/api/sprites/" + name + "/voice", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(voice) });
     } else {
-      await api("/api/sprites", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, apiKey, ...fields }) });
+      await api("/api/sprites", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, apiKey, ...fields, ...voice }) });
     }
     event.target.reset();
     status.textContent = "";
@@ -1394,6 +1537,7 @@ document.querySelector("#destroy").onclick = async () => {
   if (!state.sprite) return;
   const name = state.sprite;
   if (!confirm("Destroy " + name + "? This deletes the sprite and its bots.")) return;
+  await stopVoiceCall();
   await api("/api/sprites/" + name, { method: "DELETE" });
   state.sprite = null;
   state.bot = null;
@@ -1417,6 +1561,345 @@ document.querySelector("#send").onsubmit = async (event) => {
     throw error;
   } finally {
     button.disabled = false;
+  }
+};
+function voiceLabel(provider) {
+  if (provider === "grok") return "Grok";
+  if (provider === "openai") return "OpenAI";
+  return "";
+}
+function applyVoice(sprite) {
+  const voice = sprite && sprite.voice ? sprite.voice : { provider: null, configured: false };
+  state.voiceConfigured = voice.configured === true;
+  const provider = voice.provider || "";
+  const setupProvider = document.querySelector("#setup-voice-provider");
+  const settingsProvider = document.querySelector("#voice-provider");
+  if (setupProvider) setupProvider.value = provider;
+  if (settingsProvider) settingsProvider.value = provider;
+  const status = document.querySelector("#voice-status");
+  if (status) {
+    status.textContent = voice.configured
+      ? "Voice is on (" + voiceLabel(provider) + "). The key stays on this machine."
+      : "Voice is off.";
+  }
+  paintVoiceButton();
+}
+function paintVoiceButton() {
+  const button = document.querySelector("#voice-start");
+  const live = state.voiceSession && state.voiceSession.botId === state.bot;
+  button.hidden = !state.voiceConfigured || !state.bot || !!live;
+}
+function voiceBotName() {
+  const bot = state.bots.find((item) => item.id === (state.voiceSession ? state.voiceSession.botId : state.bot));
+  return bot ? bot.name : "this bot";
+}
+function showVoiceDock(session) {
+  const dock = document.querySelector("#voice-dock");
+  const local = session.provider === "local";
+  document.querySelector("#voice-title").textContent = "Voice with " + voiceBotName();
+  document.querySelector("#voice-note").textContent = local
+    ? "Local call. No microphone. The voice agent can search this chat and this call, send a task, or stop."
+    : "Live call. The voice agent can search, send a task, or stop.";
+  document.querySelector("#voice-log").textContent = voiceLines.join("\n");
+  document.querySelector("#voice-say").hidden = !local;
+  dock.hidden = false;
+  paintVoiceButton();
+}
+function hideVoiceDock() {
+  document.querySelector("#voice-dock").hidden = true;
+  document.querySelector("#voice-say").hidden = true;
+  document.querySelector("#voice-line").value = "";
+  paintVoiceButton();
+}
+function rememberVoiceLine(role, text) {
+  voiceLines.push((role === "assistant" ? "Voice" : "You") + ": " + text);
+  voiceLines = voiceLines.slice(-4);
+  const log = document.querySelector("#voice-log");
+  if (log) log.textContent = voiceLines.join("\n");
+}
+async function postVoiceTranscript(session, role, text) {
+  if (!session || !text) return;
+  try {
+    await api("/api/sprites/" + state.sprite + "/bots/" + session.botId + "/voice/" + session.sessionId + "/transcript", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role, text }),
+    });
+    rememberVoiceLine(role, text);
+  } catch (error) {
+    document.querySelector("#voice-note").textContent = error.message;
+  }
+}
+async function runVoiceTool(session, transport, name, callId, args) {
+  const result = await api("/api/sprites/" + state.sprite + "/bots/" + session.botId + "/voice/" + session.sessionId + "/tools", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name, arguments: args }),
+  });
+  transport.send(JSON.stringify({
+    type: "conversation.item.create",
+    item: { type: "function_call_output", call_id: callId, output: JSON.stringify(result) },
+  }));
+  transport.send(JSON.stringify({ type: "response.create" }));
+  if (name === "stop_voice" || result.stopped === true) await stopVoiceCall();
+  if (name === "send_task") setTimeout(refreshThread, 1500);
+  return result;
+}
+function bindVoiceEvents(session, transport) {
+  const seen = new Set();
+  return async (event) => {
+    if (!event || typeof event !== "object") return;
+    if (event.type === "error") {
+      const message = event.error && event.error.message ? event.error.message : "Voice provider error";
+      document.querySelector("#voice-note").textContent = message;
+      return;
+    }
+    if (event.type === "conversation.item.input_audio_transcription.completed" && event.transcript) {
+      await postVoiceTranscript(session, "user", event.transcript);
+    }
+    if (event.type === "response.output_audio_transcript.done" && event.transcript) {
+      await postVoiceTranscript(session, "assistant", event.transcript);
+    }
+    if (event.type === "response.output_audio.delta" && event.delta && transport.play) transport.play(event.delta);
+    const item = event.item && event.item.type === "function_call" ? event.item : null;
+    const done = event.type === "response.function_call_arguments.done" || (event.type === "response.output_item.done" && item);
+    if (!done) return;
+    const name = event.name || (item && item.name);
+    const callId = event.call_id || (item && item.call_id);
+    const raw = event.arguments || (item && item.arguments) || "{}";
+    if (!name || !callId || seen.has(callId)) return;
+    seen.add(callId);
+    let args = {};
+    try { args = typeof raw === "string" ? JSON.parse(raw) : raw; } catch { args = {}; }
+    try {
+      await runVoiceTool(session, transport, name, callId, args);
+    } catch (error) {
+      transport.send(JSON.stringify({
+        type: "conversation.item.create",
+        item: { type: "function_call_output", call_id: callId, output: JSON.stringify({ error: error.message }) },
+      }));
+      document.querySelector("#voice-note").textContent = error.message;
+    }
+  };
+}
+function downsamplePcm(input, fromRate, toRate) {
+  const ratio = fromRate / toRate;
+  const length = Math.max(1, Math.floor(input.length / ratio));
+  const out = new Int16Array(length);
+  for (let i = 0; i < length; i += 1) {
+    const start = Math.floor(i * ratio);
+    const end = Math.min(input.length, Math.max(start + 1, Math.floor((i + 1) * ratio)));
+    let sum = 0;
+    for (let j = start; j < end; j += 1) sum += input[j];
+    const sample = Math.max(-1, Math.min(1, sum / (end - start)));
+    out[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+  }
+  return out;
+}
+function pcmToBase64(pcm) {
+  const bytes = new Uint8Array(pcm.buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+function playPcm16(playback, base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  const samples = Math.floor(bytes.length / 2);
+  const audio = new Float32Array(samples);
+  const view = new DataView(bytes.buffer);
+  for (let i = 0; i < samples; i += 1) audio[i] = view.getInt16(i * 2, true) / 32768;
+  const buffer = playback.ctx.createBuffer(1, samples, 24000);
+  buffer.copyToChannel(audio, 0);
+  const source = playback.ctx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(playback.ctx.destination);
+  const start = Math.max(playback.ctx.currentTime + 0.05, playback.next);
+  source.start(start);
+  playback.next = start + buffer.duration;
+}
+async function connectGrok(session) {
+  const realtime = session.realtime || {};
+  const ws = new WebSocket(realtime.url, [(realtime.protocol || "xai-client-secret.") + session.clientSecret]);
+  const playback = { ctx: new AudioContext(), next: 0 };
+  const transport = {
+    send: (data) => { if (ws.readyState === 1) ws.send(data); },
+    play: (delta) => playPcm16(playback, delta),
+  };
+  const onEvent = bindVoiceEvents(session, transport);
+  let stopMic = () => {};
+  ws.onmessage = (event) => {
+    try { onEvent(JSON.parse(event.data)); } catch { /* ignore a bad frame */ }
+  };
+  await new Promise((resolve, reject) => {
+    ws.onopen = resolve;
+    ws.onerror = () => reject(new Error("voice call did not connect"));
+  });
+  ws.send(JSON.stringify({
+    type: "session.update",
+    session: {
+      instructions: session.instructions,
+      voice: "eve",
+      turn_detection: { type: "server_vad" },
+      tools: session.tools,
+      tool_choice: "auto",
+      audio: { input: { transcription: { model: "grok-transcribe" } } },
+    },
+  }));
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+  const mic = new AudioContext();
+  const source = mic.createMediaStreamSource(stream);
+  const processor = mic.createScriptProcessor(4096, 1, 1);
+  const mute = mic.createGain();
+  mute.gain.value = 0;
+  processor.onaudioprocess = (event) => {
+    if (ws.readyState !== 1) return;
+    const pcm = downsamplePcm(event.inputBuffer.getChannelData(0), mic.sampleRate, 24000);
+    ws.send(JSON.stringify({ type: "input_audio_buffer.append", audio: pcmToBase64(pcm) }));
+  };
+  source.connect(processor);
+  processor.connect(mute);
+  mute.connect(mic.destination);
+  stopMic = () => {
+    processor.disconnect();
+    source.disconnect();
+    stream.getTracks().forEach((track) => track.stop());
+    mic.close();
+    playback.ctx.close();
+  };
+  voiceHangup = () => {
+    stopMic();
+    if (ws.readyState === 0 || ws.readyState === 1) ws.close();
+  };
+}
+async function connectOpenAI(session) {
+  const pc = new RTCPeerConnection();
+  const audio = document.createElement("audio");
+  audio.autoplay = true;
+  audio.hidden = true;
+  document.body.append(audio);
+  pc.ontrack = (event) => { audio.srcObject = event.streams[0]; };
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+  pc.addTrack(stream.getTracks()[0], stream);
+  const channel = pc.createDataChannel("oai-events");
+  const transport = { send: (data) => { if (channel.readyState === "open") channel.send(data); } };
+  const onEvent = bindVoiceEvents(session, transport);
+  channel.onmessage = (event) => {
+    try { onEvent(JSON.parse(event.data)); } catch { /* ignore a bad frame */ }
+  };
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  if (pc.iceGatheringState !== "complete") {
+    await new Promise((resolve) => {
+      const check = () => {
+        if (pc.iceGatheringState === "complete") {
+          pc.removeEventListener("icegatheringstatechange", check);
+          resolve();
+        }
+      };
+      pc.addEventListener("icegatheringstatechange", check);
+      setTimeout(resolve, 2500);
+    });
+  }
+  const response = await fetch(session.realtime.url, {
+    method: "POST",
+    headers: {
+      authorization: "Bearer " + session.clientSecret,
+      "content-type": "application/sdp",
+    },
+    body: pc.localDescription.sdp,
+  });
+  if (!response.ok) throw new Error("voice call did not connect");
+  await pc.setRemoteDescription({ type: "answer", sdp: await response.text() });
+  voiceHangup = () => {
+    channel.close();
+    pc.close();
+    stream.getTracks().forEach((track) => track.stop());
+    audio.remove();
+  };
+}
+async function stopVoiceCall() {
+  const session = state.voiceSession;
+  const hangup = voiceHangup;
+  voiceHangup = null;
+  state.voiceSession = null;
+  voiceLines = [];
+  if (hangup) {
+    try { hangup(); } catch { /* the call is already closed */ }
+  }
+  hideVoiceDock();
+  if (session && state.sprite) {
+    try {
+      await api("/api/sprites/" + state.sprite + "/bots/" + session.botId + "/voice/" + session.sessionId, { method: "DELETE" });
+    } catch { /* already stopped */ }
+  }
+}
+async function startVoiceCall() {
+  if (!state.sprite || !state.bot || !state.voiceConfigured || state.voiceSession) return;
+  const button = document.querySelector("#voice-start");
+  button.disabled = true;
+  try {
+    const session = await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/voice", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    state.voiceSession = session;
+    voiceLines = [];
+    showVoiceDock(session);
+    if (session.provider === "grok") await connectGrok(session);
+    else if (session.provider === "openai") await connectOpenAI(session);
+  } catch (error) {
+    const message = error.message;
+    if (voiceHangup) {
+      try { voiceHangup(); } catch { /* the call is already closed */ }
+      voiceHangup = null;
+    }
+    const failed = state.voiceSession;
+    state.voiceSession = null;
+    if (failed && state.sprite) {
+      try {
+        await api("/api/sprites/" + state.sprite + "/bots/" + failed.botId + "/voice/" + failed.sessionId, { method: "DELETE" });
+      } catch { /* already stopped */ }
+    }
+    showVoiceDock(failed || { provider: "local", botId: state.bot });
+    document.querySelector("#voice-say").hidden = true;
+    document.querySelector("#voice-note").textContent = message;
+    paintVoiceButton();
+  } finally {
+    button.disabled = false;
+  }
+}
+document.querySelector("#voice-start").onclick = () => { startVoiceCall(); };
+document.querySelector("#voice-stop").onclick = () => { stopVoiceCall(); };
+document.querySelector("#voice-say").onsubmit = async (event) => {
+  event.preventDefault();
+  const session = state.voiceSession;
+  const input = document.querySelector("#voice-line");
+  const text = input.value.trim();
+  if (!session || session.provider !== "local" || !text) return;
+  input.value = "";
+  await postVoiceTranscript(session, "user", text);
+};
+document.querySelector("#voice-settings").onsubmit = async (event) => {
+  event.preventDefault();
+  if (!state.sprite) return;
+  const data = new FormData(event.target);
+  const status = document.querySelector("#voice-status");
+  try {
+    await api("/api/sprites/" + state.sprite + "/voice", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        voiceProvider: String(data.get("voiceProvider") || ""),
+        voiceApiKey: String(data.get("voiceApiKey") || ""),
+      }),
+    });
+    event.target.querySelector("[name=voiceApiKey]").value = "";
+    await refreshBots();
+  } catch (error) {
+    status.textContent = error.message;
   }
 };
 const connectorSelect = document.querySelector("#connector-type");
