@@ -17,7 +17,7 @@ The local client (http://127.0.0.1:8787) is what you install. It creates one Fly
 - **cron-job.org API key.** Setup and Settings can store an optional key (`cronApiKey` in `~/.pi-orbs/state.json`). The page never receives it. The schedule tool runs on the sprite, so deploy copies the key into the service environment as `CRON_JOB_ORG_API_KEY`. That is separate from the connector key. Webhook requests are authorized by a per-bot token in the URL, not by this key.
 - **API secret.** The client generates `PI_API_SECRET` and sends it to the server as `Authorization: Bearer` (or `x-api-key`). The server compares it with `timingSafeEqual`. Routes other than `GET /version` reject requests when the secret is missing or wrong. `GET /version` is unauthenticated, and the Sprite URL is public.
 
-`~/.pi-orbs/state.json` holds the sprite name and URL, the API secret, the connector key, the connector id, and, when voice is on, the voice provider and voice API key. That file stays on the machine that runs the client. Do not commit it, copy it into chat, or check it into CI. `.gitignore` already ignores `.env`, `.env.*`, `*.pem`, `*.key`, and `.pi-orbs`.
+`~/.pi-orbs/state.json` holds the Sprites API token, the sprite name and URL, the API secret, the connector key, the connector id, and, when voice is on, the voice provider and voice API key. That file stays on the machine that runs the client. Do not commit it, copy it into chat, or check it into CI. `.gitignore` already ignores `.env`, `.env.*`, `*.pem`, `*.key`, and `.pi-orbs`.
 
 Destroying the sprite from the client deletes the Sprites connector saved with it.
 

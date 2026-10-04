@@ -11,6 +11,7 @@ import { ConversationBusy, createRegistry, defineExtension, defineTool, Harness,
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
+import { createMcpHook, publicBase, receiveMcpWebhook, rememberWebhook } from "./mcp-events.js";
 import { installSharedModel, sharedModel } from "./model.js";
 import { hiddenThreadEntryIds, normalizePeers, outgoingHop, PEER_CONTENT_MAX, PEER_LEDGER_MAX, PEER_REQUEST_PREFIX, peerChainUsed, peerPrompt, peerTurn, publicPeer, readSteer, resolvePeerTarget, withPeerInstruction, withPeerLines, type PeerRecord, type PublicPeer } from "./peers.js";
 import { CRON_API_DEFAULT, CRON_KEY_MAX, deleteCronJob, fetchCron, newHookToken, putCronJob, readHookBody, readScheduleRequest, scheduleTitle, tokensEqual, validHookToken, webhookUrl } from "./schedule.js";
@@ -24,6 +25,8 @@ const botsPath = process.env.PI_BOTS ?? dbPath.replace(/[^/]+$/, "bots.json");
 const peersPath = process.env.PI_PEERS ?? botsPath.replace(/[^/]+$/, "peers.json");
 const schedulesPath = process.env.PI_SCHEDULES ?? botsPath.replace(/[^/]+$/, "schedules.json");
 const cronKeyPath = process.env.PI_CRON_KEY ?? botsPath.replace(/[^/]+$/, "cron.json");
+const hooksPath = process.env.PI_HOOKS ?? botsPath.replace(/[^/]+$/, "mcp-events.json");
+const publicUrl = publicBase(process.env.PI_PUBLIC_URL);
 const workdir = process.env.PI_CWD ?? process.cwd();
 const context = BACKGROUND_CONTEXT;
 
@@ -472,17 +475,23 @@ async function transcript(conversation: Conversation, extra: readonly string[] =
   return messages;
 }
 
-async function readBody(req: IncomingMessage): Promise<unknown> {
+async function readRaw(req: IncomingMessage, limit: number): Promise<string | undefined> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += buffer.length;
-    if (size > 1_000_000) throw new Error("body too large");
+    if (size > limit) return undefined;
     chunks.push(buffer);
   }
-  if (chunks.length === 0) return {};
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+async function readBody(req: IncomingMessage): Promise<unknown> {
+  const raw = await readRaw(req, 1_000_000);
+  if (raw === undefined) throw new Error("body too large");
+  if (raw.length === 0) return {};
+  return JSON.parse(raw);
 }
 
 function send(res: ServerResponse, status: number, body: unknown): void {
@@ -550,6 +559,42 @@ const http = createServer(async (req, res) => {
       }
       send(res, 500, { error: error instanceof Error ? error.message : "error" });
     }
+    return;
+  }
+  const mcpRoute = url.pathname.match(/^\/api\/mcp-events\/([A-Za-z0-9]+)$/);
+  if (mcpRoute && req.method === "POST") {
+    const raw = await readRaw(req, 262_144);
+    if (raw === undefined) {
+      send(res, 413, { error: "body too large" });
+      return;
+    }
+    const received = await receiveMcpWebhook(hooksPath, mcpRoute[1], raw, req.headers);
+    if (received.deliver) {
+      try {
+        const bots = await loadBots();
+        const bot = bots.find((item) => item.id === received.deliver?.botId || item.conversationId === received.deliver?.botId);
+        if (!bot) {
+          send(res, 410, { error: "bot is gone" });
+          return;
+        }
+        const conversation = await conversationFor(bot.id);
+        await conversation.submit({
+          type: "input",
+          content: received.deliver.content,
+          whenBusy: "followUp",
+          requestId: received.deliver.requestId,
+        }, context);
+        await rememberWebhook(hooksPath, mcpRoute[1], received.deliver.webhookId);
+      } catch (error) {
+        if (error instanceof ConversationBusy) {
+          send(res, 409, { error: "busy" });
+          return;
+        }
+        send(res, 500, { error: error instanceof Error ? error.message : "error" });
+        return;
+      }
+    }
+    send(res, received.status, received.body);
     return;
   }
   if (!authorized(req)) {
@@ -775,6 +820,25 @@ peerExtension = defineExtension({
   name: "peers",
   tools: [
     defineTool({
+      name: "create_mcp_event_webhook",
+      description: "Mint an HTTPS webhook URL and a whsec_ signing secret for this bot. Give both to an MCP server as events/subscribe delivery { mode: \"webhook\", url, secret }. That server verifies the URL, then POSTs signed MCP events here. Each event is admitted into this conversation. The secret is shown once in this tool result.",
+      parameters: Type.Object({
+        label: Type.Optional(Type.String({ description: "Short note for what this URL watches" })),
+      }),
+      replay: "safe",
+      execute: async (args, api) => {
+        const created = await createMcpHook(hooksPath, String(api.conversationId), publicUrl, args.label ?? "");
+        if ("error" in created) return { content: [{ type: "text", text: created.error }], isError: true };
+        const lines = [
+          `Webhook URL: ${created.url}`,
+          `Signing secret: ${created.secret}`,
+          "Pass both as delivery.mode \"webhook\" on events/subscribe. Verification challenges are answered here. Signed events enter this conversation.",
+        ];
+        if (created.label) lines.splice(2, 0, `Label: ${created.label}`);
+        return { content: [{ type: "text", text: lines.join("\n") }] };
+      },
+    }),
+    defineTool({
       name: "steer_peer",
       description: "Send a need-to-know message into another bot on this sprite. Call it in the same turn the human asks you to contact that bot. Saying you will does not send it. Also call it once to return a result the other bot asked for. The server refuses a further steer. The human's thread does not show the tool call.",
       parameters: Type.Object({
@@ -829,6 +893,7 @@ peerExtension = defineExtension({
         "When the human names one of these bots and asks you to tell them something or have them do something, call steer_peer in this turn. Saying you will does not send it.",
         "When one of them asks you for something, steer the result back once. That is the one forward the server allows.",
         "Do not steer acknowledgements or a second follow-up. The server then closes the chain.",
+        "When an MCP server should push events into this conversation, call create_mcp_event_webhook and pass the URL and whsec_ secret as the webhook delivery on events/subscribe.",
         ...lines,
       ].join("\n");
     }),

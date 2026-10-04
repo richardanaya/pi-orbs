@@ -157,21 +157,21 @@
     border-color: rgba(255, 255, 255, 0.72);
     box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.06);
   }
-  #create-button, .send, #bot-save {
+  #create-button, #token-button, .send, #bot-save {
     border: 0;
     background: #fff;
     color: #0a0a0a;
     font-weight: 600;
   }
-  #create-button {
+  #create-button, #token-button {
     width: 100%;
     margin-top: 6px;
     border-radius: 14px;
     padding: 14px 18px;
     letter-spacing: -0.01em;
   }
-  #create-button:hover, #bot-save:hover, .send:hover { background: #eceeed; }
-  #create-button:focus-visible, .send:focus-visible, #add-bot:focus-visible, #bot-save:focus-visible, #bot-cancel:focus-visible, #bot-delete:focus-visible { outline-offset: 3px; }
+  #create-button:hover, #token-button:hover, #bot-save:hover, .send:hover { background: #eceeed; }
+  #create-button:focus-visible, #token-button:focus-visible, .send:focus-visible, #add-bot:focus-visible, #bot-save:focus-visible, #bot-cancel:focus-visible, #bot-delete:focus-visible { outline-offset: 3px; }
 
   main {
     display: none;
@@ -192,9 +192,6 @@
     gap: 12px;
     padding: 18px 16px 14px;
   }
-  .brand-glow { width: 34px; height: 34px; flex: none; }
-  .brand-glow::before { filter: blur(5px); width: 160%; height: 160%; }
-  .mark { width: 34px; height: 34px; }
   .brand strong {
     display: block;
     font-size: 17px;
@@ -259,47 +256,12 @@
   .row-edit:hover, .row-edit:focus-visible { background: var(--fill); color: var(--text); }
   .row-edit svg { display: block; }
   .avatar {
-    --orb: #2c3136;
-    --ink: #fff;
     position: relative;
     width: 40px;
     height: 40px;
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
     flex: none;
-    font-size: 14px;
-    font-weight: 600;
-    letter-spacing: -0.03em;
-    color: #fff;
-    background: var(--orb);
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
   }
-  .avatar[data-tone="0"] { --orb: #2a2f34; }
-  .avatar[data-tone="1"] { --orb: #353b41; }
-  .avatar[data-tone="2"] { --orb: #22272c; }
-  .avatar[data-look="slate"] { --orb: #46515e; --ink: #fff; }
-  .avatar[data-look="silver"] { --orb: #8b949e; --ink: #161616; }
-  .avatar[data-look="mist"] { --orb: #6d8eaa; --ink: #fff; }
-  .avatar[data-look="tide"] { --orb: #2f7c86; --ink: #fff; }
-  .avatar[data-look="pine"] { --orb: #3e7a5a; --ink: #fff; }
-  .avatar[data-look="amber"] { --orb: #a0783c; --ink: #161616; }
-  .avatar[data-look="clay"] { --orb: #a15a52; --ink: #161616; }
-  .avatar[data-look="plum"] { --orb: #7a5a88; --ink: #fff; }
-  .avatar.sm { width: 32px; height: 32px; font-size: 13px; }
-  .avatar .pi-face { width: 100%; height: 100%; display: block; }
-  .avatar .pi-eyes ellipse { fill: var(--ink); }
-  .avatar .pi-face path { stroke: var(--ink); }
-  .row .avatar .pi-face { animation: pi-bob 3.6s ease-in-out infinite; }
-  .row .avatar .pi-eyes { transform-box: fill-box; transform-origin: center; animation: pi-blink 5.4s infinite; }
-  @keyframes pi-bob {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-1.5px); }
-  }
-  @keyframes pi-blink {
-    0%, 88%, 100% { transform: scaleY(1); }
-    94% { transform: scaleY(0.12); }
-  }
+  .avatar.sm { width: 32px; height: 32px; }
   .row .copy { min-width: 0; }
   .row .name, .row .sub {
     overflow: hidden;
@@ -430,6 +392,7 @@
   }
 
   .thread {
+    position: relative;
     display: flex;
     flex-direction: column;
     min-width: 0;
@@ -446,13 +409,12 @@
     padding: 0 28px;
     border-bottom: 0;
   }
-  .thread-bar:has(#peer-activity:not([hidden])),
-  .thread-bar:has(#voice-start:not([hidden])) {
+  .thread-bar:has(#peer-activity:not([hidden])) {
     min-height: 44px;
     padding: 8px 28px;
     border-bottom: 1px solid var(--line);
   }
-  #voice-start, #voice-stop, #voice-say button {
+  #voice-stop, #voice-say button {
     border: 0;
     background: #fff;
     color: #0a0a0a;
@@ -461,18 +423,25 @@
     padding: 6px 14px;
     font-size: 13px;
   }
-  #voice-start[hidden] { display: none; }
-  #voice-start:hover, #voice-stop:hover, #voice-say button:hover { background: #eceeed; }
+  #voice-stop:hover, #voice-say button:hover { background: #eceeed; }
   .voice-dock {
+    position: absolute;
+    z-index: 4;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(620px, calc(100% - 32px));
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 12px;
-    margin: 0 0 10px;
+    margin: 0;
     padding: 8px 8px 8px 10px;
     border: 1px solid var(--line-strong);
     border-radius: 18px;
-    background: #050505;
+    background: rgba(5, 5, 5, 0.92);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(12px);
   }
   .voice-dock[hidden] { display: none; }
   .voice-mark { width: 28px; height: 28px; flex: none; }
@@ -667,6 +636,7 @@
     place-items: center;
     flex: none;
   }
+  .send[hidden] { display: none; }
   .send svg { display: block; }
   .empty {
     margin: auto;
@@ -792,8 +762,16 @@
   <div class="card">
     <div class="glow setup-glow"><img class="setup-mark" src="/logo.png" alt="Pi Orbs"></div>
     <h1>Pi Orbs</h1>
-    <p id="setup-copy">Name your Fly Sprite and choose your Model Provider.</p>
-    <form id="create-sprite">
+    <p id="setup-copy">Paste a Sprites API token. Pi Orbs uses it to talk to api.sprites.dev.</p>
+    <form id="token-form">
+      <label class="setup-field" for="sprites-token">
+        <span>Sprites API token</span>
+        <input id="sprites-token" name="token" type="password" autocomplete="off" required>
+      </label>
+      <p class="setup-hint">The token stays on this machine. It is how Pi Orbs creates and deploys the sprite.</p>
+      <button id="token-button" type="submit">Save token</button>
+    </form>
+    <form id="create-sprite" hidden>
       <label class="setup-field" for="sprite-name">
         <span>Sprite name</span>
         <input id="sprite-name" name="name" autocomplete="off" required>
@@ -840,7 +818,6 @@
 <main>
   <aside aria-label="Roster">
     <div class="brand">
-      <div class="glow brand-glow"><img class="mark" src="/logo.png" alt=""></div>
       <strong>Pi Orbs</strong>
     </div>
     <div class="side-head">
@@ -894,22 +871,19 @@
   </aside>
   <section class="thread" aria-label="Thread">
     <div class="thread-bar">
-      <div class="avatar sm" id="thread-avatar" hidden></div>
+      <pi-face class="avatar sm" id="thread-avatar" hidden></pi-face>
       <div class="thread-id">
         <div class="thread-name" id="thread-name">Choose a bot</div>
         <div class="thread-sub" id="thread-sub" hidden></div>
       </div>
       <div class="thread-tools">
-        <button id="voice-start" type="button" hidden>Voice</button>
         <p id="peer-activity" class="peer-activity" role="status" hidden>
           <span class="peer-pulse" aria-hidden="true"></span>
           <span id="peer-activity-text"></span>
         </p>
       </div>
     </div>
-    <div id="log"></div>
-    <div class="composer">
-      <div id="voice-dock" class="voice-dock" hidden>
+    <div id="voice-dock" class="voice-dock" hidden>
         <img class="voice-mark" src="/logo.png" alt="">
         <div class="voice-copy">
           <strong id="voice-title">Voice</strong>
@@ -923,12 +897,20 @@
         </form>
         <button id="voice-stop" type="button">Stop</button>
       </div>
+    <div id="log"></div>
+    <div class="composer">
       <form id="send">
         <label class="sr-only" for="message">Message</label>
         <input id="message" name="content" placeholder="Message" autocomplete="off" required>
-        <button class="send" type="submit" aria-label="Send">
+        <button class="send" id="send-button" type="submit" aria-label="Send">
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
             <path d="M12 19V6M12 6l-5.5 5.5M12 6l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="send" id="voice-start" type="button" hidden aria-label="Start voice">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path d="M12 3.5a2.75 2.75 0 0 1 2.75 2.75v5.5a2.75 2.75 0 0 1-5.5 0v-5.5A2.75 2.75 0 0 1 12 3.5Z" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M6.5 11.25a5.5 5.5 0 0 0 11 0M12 16.75V20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           </svg>
         </button>
       </form>
@@ -938,7 +920,7 @@
 <dialog id="bot-dialog" aria-labelledby="bot-dialog-title">
   <form id="bot-form">
     <div class="dialog-head">
-      <div class="avatar" id="dialog-avatar" aria-hidden="true"></div>
+      <pi-face class="avatar" id="dialog-avatar" aria-hidden="true"></pi-face>
       <div class="dialog-intro">
         <h2 id="bot-dialog-title">New bot</h2>
         <p id="bot-dialog-copy" class="dialog-copy">Name it, give it an instruction, and choose a glass orb.</p>
@@ -998,30 +980,167 @@ function nextLook(used) {
   }
   return best;
 }
-function piFace() {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("class", "pi-face");
-  svg.setAttribute("viewBox", "0 0 40 40");
-  svg.setAttribute("aria-hidden", "true");
-  svg.innerHTML = '<g class="pi-eyes"><ellipse cx="14.5" cy="16" rx="2.1" ry="2.5"/><ellipse cx="25.5" cy="16" rx="2.1" ry="2.5"/></g><ellipse cx="9.5" cy="22" rx="3" ry="1.5" fill="#ff9aab" opacity="0.7"/><ellipse cx="30.5" cy="22" rx="3" ry="1.5" fill="#ff9aab" opacity="0.7"/><path d="M16.2 21.2h7.6M18.2 21.2v5.2a2.2 2.2 0 0 1-2.2 2.2M21.8 21.2v5.2a2.2 2.2 0 0 0 2.2 2.2" fill="none" stroke-width="1.7" stroke-linecap="round"/>';
-  return svg;
+const PI_FACE_MARKUP = `
+<style>
+  :host {
+    --orb: #d7e0e6;
+    --ink: #07313a;
+    display: grid;
+    width: 40px;
+    height: 40px;
+    flex: none;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 92% 96%, color-mix(in srgb, var(--orb) 42%, #4a5559) 0%, color-mix(in srgb, var(--orb) 74%, #8b9598) 28%, transparent 52%),
+      radial-gradient(circle at 32% 26%, color-mix(in srgb, var(--orb) 10%, white) 0%, transparent 42%),
+      var(--orb);
+    filter: drop-shadow(0 10px 8px rgba(40, 24, 22, 0.16));
+    animation: orb-hop 2.2s ease-in-out infinite;
+  }
+  :host([hidden]) { display: none; }
+  :host([tone="0"]) { --orb: #d5e2ea; }
+  :host([tone="1"]) { --orb: #e7ddd2; }
+  :host([tone="2"]) { --orb: #dce8df; }
+  :host([look="slate"]) { --orb: #c5d0dc; }
+  :host([look="silver"]) { --orb: #e7e2d6; }
+  :host([look="mist"]) { --orb: #c5dff6; }
+  :host([look="tide"]) { --orb: #b7e6de; }
+  :host([look="pine"]) { --orb: #c6e8b4; }
+  :host([look="amber"]) { --orb: #f6d59a; }
+  :host([look="clay"]) { --orb: #f6c4b6; }
+  :host([look="plum"]) { --orb: #e0c6ef; }
+  svg { width: 100%; height: 100%; display: block; overflow: visible; }
+  .pi-eyes > ellipse { fill: var(--ink); }
+  .pi-mark { fill: var(--ink); }
+  .pi-eyes { transform-box: fill-box; transform-origin: center; animation: pi-blink 5.4s ease-in-out infinite; }
+  .pi-blush { transform-box: fill-box; transform-origin: center; animation: pi-blush 4.2s ease-in-out infinite; }
+  @keyframes orb-hop {
+    0%, 6%, 100% { transform: translateY(0); }
+    1.4% { transform: translateY(1.5%); }
+    3.2% { transform: translateY(-6%); }
+    5% { transform: translateY(0); }
+  }
+  @keyframes pi-blink {
+    0%, 46%, 50%, 92%, 100% { transform: scaleY(1); }
+    48%, 94% { transform: scaleY(0.12); }
+  }
+  @keyframes pi-blush {
+    0%, 100% { opacity: 0.8; }
+    50% { opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :host, .pi-eyes, .pi-blush { animation: none; }
+  }
+</style>
+<svg viewBox="0 0 40 40" aria-hidden="true">
+  <g class="pi-look">
+    <g class="pi-shell" transform="translate(20 17)">
+    <g class="pi-depth">
+    <g transform="translate(-20 -17)">
+    <g class="pi-blush">
+      <ellipse cx="7.35" cy="19.85" rx="2.45" ry="1.45" fill="#e4a8ae"/>
+      <ellipse cx="32.65" cy="19.85" rx="2.45" ry="1.45" fill="#e4a8ae"/>
+    </g>
+    <path class="pi-mark" d="M16.06 15.54 L15.97 15.73 L15.93 15.90 L15.93 16.08 L15.97 16.25 L16.06 16.41 L16.17 16.48 L16.30 16.46 L16.46 16.35 L16.65 16.14 L16.86 15.98 L17.08 15.86 L17.33 15.78 L17.60 15.74 L17.77 15.85 L17.85 16.11 L17.82 16.53 L17.70 17.10 L17.50 17.66 L17.25 18.20 L16.92 18.73 L16.52 19.24 L16.23 19.67 L16.03 20.03 L15.93 20.31 L15.93 20.51 L15.95 20.69 L16.00 20.85 L16.06 20.97 L16.14 21.08 L16.23 21.16 L16.34 21.23 L16.45 21.29 L16.58 21.33 L16.72 21.33 L16.89 21.29 L17.07 21.21 L17.28 21.09 L17.48 20.90 L17.67 20.64 L17.84 20.32 L18.01 19.93 L18.18 19.41 L18.37 18.76 L18.57 17.97 L18.78 17.05 L19.05 16.37 L19.38 15.94 L19.77 15.74 L20.23 15.78 L20.52 16.04 L20.66 16.52 L20.63 17.22 L20.45 18.14 L20.33 18.94 L20.29 19.62 L20.32 20.19 L20.43 20.64 L20.56 21.00 L20.71 21.27 L20.89 21.46 L21.10 21.57 L21.32 21.64 L21.55 21.69 L21.78 21.72 L22.03 21.72 L22.29 21.68 L22.55 21.60 L22.81 21.47 L23.08 21.31 L23.32 21.11 L23.53 20.86 L23.70 20.57 L23.85 20.25 L23.94 20.00 L23.97 19.82 L23.94 19.73 L23.86 19.71 L23.71 19.75 L23.49 19.85 L23.21 20.01 L22.85 20.24 L22.55 20.38 L22.29 20.44 L22.07 20.42 L21.91 20.32 L21.77 20.17 L21.65 19.98 L21.57 19.74 L21.50 19.45 L21.50 19.04 L21.57 18.51 L21.69 17.86 L21.88 17.08 L22.10 16.50 L22.36 16.11 L22.66 15.92 L22.99 15.92 L23.26 15.90 L23.47 15.86 L23.61 15.80 L23.69 15.72 L23.74 15.60 L23.75 15.46 L23.72 15.29 L23.66 15.08 L23.24 14.91 L22.46 14.77 L21.33 14.65 L19.83 14.57 L18.63 14.56 L17.70 14.62 L17.06 14.76 L16.71 14.96 L16.43 15.16 L16.21 15.35 Z"/>
+    <g class="pi-eyes">
+      <ellipse cx="9.4" cy="15.5" rx="2.05" ry="2.05"/>
+      <ellipse cx="30.6" cy="15.5" rx="2.05" ry="2.05"/>
+    </g>
+    </g></g></g>
+  </g>
+</svg>`;
+class PiFace extends HTMLElement {
+  static observedAttributes = ["look", "name", "lively"];
+  #motion = null;
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+    this.shadowRoot.innerHTML = PI_FACE_MARKUP;
+  }
+  connectedCallback() { this.#pace(); }
+  attributeChangedCallback() { if (this.shadowRoot) this.#pace(); }
+  #motionPattern() {
+    if (this.#motion) return this.#motion;
+    const span = (min, max) => min + Math.random() * (max - min);
+    const reach = span(4.2, 6.2);
+    const first = Math.random() < 0.5 ? -reach : reach;
+    const second = -first * span(0.72, 1);
+    const arc = (x) => -Math.min(1.15, (x * x) / 28);
+    const scale = (x) => (1 - Math.min(0.12, Math.abs(x) / 55)).toFixed(3);
+    const dur = span(7.5, 12);
+    const side = (x) => `${x.toFixed(2)} ${arc(x).toFixed(2)}`;
+    this.#motion = {
+      dur: dur.toFixed(2),
+      begin: span(0, dur).toFixed(2),
+      values: ["0 0", "0 0", side(first), side(first), "0 0", "0 0", side(second), side(second), "0 0"].join(";"),
+      scales: ["1", "1", scale(first), scale(first), "1", "1", scale(second), scale(second), "1"].join(";"),
+      keyTimes: "0;0.06;0.16;0.48;0.58;0.64;0.74;0.92;1",
+      blink: `${span(4.2, 7.4).toFixed(2)}s`,
+      blinkDelay: `${span(0, 5).toFixed(2)}s`,
+      blush: `${span(3.2, 5.8).toFixed(2)}s`,
+      blushDelay: `${span(0, 3).toFixed(2)}s`,
+      floatDelay: `${span(0, 14).toFixed(2)}s`,
+      hop: `${span(14, 22).toFixed(2)}s`,
+    };
+    return this.#motion;
+  }
+  #pace() {
+    const motion = this.#motionPattern();
+    this.style.animationDelay = motion.floatDelay;
+    this.style.animationDuration = motion.hop;
+    const look = this.shadowRoot.querySelector(".pi-look");
+    const depth = this.shadowRoot.querySelector(".pi-depth");
+    const eyes = this.shadowRoot.querySelector(".pi-eyes");
+    const blush = this.shadowRoot.querySelector(".pi-blush");
+    if (look && !look.querySelector("animateTransform") && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      const anim = document.createElementNS("http://www.w3.org/2000/svg", "animateTransform");
+      anim.setAttribute("attributeName", "transform");
+      anim.setAttribute("type", "translate");
+      anim.setAttribute("dur", `${motion.dur}s`);
+      anim.setAttribute("repeatCount", "indefinite");
+      anim.setAttribute("begin", `${motion.begin}s`);
+      anim.setAttribute("calcMode", "spline");
+      anim.setAttribute("values", motion.values);
+      anim.setAttribute("keyTimes", motion.keyTimes);
+      anim.setAttribute("keySplines", "0.45 0 0.2 1;0.45 0 0.2 1;0.45 0 0.2 1;0.45 0 0.2 1;0.45 0 0.2 1;0.45 0 0.2 1;0.45 0 0.2 1;0.45 0 0.2 1");
+      look.append(anim);
+      const squash = document.createElementNS("http://www.w3.org/2000/svg", "animateTransform");
+      squash.setAttribute("attributeName", "transform");
+      squash.setAttribute("type", "scale");
+      squash.setAttribute("dur", `${motion.dur}s`);
+      squash.setAttribute("repeatCount", "indefinite");
+      squash.setAttribute("begin", `${motion.begin}s`);
+      squash.setAttribute("calcMode", "spline");
+      squash.setAttribute("values", motion.scales);
+      squash.setAttribute("keyTimes", motion.keyTimes);
+      squash.setAttribute("keySplines", "0.45 0 0.2 1;0.45 0 0.2 1;0.45 0 0.2 1;0.45 0 0.2 1;0.45 0 0.2 1;0.45 0 0.2 1;0.45 0 0.2 1;0.45 0 0.2 1");
+      depth.append(squash);
+    }
+    if (eyes) {
+      eyes.style.animationDuration = motion.blink;
+      eyes.style.animationDelay = motion.blinkDelay;
+    }
+    if (blush) {
+      blush.style.animationDuration = motion.blush;
+      blush.style.animationDelay = motion.blushDelay;
+    }
+  }
 }
-function paintAvatar(node, bot) {
+customElements.define("pi-face", PiFace);
+function paintAvatar(node, bot, lively) {
   const name = bot && typeof bot === "object" ? bot.name : bot;
   const look = bot && typeof bot === "object" ? bot.look : "";
-  node.replaceChildren(piFace());
   if (knownLook(look)) {
-    node.dataset.look = look;
-    delete node.dataset.tone;
+    node.setAttribute("look", look);
+    node.removeAttribute("tone");
   } else {
-    delete node.dataset.look;
-    node.dataset.tone = tone(name);
+    node.removeAttribute("look");
+    node.setAttribute("tone", tone(name));
   }
-  const delay = tone(name || "?");
-  const face = node.querySelector(".pi-face");
-  const eyes = node.querySelector(".pi-eyes");
-  if (face) face.style.animationDelay = `${delay * 0.4}s`;
-  if (eyes) eyes.style.animationDelay = `${delay * 0.7}s`;
+  if (name) node.setAttribute("name", name);
+  else node.removeAttribute("name");
+  if (lively || node.id === "dialog-avatar") node.setAttribute("lively", "");
+  else node.removeAttribute("lively");
   node.hidden = false;
 }
 async function api(path, options) {
@@ -1076,9 +1195,40 @@ function showEmpty(title, copy) {
 function setSimulator(on) {
   document.body.classList.toggle("simulator", on);
 }
+function showTokenForm(on) {
+  document.querySelector("#token-form").hidden = !on;
+  document.querySelector("#create-sprite").hidden = on;
+}
+document.querySelector("#token-form").onsubmit = async (event) => {
+  event.preventDefault();
+  const button = document.querySelector("#token-button");
+  const status = document.querySelector("#status");
+  const token = String(new FormData(event.target).get("token") || "");
+  button.disabled = true;
+  status.textContent = "Checking the Sprites API token.";
+  try {
+    await api("/api/token", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token }) });
+    event.target.reset();
+    status.textContent = "";
+    await refreshHome();
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+};
 async function refreshHome() {
   const body = await api("/api/sprites");
   setSimulator(body.simulator === true);
+  if (!body.simulator && body.token === false) {
+    state.sprite = null;
+    state.bot = null;
+    applyVoice(null);
+    showSetup("Paste a Sprites API token. Pi Orbs uses it to talk to api.sprites.dev.");
+    showTokenForm(true);
+    return;
+  }
+  showTokenForm(false);
   if (!body.sprite) {
     state.sprite = null;
     state.bot = null;
@@ -1129,9 +1279,9 @@ async function refreshBots(sprite) {
     open.type = "button";
     open.className = "row-main";
     open.setAttribute("aria-pressed", state.bot === bot.id ? "true" : "false");
-    const face = document.createElement("div");
+    const face = document.createElement("pi-face");
     face.className = "avatar";
-    paintAvatar(face, bot);
+    paintAvatar(face, bot, true);
     const text = document.createElement("div");
     text.className = "copy";
     const name = document.createElement("div");
@@ -1191,7 +1341,7 @@ function steerChip(message, expanded) {
   const label = document.createElement("span");
   label.className = "steer-label";
   label.append(document.createTextNode(incoming ? "Message from " : "Message to "));
-  const face = document.createElement("span");
+  const face = document.createElement("pi-face");
   face.className = "avatar";
   face.setAttribute("aria-hidden", "true");
   paintAvatar(face, state.bots.find((item) => item.id === otherId) || { name: otherName || "", look: "" });
@@ -1303,7 +1453,7 @@ async function refreshThread() {
     block.className = "msg " + kind + (previous === kind ? " cont" : "");
     previous = kind;
     if (!mine) {
-      const face = document.createElement("div");
+      const face = document.createElement("pi-face");
       face.className = "avatar sm";
       paintAvatar(face, body.bot);
       block.append(face);
@@ -1367,9 +1517,10 @@ for (const look of LOOKS) {
   input.name = "look";
   input.value = look.id;
   input.required = true;
-  const face = document.createElement("span");
+  const face = document.createElement("pi-face");
   face.className = "avatar";
-  face.dataset.look = look.id;
+  face.setAttribute("look", look.id);
+  face.setAttribute("name", look.id);
   face.setAttribute("aria-hidden", "true");
   const caption = document.createElement("span");
   caption.className = "sr-only";
@@ -1390,13 +1541,6 @@ function paintDialogAvatar() {
   const face = document.querySelector("#dialog-avatar");
   const name = botName.value.trim();
   const look = selectedLook();
-  if (!name) {
-    face.textContent = "";
-    face.dataset.look = look;
-    delete face.dataset.tone;
-    face.hidden = false;
-    return;
-  }
   paintAvatar(face, { name, look });
 }
 function selectLook(id) {
@@ -1575,6 +1719,7 @@ document.querySelector("#send").onsubmit = async (event) => {
   try {
     await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/messages", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ content: data.get("content") }) });
     event.target.reset();
+    paintVoiceButton();
     setTimeout(refreshThread, 1500);
   } catch (error) {
     stickToBottom = false;
@@ -1614,9 +1759,13 @@ function applyCron(sprite) {
   }
 }
 function paintVoiceButton() {
-  const button = document.querySelector("#voice-start");
+  const voice = document.querySelector("#voice-start");
+  const send = document.querySelector("#send-button");
+  const text = document.querySelector("#message").value.trim();
   const live = state.voiceSession && state.voiceSession.botId === state.bot;
-  button.hidden = !state.voiceConfigured || !state.bot || !!live;
+  const showVoice = !text && state.voiceConfigured && !!state.bot && !live;
+  voice.hidden = !showVoice;
+  send.hidden = showVoice;
 }
 function voiceBotName() {
   const bot = state.bots.find((item) => item.id === (state.voiceSession ? state.voiceSession.botId : state.bot));
@@ -1900,6 +2049,7 @@ async function startVoiceCall() {
     button.disabled = false;
   }
 }
+document.querySelector("#message").addEventListener("input", paintVoiceButton);
 document.querySelector("#voice-start").onclick = () => { startVoiceCall(); };
 document.querySelector("#voice-stop").onclick = () => { stopVoiceCall(); };
 document.querySelector("#voice-say").onsubmit = async (event) => {

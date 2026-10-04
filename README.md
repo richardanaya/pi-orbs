@@ -34,7 +34,7 @@ What you install is the client. The client keeps the Sprite list, creates bots, 
 npx pi-orbs
 ```
 
-You need Node 20 or newer, and the [sprite CLI](https://sprites.dev) installed and logged in.
+You need Node 20 or newer. The first screen asks for a [Sprites API token](https://docs.fly.io/sprites/api/). Pi Orbs stores that token in `~/.pi-orbs/state.json` and calls `https://api.sprites.dev`. The sprite CLI is not required.
 
 Open http://127.0.0.1:8787.
 

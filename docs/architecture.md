@@ -4,7 +4,7 @@ Pi Orbs is two processes. The client is what you install and open in a browser. 
 
 ## Client and server
 
-The client listens on port 8787. `npx pi-orbs`, `npm start`, and `node ./bin/pi-orbs.js` all load `client/dist` (built from `client/src`). The page is http://127.0.0.1:8787. That process serves `client/public` and the `/api/sprites` routes the page calls. It talks to Sprites with the [sprite CLI](https://sprites.dev) on your machine.
+The client listens on port 8787. `npx pi-orbs`, `npm start`, and `node ./bin/pi-orbs.js` all load `client/dist` (built from `client/src`). The page is http://127.0.0.1:8787. That process serves `client/public` and the `/api/sprites` routes the page calls. It talks to Sprites over HTTPS at `https://api.sprites.dev`, with the API token saved from the first screen. The sprite CLI is not used.
 
 The server is `server/dist/server.js`, built from `server/src/server.ts`. During normal use it runs on the Sprite. **Create and deploy** and **Push server build** pack `server/dist`, `server/package.json`, `server/package-lock.json`, and `server/VERSION`, copy that archive onto the Sprite, and `npm install --omit=dev` under `/home/sprite/app`. The Sprite service `web` is then recreated as:
 
@@ -12,15 +12,15 @@ The server is `server/dist/server.js`, built from `server/src/server.ts`. During
 - working directory: `/home/sprite/work`
 - HTTP port: `8080`
 
-The client marks the Sprite URL public (`sprite config update --url-auth public`) and calls that URL. `GET /version` is unauthenticated and returns `{ "version": "<server/VERSION>" }`. Other routes require `PI_API_SECRET`, sent as `Authorization: Bearer` (the server also accepts `x-api-key`).
+The client marks the Sprite URL public (`PUT /v1/sprites/{name}` with `url_settings.auth` `public`) and calls that URL. `GET /version` is unauthenticated and returns `{ "version": "<server/VERSION>" }`. Other routes require `PI_API_SECRET`, sent as `Authorization: Bearer` (the server also accepts `x-api-key`).
 
 The client keeps a single sprite. A successful create replaces `sprites` in the state file with that one entry.
 
 ## State
 
-The client stores its sprite on the machine where it runs, at `~/.pi-orbs/state.json`. The file is created on first successful deploy. Local simulator mode does not read or write it.
+The client stores its sprite on the machine where it runs, at `~/.pi-orbs/state.json`. Saving the Sprites API token creates the file. A sprite record is added after the first successful deploy. Local simulator mode does not read or write it.
 
-The JSON is `{ "sprites": [ { "name", "url", "secret", "apiKey", "connectorId", "connectorType", "baseApiUrl", "model", "voiceProvider", "voiceApiKey", "cronApiKey" } ] }`. Older files may have `xaiKey` instead of `apiKey`. The client treats a missing `connectorType` as xAI. `voiceProvider` and `voiceApiKey` are optional. Voice stays off when they are absent. `cronApiKey` is optional. Schedules stay off when it is absent.
+The JSON is `{ "spritesToken", "sprites": [ { "name", "url", "secret", "apiKey", "connectorId", "connectorType", "baseApiUrl", "model", "voiceProvider", "voiceApiKey", "cronApiKey" } ] }`. Older files may have `xaiKey` instead of `apiKey`. The client treats a missing `connectorType` as xAI. `voiceProvider` and `voiceApiKey` are optional. Voice stays off when they are absent. `cronApiKey` is optional. Schedules stay off when it is absent.
 
 - `name` is the Sprite name.
 - `url` is the public Sprite URL.
@@ -98,6 +98,8 @@ Each bot is one Pi conversation in a single pi-durable harness. The harness data
 
 The coding tools for every bot use `PI_CWD`, which deploy sets to `/home/sprite/work`, and the `web` service uses that directory as its working directory. Bots on the sprite share that disk.
 
+Each bot can call `create_mcp_event_webhook`. That mints a public `POST /api/mcp-events/:token` URL on `PI_PUBLIC_URL` (the sprite URL) and a `whsec_` secret. An MCP server uses both as `events/subscribe` webhook delivery. The route is unauthenticated aside from the token and a Standard Webhooks signature. A body with `type: "verification"` echoes `challenge`. Any other signed body is submitted into that bot's conversation with `whenBusy: "followUp"`. Hooks live in `mcp-events.json` beside the roster.
+
 Sending a message submits text to that conversation and returns immediately (`202`). The page reloads the thread every few seconds. A reload that does not change the visible messages leaves the scroll where it is. Sending a message still follows the new line.
 
 ## Cross-bot steering
@@ -155,7 +157,7 @@ sequenceDiagram
   participant Sprite as Sprite server
   participant Bots as Pi bots
   participant Cron as cron-job.org
-  Client->>Sprite: sprite CLI create, connector, deploy
+  Client->>Sprite: Sprites API create, connector, deploy
   Sprite-->>Client: GET /version
   Client->>Sprite: POST /api/bots (Bearer secret)
   Sprite->>Bots: open a Pi conversation
@@ -177,15 +179,11 @@ sequenceDiagram
 
 ## Troubleshooting
 
-### sprite CLI missing or not logged in
+### Sprites API token
 
-Create, deploy, and destroy spawn `sprite`. The client looks on `PATH`, and also in `~/.local/bin` and `~/.fly/bin`.
+The first screen asks for a token and saves it with `POST /api/token` after `GET /v1/sprites` accepts it. Until that succeeds, the sprite form stays hidden. A rejected token stays off the page and out of the state file. `GET /api/sprites` includes `token: false` until one is saved, and it does not return the token.
 
-If the binary is missing, the setup page shows a spawn error (`spawn sprite ENOENT`). Install the [sprite CLI](https://sprites.dev) and open a new shell so `sprite` resolves. `sprite api /v1/sprites` should print JSON.
-
-If the CLI is present and not logged in, the page shows the CLI's stderr from that command. Log in, then submit the form again.
-
-`npm run dev:local` does not use the CLI. `npm run build` and `npm test` do not either.
+`npm run dev:local` does not ask for a token. `npm run build` and `npm test` do not either.
 
 ### Node version
 
@@ -202,11 +200,11 @@ After install, the client requests `{sprite url}/version` with an 8 second timeo
 - `sprite was created, but the server did not answer /version` on create (`502`)
 - `deploy finished, but the server did not answer /version` on push (`502`)
 
-On that create error the state file is unchanged, because create writes it only after `/version` succeeds. The Sprite may already exist, and the connector may already exist. Submit the same name and key again. The client skips `sprite create` when that name is already listed. A Sprites connection with the same name is reused as-is, so a different key on this retry stays out of the gateway until that connection is deleted. xAI’s name is `pi-orbs xAI`.
+On that create error the state file is unchanged, because create writes it only after `/version` succeeds. The Sprite may already exist, and the connector may already exist. Submit the same name and key again. The client skips create when that name is already listed. A Sprites connection with the same name is reused as-is, so a different key on this retry stays out of the gateway until that connection is deleted. xAI’s name is `pi-orbs xAI`.
 
 If the state file does have the sprite and `/version` is quiet, the page stays on setup: the name "exists, but its server is not answering." **Finish deploy** pushes the server again. Leave the key field blank so it uses the key already in the state file. A key typed here is saved, and an existing Sprites connection with the same name is still reused with its current token. Changing the connector type or a Custom base URL needs a key. Changing only the shared model does not. Destroy the sprite (that deletes the connection) before creating it again with a new key.
 
-A failure earlier in deploy is a `500`, with the sprite CLI's stderr. Typical cases are `npm install` on the Sprite failing, or the `web` service never reporting `"status": "running"`. Fix that output, then deploy again. The version check runs only after the service reports running.
+A failure earlier in deploy is a `500`, with the Sprites API or remote command error. Typical cases are `npm install` on the Sprite failing, or the `web` service never reporting `"status": "running"`. Fix that output, then deploy again. The version check runs only after the service reports running.
 
 ### Update and push a server build
 

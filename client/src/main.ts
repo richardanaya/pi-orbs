@@ -8,7 +8,7 @@ import { deleteConnector, ensureConnector, gatewayBaseUrl } from "./connector.js
 import { connectionName, normalizeConnector, providerApi, publicConnectors, readDeployUpdate, readSetup, type SpriteConnector } from "./connectors.js";
 import { deploySprite, localVersion, newSecret, remoteVersion } from "./deploy.js";
 import { handleLocal, localMode } from "./local.js";
-import { listSprites, sprite } from "./sprite.js";
+import { createSprite, destroySprite, getSprite, hasSpritesToken, listSprites, publishSprite, setSpritesToken, verifySpritesToken } from "./sprite.js";
 import {
   appendTranscript,
   chatLines,
@@ -45,7 +45,7 @@ type SavedSprite = {
   voiceApiKey?: string;
   cronApiKey?: string;
 };
-type StateFile = { sprites: SavedSprite[] };
+type StateFile = { spritesToken?: string; sprites: SavedSprite[] };
 
 const statePath = join(homedir(), ".pi-orbs", "state.json");
 const publicDir = join(dirname(fileURLToPath(import.meta.url)), "../public");
@@ -109,6 +109,7 @@ function serviceEnv(saved: SavedSprite): Record<string, string> {
   const gateway = gatewayBaseUrl(saved.connectorId);
   return {
     PI_API_SECRET: saved.secret,
+    PI_PUBLIC_URL: saved.url,
     PI_MODEL: connector.model,
     PI_API: providerApi(connector.connectorType),
     PI_DB: "/home/sprite/app/data/agent.sqlite",
@@ -354,17 +355,37 @@ const http = createServer(async (req, res) => {
       return;
     }
     const state = await loadState();
+    setSpritesToken(state.spritesToken ?? "");
+    if (url.pathname === "/api/token" && req.method === "POST") {
+      const body = await readBody(req);
+      const candidate = typeof body.token === "string" ? body.token.trim() : "";
+      try {
+        await verifySpritesToken(candidate);
+      } catch (error) {
+        send(res, 401, { error: error instanceof Error ? error.message : "token rejected" });
+        return;
+      }
+      state.spritesToken = candidate;
+      await saveState(state);
+      send(res, 200, { ok: true });
+      return;
+    }
     if (url.pathname === "/api/sprites" && req.method === "GET") {
       const local = await localVersion();
       const saved = state.sprites[0];
+      if (!hasSpritesToken()) {
+        send(res, 200, { localVersion: local, token: false, sprite: null });
+        return;
+      }
       if (!saved) {
-        send(res, 200, { localVersion: local, sprite: null });
+        send(res, 200, { localVersion: local, token: true, sprite: null });
         return;
       }
       const remote = await remoteVersion(saved.url);
       const connector = connectorOf(saved);
       send(res, 200, {
         localVersion: local,
+        token: true,
         sprite: {
           name: saved.name,
           url: saved.url,
@@ -396,13 +417,14 @@ const http = createServer(async (req, res) => {
         send(res, 400, { error: cronApiKey.error });
         return;
       }
-      const live = await listSprites();
-      if (!live.some((item) => item.name === setup.name)) {
-        await sprite(["create", "--skip-console", setup.name]);
+      if (!hasSpritesToken()) {
+        send(res, 401, { error: "Save a Sprites API token first." });
+        return;
       }
-      await sprite(["config", "update", "-s", setup.name, "--url-auth", "public"]);
-      const infoRaw = await sprite(["api", `/v1/sprites/${setup.name}`]);
-      const info = JSON.parse(infoRaw.slice(infoRaw.indexOf("{"))) as { url: string };
+      const live = await listSprites();
+      if (!live.some((item) => item.name === setup.name)) await createSprite(setup.name);
+      await publishSprite(setup.name);
+      const info = await getSprite(setup.name);
       const previous = state.sprites.find((item) => item.name === setup.name);
       const connectorId = await ensureConnector({
         name: connectionName(setup.connectorType, setup.baseApiUrl),
@@ -412,7 +434,7 @@ const http = createServer(async (req, res) => {
       if (previous?.connectorId && previous.connectorId !== connectorId) await deleteConnector(previous.connectorId);
       const saved: SavedSprite = {
         name: setup.name,
-        url: info.url,
+        url: info.url ?? "",
         secret: previous?.secret ?? newSecret(),
         apiKey: setup.apiKey,
         ...(setup.connectorType === "xai" ? { xaiKey: setup.apiKey } : {}),
@@ -582,7 +604,7 @@ const http = createServer(async (req, res) => {
         // The sprite is not answering. Destroy still removes it.
       }
       if (saved.connectorId) await deleteConnector(saved.connectorId);
-      await sprite(["destroy", "--force", saved.name]);
+      await destroySprite(saved.name);
       clearSessions();
       state.sprites = state.sprites.filter((item) => item.name !== saved.name);
       await saveState(state);

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -70,6 +70,8 @@ before(async () => {
       PI_BOTS: join(state.dir, "bots.json"),
       PI_PEERS: join(state.dir, "peers.json"),
       PI_CWD: state.dir,
+      PI_HOOKS: join(state.dir, "mcp-events.json"),
+      PI_PUBLIC_URL: "https://sprite.example",
       PI_BASE_URL: "http://127.0.0.1:9",
       PI_XAI_BASE_URL: "http://127.0.0.1:9",
     },
@@ -454,4 +456,89 @@ test("a webhook token delivers a normal message and the cron key is not returned
   assert.deepEqual(await cleared.json(), { configured: false });
   const clearedFile = JSON.parse(await readFile(join(state.dir, "cron.json"), "utf8"));
   assert.equal(clearedFile.apiKey, "");
+});
+
+test("a signed MCP event webhook enters the bot conversation", async () => {
+  const { createHmac } = await import("node:crypto");
+  const headers = { authorization: `Bearer ${secret}`, "content-type": "application/json" };
+  const created = await fetch(`${state.base}/api/bots`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Hook" }),
+  });
+  assert.equal(created.status, 201);
+  const bot = await created.json();
+  const token = "abc123hooktoken";
+  const secretKey = Buffer.alloc(32, 7);
+  const whsec = `whsec_${secretKey.toString("base64")}`;
+  await writeFile(join(state.dir, "mcp-events.json"), JSON.stringify({
+    hooks: [{ token, botId: bot.id, secret: whsec, label: "docs", createdAt: "2026-10-04T00:00:00.000Z", seen: [] }],
+  }));
+  const challengeBody = JSON.stringify({ type: "verification", challenge: "nonce-1" });
+  const stamp = String(Math.floor(Date.now() / 1000));
+  function sign(id, body) {
+    const mac = createHmac("sha256", secretKey).update(`${id}.${stamp}.${body}`).digest("base64");
+    return `v1,${mac}`;
+  }
+  const challenge = await fetch(`${state.base}/api/mcp-events/${token}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "webhook-id": "msg_verification_1",
+      "webhook-timestamp": stamp,
+      "webhook-signature": sign("msg_verification_1", challengeBody),
+    },
+    body: challengeBody,
+  });
+  assert.equal(challenge.status, 200);
+  assert.deepEqual(await challenge.json(), { challenge: "nonce-1" });
+
+  const eventBody = JSON.stringify({
+    eventId: "evt_1",
+    name: "comment.created",
+    timestamp: "2026-10-04T12:00:00Z",
+    data: { text: "ship it" },
+  });
+  const delivered = await fetch(`${state.base}/api/mcp-events/${token}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "webhook-id": "evt_1",
+      "webhook-timestamp": stamp,
+      "webhook-signature": sign("evt_1", eventBody),
+      "x-mcp-subscription-id": "sub_1",
+    },
+    body: eventBody,
+  });
+  assert.equal(delivered.status, 200);
+  assert.deepEqual(await delivered.json(), { ok: true });
+
+  const thread = await fetch(`${state.base}/api/bots/${bot.id}`, { headers });
+  const threadBody = await thread.json();
+  assert.equal(threadBody.messages.some((item) => item.kind === "pi.user" && item.text.includes("comment.created") && item.text.includes("ship it")), true);
+
+  const again = await fetch(`${state.base}/api/mcp-events/${token}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "webhook-id": "evt_1",
+      "webhook-timestamp": stamp,
+      "webhook-signature": sign("evt_1", eventBody),
+    },
+    body: eventBody,
+  });
+  assert.equal(again.status, 200);
+  assert.deepEqual(await again.json(), { ok: true, duplicate: true });
+
+  const bad = await fetch(`${state.base}/api/mcp-events/${token}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "webhook-id": "evt_2",
+      "webhook-timestamp": stamp,
+      "webhook-signature": "v1,aaaa",
+    },
+    body: eventBody,
+  });
+  assert.equal(bad.status, 401);
 });

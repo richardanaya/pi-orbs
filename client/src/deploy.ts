@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
-import { sprite } from "./sprite.js";
+import { execSprite, spritesJson, spritesRequest, writeSpriteFile } from "./sprite.js";
 
 const exec = promisify(execFile);
 const serverRoot = resolve(import.meta.dirname, "../../server");
@@ -36,22 +36,32 @@ export async function remoteVersion(url: string): Promise<string | null> {
   }
 }
 
+async function serviceRunning(name: string): Promise<boolean> {
+  const info = await spritesJson<{ state?: { status?: string } | null }>("GET", `/v1/sprites/${encodeURIComponent(name)}/services/web`);
+  return info.state?.status === "running";
+}
+
 export async function deploySprite(name: string, env: Record<string, string>): Promise<void> {
   const archive = await packServer();
   try {
-    await sprite(["exec", "-s", name, "--", "mkdir", "-p", "/home/sprite/app", "/home/sprite/work"]);
-    await sprite(["exec", "-s", name, "--", "bash", "-lc", "cat > /tmp/pi-orbs-server.tgz"], await readFile(archive));
-    await sprite(["exec", "-s", name, "--", "bash", "-lc", "tar -xzf /tmp/pi-orbs-server.tgz -C /home/sprite/app && cd /home/sprite/app && /.sprite/bin/npm install --omit=dev"]);
-    const envArg = Object.entries({ ...env, PORT: "8080" }).map(([key, value]) => `${key}=${value}`).join(",");
-    const script = `
-      set -e
-      sprite-env services delete web || true
-      sprite-env services create web --cmd /.sprite/bin/node --args /home/sprite/app/dist/server.js --dir /home/sprite/work --http-port 8080 --env ${JSON.stringify(envArg)}
-      info=$(sprite-env services get web)
-      printf '%s\n' "$info"
-      printf '%s' "$info" | grep -Eq '"status":[[:space:]]*"running"'
-    `;
-    await sprite(["exec", "-s", name, "--", "bash", "-lc", script]);
+    await execSprite(name, ["mkdir", "-p", "/home/sprite/app", "/home/sprite/work"]);
+    await writeSpriteFile(name, "/tmp/pi-orbs-server.tgz", await readFile(archive));
+    await execSprite(name, ["tar", "-xzf", "/tmp/pi-orbs-server.tgz", "-C", "/home/sprite/app"]);
+    await execSprite(name, ["/.sprite/bin/npm", "install", "--omit=dev"], { dir: "/home/sprite/app" });
+    await spritesRequest("DELETE", `/v1/sprites/${encodeURIComponent(name)}/services/web`, { allow: [204, 404] });
+    const created = await spritesRequest("PUT", `/v1/sprites/${encodeURIComponent(name)}/services/web?duration=20`, {
+      contentType: "application/json",
+      body: JSON.stringify({
+        cmd: "/.sprite/bin/node",
+        args: ["/home/sprite/app/dist/server.js"],
+        dir: "/home/sprite/work",
+        http_port: 8080,
+        needs: [],
+        env: { ...env, PORT: "8080" },
+      }),
+    });
+    await created.text();
+    if (!await serviceRunning(name)) throw new Error("web service did not report running");
   } finally {
     await rm(archive, { force: true });
   }
