@@ -1,6 +1,6 @@
 {
   "name": "pi-orbs",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Run named Pi bots on a Fly.io Sprite. The client is what you install; it ships the server.",
   "type": "module",
   "bin": {
@@ -38,5 +38,10 @@
   },
   "homepage": "https://github.com/richardanaya/pi-orbs#readme",
   "license": "MIT",
-  "keywords": ["pi", "sprites", "flyio", "bots"]
+  "keywords": [
+    "pi",
+    "sprites",
+    "flyio",
+    "bots"
+  ]
 }

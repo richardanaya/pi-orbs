@@ -7,11 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-04
+
 ### Added
 
 - Sprites API token. The first screen asks for a token, checks it against `https://api.sprites.dev`, and stores it in `~/.pi-orbs/state.json`. Create, deploy, destroy, and connectors use that API. The sprite CLI is no longer required.
 - Optional voice on setup and in Settings. A Grok or OpenAI realtime key stays on this machine and is not returned to the page. When it is set, a voice call with the open bot can start and stop. The voice agent has three tools: search that bot’s chat and the call transcript, send a task through the same path as a human message, and stop the call. The local simulator uses the same routes and does not call Grok or OpenAI.
 - Optional cron-job.org API key on setup and in Settings. The key is not returned to the page. Each bot has a durable webhook token. A bot tool creates a cron-job.org job that POSTs to that webhook, and the server submits the text as a normal message on that bot. Deleting the bot, clearing the key, or destroying the sprite deletes the stored jobs. The local simulator stubs cron-job.org and accepts the webhook in-process.
+- MCP event webhooks. A bot can mint a signed URL. A provider POSTs a signed event, and that event is submitted into the bot.
+
+### Changed
+
+- Faces are one `<pi-face>` element. Looks are light pastels with dark teal eyes, a traced π, and hard blush. The group slides across the sphere. A hop is rare.
+- Homepage hero and footer use that component. The header wordmark is text only.
+- Brand marks. Logos and favicons are the face looking left on a transparent background. The Open Graph image is that face beside the name on black.
+- Version `0.3.0` in the root `package.json`, `server/package.json`, `server/VERSION`, and the private client package. `GET /version` returns `server/VERSION`.
 
 ## [0.2.0] - 2026-10-02
 
@@ -65,7 +75,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 There was no `v0.0.1` git tag.
 
-[Unreleased]: https://github.com/richardanaya/pi-orbs/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/richardanaya/pi-orbs/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/richardanaya/pi-orbs/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/richardanaya/pi-orbs/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/richardanaya/pi-orbs/compare/bbead96...v0.1.0
 [0.0.1]: https://github.com/richardanaya/pi-orbs/commit/6074692
