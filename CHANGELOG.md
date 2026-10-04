@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- 0.3 release / product video. Remotion project in `website/remotion/` renders a 1920×1080 cut to `website/pi-orbs-0.3-release.mp4`: live `<pi-face>`, the existing site hero footage, 0.3 feature captions, and `npx pi-orbs`.
+
 ## [0.3.0] - 2026-10-04
 
 ### Added

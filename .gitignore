@@ -1,6 +1,7 @@
 node_modules
 dist
 data
+website/remotion/out
 *.tgz
 .env
 .env.*
