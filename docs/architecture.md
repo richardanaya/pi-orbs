@@ -20,7 +20,7 @@ The client keeps a single sprite. A successful create replaces `sprites` in the 
 
 The client stores its sprite on the machine where it runs, at `~/.pi-orbs/state.json`. The file is created on first successful deploy. Local simulator mode does not read or write it.
 
-The JSON is `{ "sprites": [ { "name", "url", "secret", "apiKey", "connectorId", "connectorType", "baseApiUrl", "model" } ] }`. Older files may have `xaiKey` instead of `apiKey`. The client treats a missing `connectorType` as xAI.
+The JSON is `{ "sprites": [ { "name", "url", "secret", "apiKey", "connectorId", "connectorType", "baseApiUrl", "model", "voiceProvider", "voiceApiKey" } ] }`. Older files may have `xaiKey` instead of `apiKey`. The client treats a missing `connectorType` as xAI. `voiceProvider` and `voiceApiKey` are optional. Voice stays off when they are absent.
 
 - `name` is the Sprite name.
 - `url` is the public Sprite URL.
@@ -31,7 +31,7 @@ The JSON is `{ "sprites": [ { "name", "url", "secret", "apiKey", "connectorId", 
 - `baseApiUrl` is the preset base URL, or the URL typed for Custom.
 - `model` is the one model every bot on this sprite uses.
 
-The page never receives `apiKey` or `xaiKey`. The client drops them from API responses. Leave this file on that machine. Do not commit it or paste it into an issue. See [SECURITY.md](../SECURITY.md).
+The page never receives `apiKey`, `xaiKey`, or `voiceApiKey`. The client drops them from API responses. A voice call can return a short-lived provider `clientSecret`. That value is not the stored voice key. Leave this file on that machine. Do not commit it or paste it into an issue. See [SECURITY.md](../SECURITY.md).
 
 Create writes the file only after `GET /version` succeeds. **Push server build** writes the connector id before it installs, so a failed push can still leave a state file in place.
 
@@ -56,7 +56,27 @@ The server does not get the key. Its service environment is:
 | `OPENAI_API_KEY` | `connector` |
 | `PORT` | `8080` |
 
-`XAI_API_KEY=connector` and `OPENAI_API_KEY=connector` are placeholders. The model client uses the gateway URL, so bot requests go through Sprites, which holds the key. **Destroy sprite** deletes that connection, then destroys the Sprite.
+`XAI_API_KEY=connector` and `OPENAI_API_KEY=connector` are placeholders. The model client uses the gateway URL, so bot requests go through Sprites, which holds the key. **Destroy sprite** deletes that connection, then destroys the Sprite. The voice key is not one of these variables.
+
+## Voice
+
+Setup and Settings can store an optional realtime voice provider, Grok or OpenAI, and a voice API key. Voice stays off until both are set. The key is separate from the connector key. On a sprite it is written to `~/.pi-orbs/state.json` as `voiceProvider` and `voiceApiKey`. The local simulator keeps the same fields in memory and does not write that file.
+
+Sprite responses include `voice: { "provider", "configured" }` and nothing else about the key. The key is not copied into the Sprite service environment.
+
+`POST /api/sprites/:name/voice` saves or clears the provider. A blank key keeps the saved key when the provider does not change. Changing the provider needs a key. An empty provider turns voice off.
+
+`POST /api/sprites/:name/bots/:id/voice` starts a call with that bot. The client mints a short-lived token with the stored key and returns it as `clientSecret`, plus `realtime` (`url`, `transport`, `model`). Grok uses `POST https://api.x.ai/v1/realtime/client_secrets`. The page opens `wss://api.x.ai/v1/realtime?model=grok-voice-latest` with the token in the WebSocket protocol `xai-client-secret.`. OpenAI uses `POST https://api.openai.com/v1/realtime/client_secrets` with the three tools bound on that session. The page connects with WebRTC to `https://api.openai.com/v1/realtime/calls`. If the provider echoes the stored key, or puts it in an error, the client does not send that text to the page.
+
+The local simulator uses the same start route and returns `provider: "local"`. It does not mint a token and does not call Grok or OpenAI. The call dock has a Say field that appends a line to the transcript. No model speaks.
+
+The voice agent has exactly three tools. The page does not add others. It posts each tool call to `POST /api/sprites/:name/bots/:id/voice/:sessionId/tools`, and the client runs it:
+
+1. `search_messages` searches that bot’s chat and this call’s transcript. Matches come back with the voice key redacted.
+2. `send_task` submits the text on `POST /api/bots/:id/messages`, the same path as the composer. The bot starts on that human turn. It is not a steer and not another sprite. The local simulator answers with the same canned reply as a typed message.
+3. `stop_voice` ends the call. **Stop** on the page calls `DELETE` on that session, which ends it too.
+
+Spoken lines are stored with `POST .../voice/:sessionId/transcript` so search can see them. They stay on the client for that call. They are not a second bot thread. `GET` of the session returns the three tools and does not return the voice key or the client secret.
 
 ## Bots and `/home/sprite/work`
 

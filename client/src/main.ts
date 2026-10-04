@@ -9,6 +9,26 @@ import { connectionName, normalizeConnector, providerApi, publicConnectors, read
 import { deploySprite, localVersion, newSecret, remoteVersion } from "./deploy.js";
 import { handleLocal, localMode } from "./local.js";
 import { listSprites, sprite } from "./sprite.js";
+import {
+  appendTranscript,
+  chatLines,
+  clearBotSessions,
+  clearSessions,
+  endSession,
+  executeVoiceTool,
+  findSession,
+  isVoiceFailure,
+  matchVoicePath,
+  mintClientSecret,
+  openSession,
+  publicSession,
+  publicVoice,
+  readVoice,
+  voiceFromSetup,
+  voiceInstructions,
+  VoiceSubmitError,
+  type VoiceConfig,
+} from "./voice.js";
 
 type SavedSprite = {
   name: string;
@@ -20,6 +40,8 @@ type SavedSprite = {
   connectorType?: string;
   baseApiUrl?: string;
   model?: string;
+  voiceProvider?: string;
+  voiceApiKey?: string;
 };
 type StateFile = { sprites: SavedSprite[] };
 
@@ -39,11 +61,31 @@ async function saveState(state: StateFile): Promise<void> {
   await writeFile(statePath, JSON.stringify(state, null, 2));
 }
 
-async function readBody(req: IncomingMessage): Promise<Record<string, string>> {
+async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   if (chunks.length === 0) return {};
-  return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, string>;
+  const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+  return parsed as Record<string, unknown>;
+}
+
+function voiceConfigOf(saved: SavedSprite): VoiceConfig | null {
+  const apiKey = saved.voiceApiKey ?? "";
+  if ((saved.voiceProvider === "grok" || saved.voiceProvider === "openai") && apiKey) {
+    return { provider: saved.voiceProvider, apiKey };
+  }
+  return null;
+}
+
+function withVoice(saved: SavedSprite, voice: VoiceConfig | null): SavedSprite {
+  if (!voice) {
+    const next = { ...saved };
+    delete next.voiceProvider;
+    delete next.voiceApiKey;
+    return next;
+  }
+  return { ...saved, voiceProvider: voice.provider, voiceApiKey: voice.apiKey };
 }
 
 function connectorOf(saved: SavedSprite): SpriteConnector {
@@ -76,6 +118,7 @@ function publicSprite(saved: SavedSprite, extra: Record<string, unknown>): Recor
     connectorType: connector.connectorType,
     baseApiUrl: connector.baseApiUrl,
     model: connector.model,
+    voice: publicVoice(voiceConfigOf(saved)),
     ...extra,
   };
 }
@@ -139,6 +182,129 @@ async function servePublic(pathname: string, res: ServerResponse): Promise<boole
   }
 }
 
+async function spriteBot(saved: SavedSprite, botId: string): Promise<{ name: string; messages: { kind?: unknown; text?: unknown }[] } | { status: number; error: string }> {
+  const response = await spriteFetch(saved, `/api/bots/${encodeURIComponent(botId)}`);
+  const payload = await response.json().catch(() => null) as { bot?: { name?: unknown }; messages?: unknown; error?: unknown } | null;
+  if (!response.ok) {
+    const error = payload && typeof payload.error === "string" ? payload.error : "bot not found";
+    return { status: response.status, error };
+  }
+  const name = payload?.bot && typeof payload.bot.name === "string" ? payload.bot.name : botId;
+  const messages = payload && Array.isArray(payload.messages) ? payload.messages as { kind?: unknown; text?: unknown }[] : [];
+  return { name, messages };
+}
+
+async function handleLiveVoice(state: StateFile, saved: SavedSprite, match: NonNullable<ReturnType<typeof matchVoicePath>>, req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (match.kind === "save") {
+    if (req.method !== "POST") {
+      send(res, 404, { error: "not found" });
+      return;
+    }
+    const read = readVoice(await readBody(req), voiceConfigOf(saved));
+    if ("error" in read) {
+      send(res, 400, { error: read.error });
+      return;
+    }
+    const next = "unchanged" in read ? saved : withVoice(saved, read.voice);
+    state.sprites = state.sprites.map((item) => item.name === next.name ? next : item);
+    await saveState(state);
+    send(res, 200, { voice: publicVoice(voiceConfigOf(next)) });
+    return;
+  }
+  if (match.kind === "start") {
+    if (req.method !== "POST") {
+      send(res, 404, { error: "not found" });
+      return;
+    }
+    const config = voiceConfigOf(saved);
+    if (!config) {
+      send(res, 400, { error: "voice is not configured" });
+      return;
+    }
+    const bot = await spriteBot(saved, match.botId);
+    if ("error" in bot) {
+      send(res, bot.status, { error: bot.error });
+      return;
+    }
+    const minted = await mintClientSecret({
+      provider: config.provider,
+      apiKey: config.apiKey,
+      instructions: voiceInstructions(bot.name),
+    });
+    if ("error" in minted) {
+      send(res, 502, { error: minted.error });
+      return;
+    }
+    const session = openSession(match.botId, config.provider);
+    send(res, 201, {
+      ...publicSession(session, bot.name),
+      clientSecret: minted.clientSecret,
+      expiresAt: minted.expiresAt,
+      realtime: minted.realtime,
+    });
+    return;
+  }
+  const session = findSession(match.sessionId, match.botId);
+  if (!session) {
+    send(res, 404, { error: "voice call not found" });
+    return;
+  }
+  if (match.kind === "session" && req.method === "GET") {
+    const bot = await spriteBot(saved, match.botId);
+    send(res, 200, publicSession(session, "error" in bot ? match.botId : bot.name));
+    return;
+  }
+  if (match.kind === "session" && req.method === "DELETE") {
+    endSession(session);
+    send(res, 200, { stopped: true });
+    return;
+  }
+  if (match.kind === "transcript" && req.method === "POST") {
+    if (session.stopped) {
+      send(res, 409, { error: "voice call has ended" });
+      return;
+    }
+    const body = await readBody(req);
+    const appended = appendTranscript(session, body.role, body.text);
+    if ("error" in appended) {
+      send(res, 400, { error: appended.error });
+      return;
+    }
+    send(res, 201, { id: appended.turn.id, role: appended.turn.role, createdAt: appended.turn.createdAt });
+    return;
+  }
+  if (match.kind === "tools" && req.method === "POST") {
+    const secrets = [saved.voiceApiKey ?? "", saved.apiKey ?? "", saved.xaiKey ?? "", saved.secret, saved.connectorId ?? ""];
+    const result = await executeVoiceTool(session, await readBody(req), {
+      lines: async () => {
+        const bot = await spriteBot(saved, match.botId);
+        if ("error" in bot) throw new VoiceSubmitError(bot.status, bot.error);
+        return chatLines(bot.messages);
+      },
+      submit: async (task) => {
+        const response = await spriteFetch(saved, `/api/bots/${encodeURIComponent(match.botId)}/messages`, {
+          method: "POST",
+          body: JSON.stringify({ content: task }),
+        });
+        const payload = await response.json().catch(() => null) as { submissionId?: unknown; error?: unknown } | null;
+        if (!response.ok) {
+          const error = payload && typeof payload.error === "string" ? payload.error : "task was not sent";
+          throw new VoiceSubmitError(response.status, error);
+        }
+        const submissionId = payload && (typeof payload.submissionId === "string" || typeof payload.submissionId === "number")
+          ? String(payload.submissionId)
+          : "";
+        if (!submissionId) throw new VoiceSubmitError(502, "task was not sent");
+        return { submissionId };
+      },
+      secrets,
+    });
+    send(res, result.status, result.body);
+    return;
+  }
+  send(res, 404, { error: "not found" });
+}
+
 async function spriteFetch(saved: SavedSprite, path: string, init?: RequestInit): Promise<Response> {
   return fetch(new URL(path, saved.url), {
     ...init,
@@ -182,14 +348,21 @@ const http = createServer(async (req, res) => {
           connectorType: connector.connectorType,
           baseApiUrl: connector.baseApiUrl,
           model: connector.model,
+          voice: publicVoice(voiceConfigOf(saved)),
         },
       });
       return;
     }
     if (url.pathname === "/api/sprites" && req.method === "POST") {
-      const setup = readSetup(await readBody(req));
+      const body = await readBody(req);
+      const setup = readSetup(body);
       if ("error" in setup) {
         send(res, 400, { error: setup.error });
+        return;
+      }
+      const voice = voiceFromSetup(body, null);
+      if (isVoiceFailure(voice)) {
+        send(res, 400, { error: voice.error });
         return;
       }
       const live = await listSprites();
@@ -216,6 +389,7 @@ const http = createServer(async (req, res) => {
         connectorType: setup.connectorType,
         baseApiUrl: setup.baseApiUrl,
         model: setup.model,
+        ...(voice ? { voiceProvider: voice.provider, voiceApiKey: voice.apiKey } : {}),
       };
       await deploySprite(setup.name, serviceEnv(saved));
       const remote = await remoteVersion(saved.url);
@@ -232,7 +406,18 @@ const http = createServer(async (req, res) => {
         connectorType: setup.connectorType,
         baseApiUrl: setup.baseApiUrl,
         model: setup.model,
+        voice: publicVoice(voice),
       });
+      return;
+    }
+    const voiceMatch = matchVoicePath(url.pathname);
+    if (voiceMatch) {
+      const saved = state.sprites.find((item) => item.name === voiceMatch.name);
+      if (!saved) {
+        send(res, 404, { error: "sprite is not managed by this client" });
+        return;
+      }
+      await handleLiveVoice(state, saved, voiceMatch, req, res);
       return;
     }
     const exportMatch = url.pathname.match(/^\/api\/sprites\/([^/]+)\/conversations\.zip$/);
@@ -267,6 +452,7 @@ const http = createServer(async (req, res) => {
         saved.secret,
         saved.apiKey ?? "",
         saved.xaiKey ?? "",
+        saved.voiceApiKey ?? "",
         saved.connectorId ?? "",
         saved.connectorId ? gatewayBaseUrl(saved.connectorId) : "",
       ]);
@@ -319,6 +505,7 @@ const http = createServer(async (req, res) => {
     if (req.method === "DELETE" && !route[2] && !route[4]) {
       if (saved.connectorId) await deleteConnector(saved.connectorId);
       await sprite(["destroy", "--force", saved.name]);
+      clearSessions();
       state.sprites = state.sprites.filter((item) => item.name !== saved.name);
       await saveState(state);
       send(res, 200, { ok: true });
@@ -362,6 +549,7 @@ const http = createServer(async (req, res) => {
     }
     if (route[3] && req.method === "DELETE" && !url.pathname.endsWith("/messages")) {
       const response = await spriteFetch(saved, `/api/bots/${route[3]}`, { method: "DELETE" });
+      if (response.ok) clearBotSessions(route[3]);
       send(res, response.status, await response.json());
       return;
     }

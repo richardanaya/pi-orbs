@@ -111,6 +111,28 @@ test("the badge is hidden unless GET /api/sprites says simulator", async () => {
   assert.doesNotMatch(main, /simulator:\s*true/);
 });
 
+test("setup and settings can store a voice provider without showing the key", async () => {
+  const html = await readFile(join(clientRoot, "public", "index.html"), "utf8");
+  assert.match(html, /id="setup-voice-provider"/);
+  assert.match(html, /id="voice-provider"/);
+  assert.match(html, /<option value="grok">Grok<\/option>/);
+  assert.match(html, /<option value="openai">OpenAI<\/option>/);
+  assert.match(html, /id="setup-voice-key" name="voiceApiKey" type="password"/);
+  assert.match(html, /id="voice-key" name="voiceApiKey" type="password"/);
+  assert.match(html, /id="voice-start"/);
+  assert.match(html, /id="voice-stop"/);
+  assert.match(html, /id="voice-say"/);
+  assert.match(html, /tools: session\.tools/);
+  assert.doesNotMatch(html, /web_search|steer_peer|sprite\.voiceApiKey|voice\.apiKey/);
+
+  const main = await readFile(join(clientRoot, "src", "main.ts"), "utf8");
+  assert.match(main, /saved\.voiceApiKey \?\? ""/);
+  assert.match(main, /mintClientSecret/);
+  const envStart = main.indexOf("function serviceEnv");
+  const envEnd = main.indexOf("function publicSprite");
+  assert.doesNotMatch(main.slice(envStart, envEnd), /voiceApiKey/);
+});
+
 test("settings offers a zip of every conversation", async () => {
   const html = await readFile(join(clientRoot, "public", "index.html"), "utf8");
   const settingsStart = html.indexOf('<div id="settings">');
@@ -303,6 +325,7 @@ describe("local simulator API", { concurrency: 1 }, () => {
         connectorType: "xai",
         baseApiUrl: "https://api.x.ai/v1",
         model: "grok-4.7",
+        voice: { provider: null, configured: false },
       },
     });
   });
@@ -876,6 +899,214 @@ describe("local simulator API", { concurrency: 1 }, () => {
     const keplerThread = await thread.json();
     assert.equal(keplerThread.messages.some((item) => item.kind === "pi.peer" && item.text === "steer-1000"), true);
     assert.equal(keplerThread.messages.some((item) => item.kind === "pi.user" && item.text === "steer-1000"), false);
+  });
+
+  test("voice setup, a local call, and the three voice tools", async () => {
+    const voiceKey = "voice-key-not-for-the-page";
+    const created = await fetch(`${session.base}/api/sprites`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "atlas",
+        apiKey: "local-simulator-test",
+        voiceProvider: "grok",
+        voiceApiKey: voiceKey,
+      }),
+    });
+    assert.equal(created.status, 201);
+    const createdBody = await created.json();
+    assert.deepEqual(createdBody.voice, { provider: "grok", configured: true });
+    assert.equal(JSON.stringify(createdBody).includes(voiceKey), false);
+
+    const home = await fetch(`${session.base}/api/sprites`);
+    const homeText = await home.text();
+    assert.equal(homeText.includes(voiceKey), false);
+    const homeBody = JSON.parse(homeText);
+    assert.deepEqual(homeBody.sprite.voice, { provider: "grok", configured: true });
+
+    const missing = await fetch(`${session.base}/api/sprites/atlas/bots/ada/voice`, { method: "POST" });
+    assert.equal(missing.status, 201);
+    const early = await missing.json();
+    assert.equal(early.provider, "local");
+    assert.equal(early.clientSecret, undefined);
+    await fetch(`${session.base}/api/sprites/atlas/voice`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ voiceProvider: "" }),
+    });
+    const off = await fetch(`${session.base}/api/sprites/atlas/bots/ada/voice`, { method: "POST" });
+    assert.equal(off.status, 400);
+    assert.equal((await off.json()).error, "voice is not configured");
+
+    const unnamed = await fetch(`${session.base}/api/sprites/atlas/voice`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ voiceProvider: "openai" }),
+    });
+    assert.equal(unnamed.status, 400);
+    assert.equal((await unnamed.json()).error, "voice API key is required");
+
+    const saved = await fetch(`${session.base}/api/sprites/atlas/voice`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ voiceProvider: "Grok", voiceApiKey: `  ${voiceKey}  ` }),
+    });
+    assert.equal(saved.status, 200);
+    const savedText = await saved.text();
+    assert.equal(savedText.includes(voiceKey), false);
+    assert.deepEqual(JSON.parse(savedText).voice, { provider: "grok", configured: true });
+
+    const kept = await fetch(`${session.base}/api/sprites/atlas/voice`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ voiceProvider: "grok", voiceApiKey: "" }),
+    });
+    assert.equal(kept.status, 200);
+    assert.deepEqual((await kept.json()).voice, { provider: "grok", configured: true });
+
+    const switched = await fetch(`${session.base}/api/sprites/atlas/voice`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ voiceProvider: "openai" }),
+    });
+    assert.equal(switched.status, 400);
+
+    const roster = await fetch(`${session.base}/api/sprites/atlas`);
+    const rosterText = await roster.text();
+    assert.equal(rosterText.includes(voiceKey), false);
+    assert.equal(JSON.parse(rosterText).voiceApiKey, undefined);
+
+    const started = await fetch(`${session.base}/api/sprites/atlas/bots/ada/voice`, { method: "POST" });
+    assert.equal(started.status, 201);
+    const call = await started.json();
+    assert.equal(call.provider, "local");
+    assert.equal(call.botId, "ada");
+    assert.equal(call.botName, "Ada");
+    assert.equal(call.stopped, false);
+    assert.equal(call.clientSecret, undefined);
+    assert.equal(call.realtime, undefined);
+    assert.deepEqual(call.tools.map((tool) => tool.name), ["search_messages", "send_task", "stop_voice"]);
+    assert.equal(call.tools.length, 3);
+    assert.equal(call.tools.every((tool) => tool.type === "function"), true);
+    assert.match(call.instructions, /search_messages/);
+    assert.match(call.instructions, /send_task/);
+    assert.match(call.instructions, /stop_voice/);
+    assert.doesNotMatch(call.instructions, /steer_peer|web_search/);
+    assert.equal(JSON.stringify(call).includes(voiceKey), false);
+    assert.match(call.sessionId, /^voice-[0-9a-f]{16}$/);
+
+    const again = await fetch(`${session.base}/api/sprites/atlas/bots/ada/voice`, { method: "POST" });
+    const second = await again.json();
+    const stale = await fetch(`${session.base}/api/sprites/atlas/bots/ada/voice/${call.sessionId}/tools`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "search_messages", arguments: { query: "status" } }),
+    });
+    assert.equal(stale.status, 409);
+
+    const said = await fetch(`${session.base}/api/sprites/atlas/bots/ada/voice/${second.sessionId}/transcript`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role: "user", text: `whispered ${voiceKey} aloud` }),
+    });
+    assert.equal(said.status, 201);
+    const saidBody = await said.json();
+    assert.equal(saidBody.role, "user");
+    assert.equal(JSON.stringify(saidBody).includes(voiceKey), false);
+
+    const searched = await fetch(`${session.base}/api/sprites/atlas/bots/ada/voice/${second.sessionId}/tools`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "search_messages", arguments: JSON.stringify({ query: "whispered" }) }),
+    });
+    assert.equal(searched.status, 200);
+    const searchedBody = await searched.json();
+    assert.equal(searchedBody.matches.length, 1);
+    assert.equal(searchedBody.matches[0].source, "voice");
+    assert.equal(searchedBody.matches[0].text, "whispered [redacted] aloud");
+    assert.equal(JSON.stringify(searchedBody).includes(voiceKey), false);
+
+    const chat = await fetch(`${session.base}/api/sprites/atlas/bots/ada/voice/${second.sessionId}/tools`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "search_messages", arguments: { query: "status page" } }),
+    });
+    const chatBody = await chat.json();
+    assert.equal(chatBody.matches.some((item) => item.source === "chat" && item.text.includes("status page")), true);
+    assert.equal(chatBody.matches.some((item) => item.source === "voice"), false);
+
+    const peersBefore = await fetch(`${session.base}/api/sprites/atlas/bots/ada/peers`);
+    const peerCount = (await peersBefore.json()).peers.length;
+    const task = "Sketch the voice task on the status page.";
+    const sent = await fetch(`${session.base}/api/sprites/atlas/bots/ada/voice/${second.sessionId}/tools`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "send_task", arguments: { task: `  ${task}  ` } }),
+    });
+    assert.equal(sent.status, 200);
+    const sentBody = await sent.json();
+    assert.equal(sentBody.submitted, true);
+    assert.match(sentBody.submissionId, /^local-/);
+    const thread = await fetch(`${session.base}/api/sprites/atlas/bots/ada`);
+    const threadBody = await thread.json();
+    const added = threadBody.messages.filter((item) => item.kind !== "pi.peer").slice(-2);
+    assert.equal(added[0].kind, "pi.user");
+    assert.equal(added[0].text, task);
+    assert.equal(added[1].kind, "pi.assistant");
+    assert.match(added[1].text, /canned reply from the local simulator/);
+    const peersAfter = await fetch(`${session.base}/api/sprites/atlas/bots/ada/peers`);
+    assert.equal((await peersAfter.json()).peers.length, peerCount);
+
+    const secretTask = await fetch(`${session.base}/api/sprites/atlas/bots/ada/voice/${second.sessionId}/tools`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "send_task", arguments: { task: `keep ${voiceKey} private` } }),
+    });
+    assert.equal(secretTask.status, 200);
+    assert.equal(JSON.stringify(await secretTask.json()).includes(voiceKey), false);
+
+    const unknown = await fetch(`${session.base}/api/sprites/atlas/bots/ada/voice/${second.sessionId}/tools`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "steer_peer", arguments: { bot: "Kepler", content: "no" } }),
+    });
+    assert.equal(unknown.status, 400);
+    assert.equal((await unknown.json()).error, "unknown voice tool");
+    const web = await fetch(`${session.base}/api/sprites/atlas/bots/ada/voice/${second.sessionId}/tools`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "web_search", arguments: { query: "orbs" } }),
+    });
+    assert.equal(web.status, 400);
+
+    const stopped = await fetch(`${session.base}/api/sprites/atlas/bots/ada/voice/${second.sessionId}/tools`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "stop_voice", arguments: {} }),
+    });
+    assert.equal(stopped.status, 200);
+    assert.deepEqual(await stopped.json(), { stopped: true });
+    const afterStop = await fetch(`${session.base}/api/sprites/atlas/bots/ada/voice/${second.sessionId}/tools`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "search_messages", arguments: { query: "status" } }),
+    });
+    assert.equal(afterStop.status, 409);
+    const ended = await fetch(`${session.base}/api/sprites/atlas/bots/ada/voice/${second.sessionId}`);
+    assert.equal(ended.status, 200);
+    const endedBody = await ended.json();
+    assert.equal(endedBody.stopped, true);
+    assert.equal(JSON.stringify(endedBody).includes(voiceKey), false);
+    const removed = await fetch(`${session.base}/api/sprites/atlas/bots/ada/voice/${second.sessionId}`, { method: "DELETE" });
+    assert.equal(removed.status, 200);
+    assert.deepEqual(await removed.json(), { stopped: true });
+
+    const zip = await fetch(`${session.base}/api/sprites/atlas/conversations.zip`);
+    const files = await unzip(await zip.arrayBuffer());
+    const packed = JSON.stringify(files);
+    assert.equal(packed.includes(voiceKey), false);
+    assert.match(packed, /Sketch the voice task/);
+    assert.match(packed, /keep \[redacted\] private/);
   });
 });
 

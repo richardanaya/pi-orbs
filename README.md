@@ -40,7 +40,7 @@ Open http://127.0.0.1:8787.
 
 ![Roster of Ada, Kepler, and Nova, then a steer opened in the thread](docs/local-demo.gif)
 
-Until a sprite is running, the page is the setup form: a sprite name, a connector, an API key, a base URL, a model, and **Create and deploy**. The connectors are xAI, OpenAI, Anthropic, and Custom. xAI is the default. That creates the Sprite, makes its URL public, stores the key in a Sprites connection, and installs the server. The connection id, the sprite URL, and an API secret are written to `~/.pi-orbs/state.json`. The API key is not copied into the sprite service environment.
+Until a sprite is running, the page is the setup form: a sprite name, a connector, an API key, a base URL, a model, and **Create and deploy**. The connectors are xAI, OpenAI, Anthropic, and Custom. xAI is the default. That creates the Sprite, makes its URL public, stores the key in a Sprites connection, and installs the server. The connection id, the sprite URL, and an API secret are written to `~/.pi-orbs/state.json`. The API key is not copied into the sprite service environment. Voice is optional on that form: Grok or OpenAI, plus a realtime key. The voice key stays in the state file too, and the page does not receive it.
 
 ![Setup form with the connector list open: xAI, OpenAI, Anthropic, and Custom](docs/local-setup.png)
 
@@ -66,7 +66,7 @@ Choose **Add** (the plus) to name a bot, write its instruction, and pick a glass
 
 The same thread after a message is sent.
 
-**Settings** holds **Download all conversations**, **Push server build**, and **Destroy sprite**. Download saves a zip of every bot thread as JSON transcripts (bot id, name, and message timestamps). It does not include API keys or connector credentials. Push installs this package's server on the sprite. Destroy deletes that sprite and the connector that was saved with it, then the page returns to setup.
+**Settings** holds voice, **Download all conversations**, **Push server build**, and **Destroy sprite**. Voice saves an optional Grok or OpenAI realtime key. When that key is set, **Voice** on the open bot starts a call, and **Stop** ends it. The voice agent can search that bot’s chat and the call, send a task the way a human message does, and stop the call. Download saves a zip of every bot thread as JSON transcripts (bot id, name, and message timestamps). It does not include API keys or connector credentials. Push installs this package's server on the sprite. Destroy deletes that sprite and the connector that was saved with it, then the page returns to setup.
 
 How the pieces connect, and what to check when setup fails, is in [Architecture](docs/architecture.md#troubleshooting).
 

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Optional voice on setup and in Settings. A Grok or OpenAI realtime key stays on this machine and is not returned to the page. When it is set, a voice call with the open bot can start and stop. The voice agent has three tools: search that bot’s chat and the call transcript, send a task through the same path as a human message, and stop the call. The local simulator uses the same routes and does not call Grok or OpenAI.
+
 ## [0.2.0] - 2026-10-02
 
 ### Added
