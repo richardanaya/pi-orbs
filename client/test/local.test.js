@@ -326,6 +326,7 @@ describe("local simulator API", { concurrency: 1 }, () => {
         baseApiUrl: "https://api.x.ai/v1",
         model: "grok-4.7",
         voice: { provider: null, configured: false },
+        cron: { configured: false },
       },
     });
   });
@@ -1107,6 +1108,168 @@ describe("local simulator API", { concurrency: 1 }, () => {
     assert.equal(packed.includes(voiceKey), false);
     assert.match(packed, /Sketch the voice task/);
     assert.match(packed, /keep \[redacted\] private/);
+  });
+
+  test("a cron-job.org key schedules a message and the webhook runs that bot", async () => {
+  const html = await readFile(join(clientRoot, "public", "index.html"), "utf8");
+  assert.match(html, /id="setup-cron-key" name="cronApiKey" type="password"/);
+  assert.match(html, /id="cron-key" name="cronApiKey" type="password"/);
+  assert.match(html, /id="cron-clear"/);
+  const main = await readFile(join(clientRoot, "src", "main.ts"), "utf8");
+  assert.match(main, /publicCron\(/);
+  assert.match(main, /CRON_JOB_ORG_API_KEY/);
+  assert.doesNotMatch(main, /cronApiKey: saved\.cronApiKey/);
+
+  const cronKey = "cron-job-org-key-not-for-the-page";
+  const created = await fetch(`${session.base}/api/sprites`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "atlas", apiKey: "local-simulator-test", cronApiKey: `  ${cronKey}  ` }),
+  });
+  assert.equal(created.status, 201);
+  const createdText = await created.text();
+  assert.equal(createdText.includes(cronKey), false);
+  assert.deepEqual(JSON.parse(createdText).cron, { configured: true });
+
+  const home = await fetch(`${session.base}/api/sprites`);
+  const homeText = await home.text();
+  assert.equal(homeText.includes(cronKey), false);
+  assert.deepEqual(JSON.parse(homeText).sprite.cron, { configured: true });
+
+  const cleared = await fetch(`${session.base}/api/sprites/atlas/cron`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ clear: true }),
+  });
+  assert.equal(cleared.status, 200);
+  assert.deepEqual(await cleared.json(), { cron: { configured: false } });
+  const blocked = await fetch(`${session.base}/api/sprites/atlas/bots/ada/schedules`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ message: "Check the status page.", cron: "0 9 * * 1" }),
+  });
+  assert.equal(blocked.status, 400);
+  assert.equal((await blocked.json()).error, "cron-job.org API key is not configured");
+
+  const badType = await fetch(`${session.base}/api/sprites/atlas/cron`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ cronApiKey: 12 }),
+  });
+  assert.equal(badType.status, 400);
+
+  const saved = await fetch(`${session.base}/api/sprites/atlas/cron`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ cronApiKey: `  ${cronKey}  ` }),
+  });
+  const savedText = await saved.text();
+  assert.equal(saved.status, 200);
+  assert.equal(savedText.includes(cronKey), false);
+  assert.deepEqual(JSON.parse(savedText).cron, { configured: true });
+
+  const kept = await fetch(`${session.base}/api/sprites/atlas/cron`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ cronApiKey: "" }),
+  });
+  assert.deepEqual((await kept.json()).cron, { configured: true });
+
+  const roster = await fetch(`${session.base}/api/sprites/atlas`);
+  const rosterText = await roster.text();
+  assert.equal(rosterText.includes(cronKey), false);
+  const rosterBody = JSON.parse(rosterText);
+  assert.equal(rosterBody.cronApiKey, undefined);
+  assert.equal(rosterBody.bots.every((bot) => bot.hookToken === undefined), true);
+
+  const invalid = await fetch(`${session.base}/api/sprites/atlas/bots/ada/schedules`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ message: "Check the status page.", cron: "nope" }),
+  });
+  assert.equal(invalid.status, 400);
+  assert.equal((await invalid.json()).error, "cron expression is invalid");
+
+  const peersBefore = await fetch(`${session.base}/api/sprites/atlas/bots/ada/peers`);
+  const peerCount = (await peersBefore.json()).peers.length;
+  const before = await fetch(`${session.base}/api/sprites/atlas/bots/ada`);
+  const beforeCount = (await before.json()).messages.length;
+
+  const wrong = await fetch(`${session.base}/hooks/${cronKey}`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${cronKey}`, "content-type": "application/json" },
+    body: JSON.stringify({ content: "should not run" }),
+  });
+  assert.equal(wrong.status, 401);
+  assert.deepEqual(await wrong.json(), { error: "unauthorized" });
+  assert.equal(JSON.stringify(await (await fetch(`${session.base}/api/sprites/atlas/bots/ada`)).json()).includes("should not run"), false);
+
+  const scheduled = await fetch(`${session.base}/api/sprites/atlas/bots/ada/schedules`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ message: "Check the status page.", cron: "0 9 * * 1", timezone: "UTC" }),
+  });
+  assert.equal(scheduled.status, 201);
+  const scheduledText = await scheduled.text();
+  assert.equal(scheduledText.includes(cronKey), false);
+  const job = JSON.parse(scheduledText);
+  assert.equal(typeof job.jobId, "number");
+  assert.match(job.url, /^http:\/\/127\.0\.0\.1:\d+\/hooks\/[0-9a-f]{48}$/);
+  assert.equal(job.url.includes(cronKey), false);
+  const listed = await fetch(`${session.base}/api/sprites/atlas/bots/ada/schedules`);
+  assert.deepEqual(await listed.json(), { jobs: [{ jobId: job.jobId }] });
+
+  const forged = await fetch(`${session.base}/hooks/${"ab".repeat(24)}`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${cronKey}`, "content-type": "application/json" },
+    body: JSON.stringify({ content: "forged" }),
+  });
+  assert.equal(forged.status, 401);
+  const unchanged = await fetch(`${session.base}/api/sprites/atlas/bots/ada`);
+  assert.equal((await unchanged.json()).messages.length, beforeCount);
+
+  const path = new URL(job.url).pathname;
+  const fired = await fetch(`${session.base}${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ content: "Check the status page." }),
+  });
+  assert.equal(fired.status, 202);
+  assert.match((await fired.json()).submissionId, /^local-/);
+  const thread = await fetch(`${session.base}/api/sprites/atlas/bots/ada`);
+  const threadBody = await thread.json();
+  assert.equal(threadBody.bot.hookToken, undefined);
+  const added = threadBody.messages.filter((item) => item.kind !== "pi.peer").slice(-2);
+  assert.equal(added[0].kind, "pi.user");
+  assert.equal(added[0].text, "Check the status page.");
+  assert.doesNotMatch(added[0].text, /pi-orbs-peer/);
+  assert.equal(added[1].kind, "pi.assistant");
+  assert.match(added[1].text, /canned reply from the local simulator/);
+  assert.equal((await (await fetch(`${session.base}/api/sprites/atlas/bots/ada/peers`)).json()).peers.length, peerCount);
+
+  const noted = await fetch(`${session.base}/api/sprites/atlas/bots/ada/messages`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ content: `remember ${cronKey} please` }),
+  });
+  assert.equal(noted.status, 202);
+  const zip = await fetch(`${session.base}/api/sprites/atlas/conversations.zip`);
+  const files = await unzip(await zip.arrayBuffer());
+  const packed = JSON.stringify(files);
+  assert.equal(packed.includes(cronKey), false);
+  assert.match(packed, /remember \[redacted\] please/);
+  assert.equal(packed.includes(new URL(job.url).pathname.split("/").pop()), false);
+
+  const removed = await fetch(`${session.base}/api/sprites/atlas/bots/ada`, { method: "DELETE" });
+  assert.equal(removed.status, 200);
+  const goneJobs = await fetch(`${session.base}/api/sprites/atlas/bots/ada/schedules`);
+  assert.equal(goneJobs.status, 404);
+  const afterDelete = await fetch(`${session.base}${path}`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${cronKey}`, "content-type": "application/json" },
+    body: JSON.stringify({ content: "again" }),
+  });
+  assert.equal(afterDelete.status, 401);
   });
 });
 

@@ -390,3 +390,68 @@ test("one bot can steer another without putting it on the open thread", async ()
   });
   assert.equal(missing.status, 404);
 });
+
+test("a webhook token delivers a normal message and the cron key is not returned", async () => {
+  const headers = {
+    authorization: `Bearer ${secret}`,
+    "content-type": "application/json",
+  };
+  const created = await fetch(`${state.base}/api/bots`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Herald" }),
+  });
+  assert.equal(created.status, 201);
+  const bot = await created.json();
+  assert.equal(bot.hookToken, undefined);
+  assert.equal(JSON.stringify(bot).includes("hookToken"), false);
+
+  const roster = JSON.parse(await readFile(join(state.dir, "bots.json"), "utf8"));
+  const stored = roster.bots.find((item) => item.id === bot.id);
+  assert.match(stored.hookToken, /^[0-9a-f]{48}$/);
+
+  const cronKey = "cron-key-not-for-the-page-xx";
+  const saved = await fetch(`${state.base}/api/cron-key`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ apiKey: cronKey }),
+  });
+  assert.equal(saved.status, 200);
+  const savedText = await saved.text();
+  assert.equal(savedText.includes(cronKey), false);
+  assert.deepEqual(JSON.parse(savedText), { configured: true });
+  const file = JSON.parse(await readFile(join(state.dir, "cron.json"), "utf8"));
+  assert.equal(file.apiKey, cronKey);
+
+  const wrong = await fetch(`${state.base}/hooks/${cronKey}`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${cronKey}`, "content-type": "application/json" },
+    body: JSON.stringify({ content: "should not run" }),
+  });
+  assert.equal(wrong.status, 401);
+  assert.deepEqual(await wrong.json(), { error: "unauthorized" });
+
+  const fired = await fetch(`${state.base}/hooks/${stored.hookToken}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ content: "Check the status page." }),
+  });
+  assert.equal(fired.status, 202);
+  const thread = await fetch(`${state.base}/api/bots/${bot.id}`, { headers });
+  const threadBody = await thread.json();
+  assert.equal(threadBody.bot.hookToken, undefined);
+  const user = threadBody.messages.find((item) => item.kind === "pi.user" && item.text === "Check the status page.");
+  assert.ok(user);
+  assert.equal(JSON.stringify(threadBody).includes("pi-orbs-peer-hop"), false);
+  assert.equal(JSON.stringify(threadBody).includes(cronKey), false);
+
+  const cleared = await fetch(`${state.base}/api/cron-key`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ apiKey: "" }),
+  });
+  assert.equal(cleared.status, 200);
+  assert.deepEqual(await cleared.json(), { configured: false });
+  const clearedFile = JSON.parse(await readFile(join(state.dir, "cron.json"), "utf8"));
+  assert.equal(clearedFile.apiKey, "");
+});

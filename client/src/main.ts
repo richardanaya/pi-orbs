@@ -29,6 +29,7 @@ import {
   VoiceSubmitError,
   type VoiceConfig,
 } from "./voice.js";
+import { cronFromSetup, isCronFailure, publicCron, readCronSettings } from "./schedule.js";
 
 type SavedSprite = {
   name: string;
@@ -42,6 +43,7 @@ type SavedSprite = {
   model?: string;
   voiceProvider?: string;
   voiceApiKey?: string;
+  cronApiKey?: string;
 };
 type StateFile = { sprites: SavedSprite[] };
 
@@ -88,6 +90,15 @@ function withVoice(saved: SavedSprite, voice: VoiceConfig | null): SavedSprite {
   return { ...saved, voiceProvider: voice.provider, voiceApiKey: voice.apiKey };
 }
 
+function withCron(saved: SavedSprite, apiKey: string | null): SavedSprite {
+  if (!apiKey) {
+    const next = { ...saved };
+    delete next.cronApiKey;
+    return next;
+  }
+  return { ...saved, cronApiKey: apiKey };
+}
+
 function connectorOf(saved: SavedSprite): SpriteConnector {
   return normalizeConnector(saved);
 }
@@ -107,6 +118,8 @@ function serviceEnv(saved: SavedSprite): Record<string, string> {
     XAI_API_KEY: "connector",
     OPENAI_API_KEY: "connector",
     ...(connector.connectorType === "anthropic" ? { ANTHROPIC_API_KEY: "connector" } : {}),
+    PI_PUBLIC_URL: saved.url,
+    ...(saved.cronApiKey ? { CRON_JOB_ORG_API_KEY: saved.cronApiKey } : {}),
   };
 }
 
@@ -119,6 +132,7 @@ function publicSprite(saved: SavedSprite, extra: Record<string, unknown>): Recor
     baseApiUrl: connector.baseApiUrl,
     model: connector.model,
     voice: publicVoice(voiceConfigOf(saved)),
+    cron: publicCron(saved.cronApiKey),
     ...extra,
   };
 }
@@ -274,7 +288,7 @@ async function handleLiveVoice(state: StateFile, saved: SavedSprite, match: NonN
     return;
   }
   if (match.kind === "tools" && req.method === "POST") {
-    const secrets = [saved.voiceApiKey ?? "", saved.apiKey ?? "", saved.xaiKey ?? "", saved.secret, saved.connectorId ?? ""];
+    const secrets = [saved.voiceApiKey ?? "", saved.apiKey ?? "", saved.xaiKey ?? "", saved.secret, saved.connectorId ?? "", saved.cronApiKey ?? ""];
     const result = await executeVoiceTool(session, await readBody(req), {
       lines: async () => {
         const bot = await spriteBot(saved, match.botId);
@@ -312,6 +326,17 @@ async function spriteFetch(saved: SavedSprite, path: string, init?: RequestInit)
   });
 }
 
+async function pushCronKey(saved: SavedSprite): Promise<void> {
+  const response = await spriteFetch(saved, "/api/cron-key", {
+    method: "POST",
+    body: JSON.stringify({ apiKey: saved.cronApiKey ?? "" }),
+  });
+  if (response.ok || response.status === 404) return;
+  const payload = await response.json().catch(() => null) as { error?: unknown } | null;
+  const error = payload && typeof payload.error === "string" ? payload.error : "cron-job.org key was not saved";
+  throw new Error(error);
+}
+
 const http = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://localhost");
   try {
@@ -321,7 +346,7 @@ const http = createServer(async (req, res) => {
       return;
     }
     if (localMode()) {
-      if (url.pathname.startsWith("/api/")) {
+      if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/hooks/")) {
         await handleLocal(url, req, res);
         return;
       }
@@ -349,6 +374,7 @@ const http = createServer(async (req, res) => {
           baseApiUrl: connector.baseApiUrl,
           model: connector.model,
           voice: publicVoice(voiceConfigOf(saved)),
+          cron: publicCron(saved.cronApiKey),
         },
       });
       return;
@@ -363,6 +389,11 @@ const http = createServer(async (req, res) => {
       const voice = voiceFromSetup(body, null);
       if (isVoiceFailure(voice)) {
         send(res, 400, { error: voice.error });
+        return;
+      }
+      const cronApiKey = cronFromSetup(body);
+      if (isCronFailure(cronApiKey)) {
+        send(res, 400, { error: cronApiKey.error });
         return;
       }
       const live = await listSprites();
@@ -390,6 +421,7 @@ const http = createServer(async (req, res) => {
         baseApiUrl: setup.baseApiUrl,
         model: setup.model,
         ...(voice ? { voiceProvider: voice.provider, voiceApiKey: voice.apiKey } : {}),
+        ...(cronApiKey ? { cronApiKey } : {}),
       };
       await deploySprite(setup.name, serviceEnv(saved));
       const remote = await remoteVersion(saved.url);
@@ -399,6 +431,11 @@ const http = createServer(async (req, res) => {
       }
       state.sprites = [saved];
       await saveState(state);
+      try {
+        await pushCronKey(saved);
+      } catch {
+        // The service env already has the key. Settings can write the file later.
+      }
       send(res, 201, {
         name: setup.name,
         url: saved.url,
@@ -407,7 +444,36 @@ const http = createServer(async (req, res) => {
         baseApiUrl: setup.baseApiUrl,
         model: setup.model,
         voice: publicVoice(voice),
+        cron: publicCron(cronApiKey),
       });
+      return;
+    }
+    const cronMatch = url.pathname.match(/^\/api\/sprites\/([^/]+)\/cron$/);
+    if (cronMatch && req.method === "POST") {
+      let name: string;
+      try {
+        name = decodeURIComponent(cronMatch[1] ?? "");
+      } catch {
+        send(res, 404, { error: "not found" });
+        return;
+      }
+      const saved = state.sprites.find((item) => item.name === name);
+      if (!saved) {
+        send(res, 404, { error: "sprite is not managed by this client" });
+        return;
+      }
+      const read = readCronSettings(await readBody(req), saved.cronApiKey ?? null);
+      if ("error" in read) {
+        send(res, 400, { error: read.error });
+        return;
+      }
+      const next = "unchanged" in read ? saved : withCron(saved, read.apiKey);
+      if (next !== saved) {
+        state.sprites = state.sprites.map((item) => item.name === next.name ? next : item);
+        await saveState(state);
+        await pushCronKey(next);
+      }
+      send(res, 200, { cron: publicCron(next.cronApiKey) });
       return;
     }
     const voiceMatch = matchVoicePath(url.pathname);
@@ -453,6 +519,7 @@ const http = createServer(async (req, res) => {
         saved.apiKey ?? "",
         saved.xaiKey ?? "",
         saved.voiceApiKey ?? "",
+        saved.cronApiKey ?? "",
         saved.connectorId ?? "",
         saved.connectorId ? gatewayBaseUrl(saved.connectorId) : "",
       ]);
@@ -503,6 +570,17 @@ const http = createServer(async (req, res) => {
       return;
     }
     if (req.method === "DELETE" && !route[2] && !route[4]) {
+      try {
+        const cleared = await spriteFetch(saved, "/api/schedules", { method: "DELETE" });
+        if (cleared.status !== 404 && !cleared.ok) {
+          const payload = await cleared.json().catch(() => null) as { error?: unknown } | null;
+          const error = payload && typeof payload.error === "string" ? payload.error : "scheduled jobs were not deleted";
+          send(res, cleared.status, { error });
+          return;
+        }
+      } catch {
+        // The sprite is not answering. Destroy still removes it.
+      }
       if (saved.connectorId) await deleteConnector(saved.connectorId);
       await sprite(["destroy", "--force", saved.name]);
       clearSessions();
@@ -526,6 +604,7 @@ const http = createServer(async (req, res) => {
         send(res, 502, { error: "deploy finished, but the server did not answer /version" });
         return;
       }
+      await pushCronKey(ready);
       send(res, 200, { ok: true, version: remote });
       return;
     }
