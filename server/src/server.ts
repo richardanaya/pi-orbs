@@ -13,6 +13,7 @@ import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite
 import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { installSharedModel, sharedModel } from "./model.js";
 import { hiddenThreadEntryIds, normalizePeers, outgoingHop, PEER_CONTENT_MAX, PEER_LEDGER_MAX, PEER_REQUEST_PREFIX, peerChainUsed, peerPrompt, peerTurn, publicPeer, readSteer, resolvePeerTarget, withPeerInstruction, withPeerLines, type PeerRecord, type PublicPeer } from "./peers.js";
+import { CRON_API_DEFAULT, CRON_KEY_MAX, deleteCronJob, fetchCron, newHookToken, putCronJob, readHookBody, readScheduleRequest, scheduleTitle, tokensEqual, validHookToken, webhookUrl } from "./schedule.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const version = (await readFile(join(here, "../VERSION"), "utf8").catch(() => readFile(join(here, "VERSION"), "utf8"))).trim();
@@ -21,6 +22,8 @@ const secret = process.env.PI_API_SECRET ?? "";
 const dbPath = process.env.PI_DB ?? "./data/agent.sqlite";
 const botsPath = process.env.PI_BOTS ?? dbPath.replace(/[^/]+$/, "bots.json");
 const peersPath = process.env.PI_PEERS ?? botsPath.replace(/[^/]+$/, "peers.json");
+const schedulesPath = process.env.PI_SCHEDULES ?? botsPath.replace(/[^/]+$/, "schedules.json");
+const cronKeyPath = process.env.PI_CRON_KEY ?? botsPath.replace(/[^/]+$/, "cron.json");
 const workdir = process.env.PI_CWD ?? process.cwd();
 const context = BACKGROUND_CONTEXT;
 
@@ -35,7 +38,9 @@ type BotRecord = {
   conversationId: string;
   instruction: string;
   look: Look;
+  hookToken: string;
 };
+type ScheduleRecord = { botId: string; jobId: number; requestKey: string };
 type BotsFile = { bots: BotRecord[] };
 type FieldPatch = { name?: string; instruction?: string; look?: Look };
 
@@ -109,12 +114,13 @@ function readFields(body: unknown, mode: "create" | "edit"): FieldPatch | { erro
   return patch;
 }
 
-function normalizeBots(parsed: unknown): BotRecord[] {
+function normalizeBots(parsed: unknown): { bots: BotRecord[]; changed: boolean } {
   const list = parsed && typeof parsed === "object" && Array.isArray((parsed as BotsFile).bots)
     ? (parsed as BotsFile).bots
     : [];
   const used: string[] = [];
   const bots: BotRecord[] = [];
+  let changed = false;
   for (const item of list) {
     if (!item || typeof item !== "object") continue;
     const id = typeof item.id === "string" ? item.id : "";
@@ -124,14 +130,28 @@ function normalizeBots(parsed: unknown): BotRecord[] {
     const instruction = typeof item.instruction === "string" ? item.instruction.trim().slice(0, INSTRUCTION_MAX) : "";
     const look = isLook(item.look) ? item.look : nextLook(used);
     used.push(look);
-    bots.push({ id, name: name.slice(0, NAME_MAX), conversationId, instruction, look });
+    const hookToken = validHookToken(item.hookToken) ? item.hookToken : newHookToken();
+    if (hookToken !== item.hookToken) changed = true;
+    bots.push({ id, name: name.slice(0, NAME_MAX), conversationId, instruction, look, hookToken });
   }
-  return bots;
+  return { bots, changed };
+}
+
+function publicBot(bot: BotRecord): Omit<BotRecord, "hookToken"> {
+  return {
+    id: bot.id,
+    name: bot.name,
+    conversationId: bot.conversationId,
+    instruction: bot.instruction,
+    look: bot.look,
+  };
 }
 
 async function loadBots(): Promise<BotRecord[]> {
   try {
-    return normalizeBots(JSON.parse(await readFile(botsPath, "utf8")) as unknown);
+    const normalized = normalizeBots(JSON.parse(await readFile(botsPath, "utf8")) as unknown);
+    if (normalized.changed) await saveBots(normalized.bots);
+    return normalized.bots;
   } catch {
     return [];
   }
@@ -148,11 +168,114 @@ async function saveBots(bots: BotRecord[]): Promise<void> {
   await writeFile(botsPath, JSON.stringify({ bots }, null, 2));
 }
 
+let cronApiKey = (process.env.CRON_JOB_ORG_API_KEY ?? "").trim();
+const cronCall = fetchCron((process.env.CRON_JOB_ORG_API ?? CRON_API_DEFAULT).trim() || CRON_API_DEFAULT);
+
+async function loadCronKey(): Promise<void> {
+  try {
+    const parsed = JSON.parse(await readFile(cronKeyPath, "utf8")) as unknown;
+    if (!parsed || typeof parsed !== "object" || !("apiKey" in parsed)) return;
+    const apiKey = (parsed as { apiKey?: unknown }).apiKey;
+    if (typeof apiKey !== "string") return;
+    cronApiKey = apiKey.trim();
+  } catch {
+    // No file yet. The service env value stands.
+  }
+}
+
+async function saveCronKey(apiKey: string): Promise<void> {
+  cronApiKey = apiKey.trim();
+  await mkdir(dirname(cronKeyPath), { recursive: true });
+  await writeFile(cronKeyPath, JSON.stringify({ apiKey: cronApiKey }));
+}
+
+function normalizeSchedules(parsed: unknown): ScheduleRecord[] {
+  const list = parsed && typeof parsed === "object" && Array.isArray((parsed as { jobs?: unknown }).jobs)
+    ? (parsed as { jobs: unknown[] }).jobs
+    : [];
+  const jobs: ScheduleRecord[] = [];
+  for (const item of list) {
+    if (!item || typeof item !== "object") continue;
+    const record = item as { botId?: unknown; jobId?: unknown; requestKey?: unknown };
+    const botId = typeof record.botId === "string" ? record.botId : "";
+    const requestKey = typeof record.requestKey === "string" ? record.requestKey : "";
+    if (!botId || !requestKey || typeof record.jobId !== "number" || !Number.isInteger(record.jobId)) continue;
+    jobs.push({ botId, jobId: record.jobId, requestKey });
+  }
+  return jobs;
+}
+
+async function loadSchedules(): Promise<ScheduleRecord[]> {
+  try {
+    return normalizeSchedules(JSON.parse(await readFile(schedulesPath, "utf8")) as unknown);
+  } catch {
+    return [];
+  }
+}
+
+async function saveSchedules(jobs: ScheduleRecord[]): Promise<void> {
+  await mkdir(dirname(schedulesPath), { recursive: true });
+  await writeFile(schedulesPath, JSON.stringify({ jobs }, null, 2));
+}
+
+function spritePublicUrl(): string | null {
+  const value = (process.env.PI_PUBLIC_URL ?? "").trim();
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+async function scheduleMessage(botId: string, message: string, cron: string, timezone: string | undefined, requestKey: string): Promise<{ jobId: number } | { error: string }> {
+  if (!cronApiKey) return { error: "cron-job.org API key is not configured" };
+  const base = spritePublicUrl();
+  if (!base) return { error: "this server has no public URL" };
+  const read = readScheduleRequest({ message, cron, ...(timezone ? { timezone } : {}) });
+  if ("error" in read) return { error: read.error };
+  const bots = await loadBots();
+  const bot = bots.find((item) => item.id === botId);
+  if (!bot) return { error: "bot not found" };
+  const jobs = await loadSchedules();
+  const existing = jobs.find((item) => item.requestKey === requestKey);
+  if (existing) return { jobId: existing.jobId };
+  const created = await putCronJob(cronCall, cronApiKey, {
+    url: webhookUrl(base, bot.hookToken),
+    title: scheduleTitle(bot.name),
+    message: read.message,
+    schedule: read.schedule,
+  });
+  if ("error" in created) return { error: created.error };
+  jobs.push({ botId: bot.id, jobId: created.jobId, requestKey });
+  await saveSchedules(jobs);
+  return { jobId: created.jobId };
+}
+
+async function deleteScheduleRecords(records: ScheduleRecord[]): Promise<{ ok: true } | { error: string; status: number }> {
+  if (records.length === 0) return { ok: true };
+  if (!cronApiKey) return { error: "cron-job.org API key is not configured", status: 409 };
+  for (const record of records) {
+    const removed = await deleteCronJob(cronCall, cronApiKey, record.jobId);
+    if ("error" in removed) return removed;
+  }
+  const drop = new Set(records.map((item) => item.requestKey));
+  const jobs = (await loadSchedules()).filter((item) => !drop.has(item.requestKey));
+  await saveSchedules(jobs);
+  return { ok: true };
+}
+
 let peerExtension: Extension | undefined;
+let scheduleExtension: Extension | undefined;
 let peerQueue: Promise<unknown> = Promise.resolve();
 
 function botExtensions() {
-  return peerExtension ? [CodingTools, peerExtension] : [CodingTools];
+  const extensions: Extension[] = [CodingTools];
+  if (peerExtension) extensions.push(peerExtension);
+  if (scheduleExtension) extensions.push(scheduleExtension);
+  return extensions;
 }
 
 function enqueuePeers<T>(work: () => Promise<T>): Promise<T> {
@@ -309,11 +432,13 @@ function createdAtOf(entry: EntryRecord): string | null {
   return null;
 }
 
-const exportSecrets = [secret, process.env.PI_BASE_URL ?? "", process.env.PI_XAI_BASE_URL ?? "", process.env.XAI_API_KEY ?? "", process.env.OPENAI_API_KEY ?? ""];
+function exportSecrets(extra: readonly string[] = []): string[] {
+  return [secret, process.env.PI_BASE_URL ?? "", process.env.PI_XAI_BASE_URL ?? "", process.env.XAI_API_KEY ?? "", process.env.OPENAI_API_KEY ?? "", cronApiKey, ...extra];
+}
 
 type ExportMessage = { id: string; kind: "pi.user" | "pi.assistant"; text: string; createdAt: string | null };
 
-async function transcript(conversation: Conversation): Promise<ExportMessage[]> {
+async function transcript(conversation: Conversation, extra: readonly string[] = []): Promise<ExportMessage[]> {
   const collected: EntryRecord[] = [];
   const seenIds = new Set<number>();
   const seenCursors = new Set<string>();
@@ -340,7 +465,7 @@ async function transcript(conversation: Conversation): Promise<ExportMessage[]> 
     messages.push({
       id: String(entry.id),
       kind: entry.kind,
-      text: redactSecrets(raw, exportSecrets),
+      text: redactSecrets(raw, exportSecrets(extra)),
       createdAt: createdAtOf(entry),
     });
   }
@@ -391,26 +516,94 @@ const http = createServer(async (req, res) => {
     send(res, 200, { version });
     return;
   }
+  const hookRoute = url.pathname.match(/^\/hooks\/([^/]+)$/);
+  if (hookRoute && req.method === "POST") {
+    try {
+      let token = "";
+      try {
+        token = decodeURIComponent(hookRoute[1] ?? "");
+      } catch {
+        token = "";
+      }
+      const bots = await loadBots();
+      const bot = bots.find((item) => tokensEqual(token, item.hookToken));
+      if (!bot) {
+        send(res, 401, { error: "unauthorized" });
+        return;
+      }
+      const message = readHookBody(await readBody(req));
+      if ("error" in message) {
+        send(res, 400, { error: message.error });
+        return;
+      }
+      const conversation = await conversationFor(bot.id);
+      const submission = await conversation.submit({ type: "input", content: message.content }, context);
+      send(res, 202, { submissionId: submission.id });
+    } catch (error) {
+      if (error instanceof ConversationBusy) {
+        send(res, 409, { error: "busy" });
+        return;
+      }
+      if (error instanceof SyntaxError) {
+        send(res, 400, { error: "content is required" });
+        return;
+      }
+      send(res, 500, { error: error instanceof Error ? error.message : "error" });
+    }
+    return;
+  }
   if (!authorized(req)) {
     send(res, 401, { error: "unauthorized" });
     return;
   }
   try {
     if (url.pathname === "/api/bots" && req.method === "GET") {
-      send(res, 200, { bots: await loadBots() });
+      send(res, 200, { bots: (await loadBots()).map(publicBot) });
+      return;
+    }
+    if (url.pathname === "/api/cron-key" && req.method === "POST") {
+      const body = asRecord(await readBody(req));
+      if (typeof body.apiKey !== "string") {
+        send(res, 400, { error: "cron API key must be a string" });
+        return;
+      }
+      const apiKey = body.apiKey.trim();
+      if (apiKey.length > CRON_KEY_MAX) {
+        send(res, 400, { error: "cron API key is too long" });
+        return;
+      }
+      if (!apiKey) {
+        const cleared = await deleteScheduleRecords(await loadSchedules());
+        if ("error" in cleared) {
+          send(res, cleared.status, { error: cleared.error });
+          return;
+        }
+      }
+      await saveCronKey(apiKey);
+      send(res, 200, { configured: Boolean(cronApiKey) });
+      return;
+    }
+    if (url.pathname === "/api/schedules" && req.method === "DELETE") {
+      const cleared = await deleteScheduleRecords(await loadSchedules());
+      if ("error" in cleared) {
+        send(res, cleared.status, { error: cleared.error });
+        return;
+      }
+      send(res, 200, { ok: true });
       return;
     }
     if (url.pathname === "/api/export" && req.method === "GET") {
       const bots = await loadBots();
+      const tokens = bots.map((bot) => bot.hookToken);
       const exported = [];
       for (const bot of bots) {
         exported.push({
           id: bot.id,
-          name: redactSecrets(bot.name, exportSecrets),
+          name: redactSecrets(bot.name, exportSecrets(tokens)),
           conversationId: bot.conversationId,
-          instruction: redactSecrets(bot.instruction, exportSecrets),
+          instruction: redactSecrets(bot.instruction, exportSecrets(tokens)),
           look: bot.look,
-          messages: await transcript(await conversationFor(bot.id)),
+          messages: await transcript(await conversationFor(bot.id), tokens),
         });
       }
       send(res, 200, { exportedAt: new Date().toISOString(), bots: exported });
@@ -440,11 +633,12 @@ const http = createServer(async (req, res) => {
         conversationId: String(conversation.id),
         instruction,
         look,
+        hookToken: newHookToken(),
       };
       conversations.set(bot.id, conversation);
       bots.push(bot);
       await saveBots(bots);
-      send(res, 201, bot);
+      send(res, 201, publicBot(bot));
       return;
     }
     if (url.pathname === "/api/bots/activity" && req.method === "GET") {
@@ -469,7 +663,7 @@ const http = createServer(async (req, res) => {
         .map((entry) => ({ id: String(entry.id), kind: entry.kind, text: textOf(entry), createdAt: createdAtOf(entry) }))
         .filter((entry) => entry.text.trim().length > 0);
       const peers = (await loadPeers()).filter((item) => item.from === bot.id || item.to === bot.id);
-      send(res, 200, { bot, messages: withPeerLines(visible, peers.map(publicPeer)) });
+      send(res, 200, { bot: publicBot(bot), messages: withPeerLines(visible, peers.map(publicPeer)) });
       return;
     }
     if (messageRoute && req.method === "PATCH" && !messageRoute[2]) {
@@ -501,7 +695,7 @@ const http = createServer(async (req, res) => {
       };
       bots[index] = bot;
       await saveBots(bots);
-      send(res, 200, bot);
+      send(res, 200, publicBot(bot));
       return;
     }
     if (messageRoute && req.method === "DELETE" && !messageRoute[2]) {
@@ -512,6 +706,15 @@ const http = createServer(async (req, res) => {
         return;
       }
       const removed = bots[index];
+      if (!removed) {
+        send(res, 404, { error: "bot not found" });
+        return;
+      }
+      const cleared = await deleteScheduleRecords((await loadSchedules()).filter((item) => item.botId === removed.id));
+      if ("error" in cleared) {
+        send(res, cleared.status, { error: cleared.error });
+        return;
+      }
       bots.splice(index, 1);
       await saveBots(bots);
       conversations.delete(removed.id);
@@ -633,6 +836,47 @@ peerExtension = defineExtension({
 });
 registry.install(peerExtension);
 
+scheduleExtension = defineExtension({
+  name: "schedules",
+  tools: [
+    defineTool({
+      name: "schedule_message",
+      description: "Schedule a message that cron-job.org will deliver into this conversation. It arrives as a normal user message, not a steer. cron is five fields: minute hour day-of-month month day-of-week.",
+      parameters: Type.Object({
+        message: Type.String({ description: "What to send into this conversation when the schedule fires" }),
+        cron: Type.String({ description: "Five cron fields, for example 0 9 * * 1-5" }),
+        timezone: Type.Optional(Type.String({ description: "IANA time zone. Defaults to UTC." })),
+      }),
+      replay: "safe",
+      execute: async (args, api) => {
+        const scheduled = await scheduleMessage(
+          String(api.conversationId),
+          args.message,
+          args.cron,
+          args.timezone,
+          `schedule:${api.taskId}:${api.callId}`,
+        );
+        if ("error" in scheduled) {
+          return { content: [{ type: "text", text: scheduled.error }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Scheduled job ${scheduled.jobId}.` }] };
+      },
+    }),
+  ],
+  sections: [
+    section("schedules", async () => {
+      if (!cronApiKey) return undefined;
+      return [
+        "You can schedule a later message into this conversation with schedule_message.",
+        "Use a five-field cron expression: minute hour day-of-month month day-of-week.",
+        "When it fires, the text arrives as a normal user message. It is not a steer, and it does not continue a peer chain.",
+      ].join("\n");
+    }),
+  ],
+});
+registry.install(scheduleExtension);
+
+await loadCronKey();
 http.listen(port, () => {
   console.log(`pi-orbs server ${version} on ${port}`);
 });

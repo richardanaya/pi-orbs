@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Optional voice on setup and in Settings. A Grok or OpenAI realtime key stays on this machine and is not returned to the page. When it is set, a voice call with the open bot can start and stop. The voice agent has three tools: search that bot’s chat and the call transcript, send a task through the same path as a human message, and stop the call. The local simulator uses the same routes and does not call Grok or OpenAI.
+- Optional cron-job.org API key on setup and in Settings. The key is not returned to the page. Each bot has a durable webhook token. A bot tool creates a cron-job.org job that POSTs to that webhook, and the server submits the text as a normal message on that bot. Deleting the bot, clearing the key, or destroying the sprite deletes the stored jobs. The local simulator stubs cron-job.org and accepts the webhook in-process.
 
 ## [0.2.0] - 2026-10-02
 

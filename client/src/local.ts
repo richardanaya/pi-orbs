@@ -21,6 +21,22 @@ import {
   type VoiceConfig,
   type VoiceMatch,
 } from "./voice.js";
+import {
+  cronFromSetup,
+  deleteCronJob,
+  isCronFailure,
+  memoryCron,
+  newHookToken,
+  publicCron,
+  putCronJob,
+  readCronSettings,
+  readHookBody,
+  readScheduleRequest,
+  scheduleTitle,
+  tokensEqual,
+  webhookUrl,
+  type CronCaller,
+} from "./schedule.js";
 
 const LOOKS = ["slate", "silver", "mist", "tide", "pine", "amber", "clay", "plum"] as const;
 const NAME_MAX = 80;
@@ -49,10 +65,12 @@ type Bot = {
   conversationId: string;
   instruction: string;
   look: Look;
+  hookToken: string;
   messages: Message[];
   busyUntil?: number;
 };
-type Sprite = { name: string; url: string; voice: VoiceConfig | null } & SpriteConnector;
+type ScheduledJob = { botId: string; jobId: number; requestKey: string };
+type Sprite = { name: string; url: string; voice: VoiceConfig | null; cronApiKey: string | null } & SpriteConnector;
 type FieldPatch = { name?: string; instruction?: string; look?: Look };
 
 const localUrl = "http://127.0.0.1:8787";
@@ -66,6 +84,8 @@ let seedClock = 0;
 let sprite: Sprite | null = null;
 let bots: Bot[] = [];
 let peers: Peer[] = [];
+let schedules: ScheduledJob[] = [];
+let cronJobs = memoryCron();
 
 function message(kind: Kind, text: string, createdAt?: string): Message {
   const id = `m${nextMessage++}`;
@@ -119,6 +139,7 @@ function seedBots(): Bot[] {
       conversationId: "ada",
       instruction: "Sketch status pages on a black background.",
       look: "tide",
+      hookToken: newHookToken(),
       messages: [
         message("pi.user", "Sketch a status page for this sprite. Black background, large type."),
         message("pi.assistant", "A single page is enough. The title is the sprite name, and one line under it says whether the server answered."),
@@ -132,6 +153,7 @@ function seedBots(): Bot[] {
       conversationId: "kepler",
       instruction: "Answer questions about this sprite and its shared work directory.",
       look: "pine",
+      hookToken: newHookToken(),
       messages: [
         message("pi.user", "What can the other bots see?"),
         message("pi.assistant", "The work directory. Bots on this sprite share that disk and keep their own threads."),
@@ -143,6 +165,7 @@ function seedBots(): Bot[] {
       conversationId: "nova",
       instruction: "Suggest short names for bots.",
       look: "amber",
+      hookToken: newHookToken(),
       messages: [
         message("pi.user", "Suggest a short name for a bot that writes commit messages."),
         message("pi.assistant", "Call it Scribe. One job, one thread, the same computer as the others."),
@@ -176,11 +199,13 @@ function samplePeers(): Peer[] {
   ];
 }
 
-function reset(name: string, connector: SpriteConnector = defaultConnector(), sample = false, voice: VoiceConfig | null = null): void {
+function reset(name: string, connector: SpriteConnector = defaultConnector(), sample = false, voice: VoiceConfig | null = null, cronApiKey: string | null = null): void {
   clearSessions();
-  sprite = { name, url: localUrl, ...connector, voice };
+  sprite = { name, url: localUrl, ...connector, voice, cronApiKey };
   bots = seedBots();
   peers = sample ? samplePeers() : [];
+  schedules = [];
+  cronJobs = memoryCron();
   nextPeer = 1;
 }
 
@@ -261,6 +286,29 @@ function publicBot(bot: Bot): { id: string; name: string; conversationId: string
   return { id: bot.id, name: bot.name, conversationId: bot.conversationId, instruction: bot.instruction, look: bot.look };
 }
 
+function requestBase(req: IncomingMessage): string {
+  const host = req.headers.host;
+  if (typeof host === "string" && host.length > 0 && host.length < 200 && !/[\s/]/.test(host)) return `http://${host}`;
+  return localUrl;
+}
+
+function cronCaller(): CronCaller {
+  return cronJobs.call;
+}
+
+async function deleteSchedulesFor(botId: string | null): Promise<{ ok: true } | { error: string; status: number }> {
+  const mine = botId ? schedules.filter((item) => item.botId === botId) : schedules.slice();
+  if (mine.length === 0) return { ok: true };
+  if (!sprite?.cronApiKey) return { error: "cron-job.org API key is not configured", status: 409 };
+  for (const job of mine) {
+    const removed = await deleteCronJob(cronCaller(), sprite.cronApiKey, job.jobId);
+    if ("error" in removed) return removed;
+  }
+  const drop = new Set(mine.map((item) => item.jobId));
+  schedules = schedules.filter((item) => !drop.has(item.jobId));
+  return { ok: true };
+}
+
 function publicPeer(record: Peer): {
   id: string;
   from: string;
@@ -337,6 +385,14 @@ function textField(body: Record<string, unknown>, key: string): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function secretValues(): string[] {
+  return [
+    ...(sprite?.voice ? [sprite.voice.apiKey] : []),
+    ...(sprite?.cronApiKey ? [sprite.cronApiKey] : []),
+    ...bots.map((bot) => bot.hookToken),
+  ];
+}
+
 function spriteBody(version: string): Record<string, unknown> | null {
   if (!sprite) return null;
   return {
@@ -348,6 +404,7 @@ function spriteBody(version: string): Record<string, unknown> | null {
     baseApiUrl: sprite.baseApiUrl,
     model: sprite.model,
     voice: publicVoice(sprite.voice),
+    cron: publicCron(sprite.cronApiKey),
   };
 }
 
@@ -419,7 +476,7 @@ async function handleLocalVoice(match: VoiceMatch, req: IncomingMessage, res: Se
     const result = await executeVoiceTool(session, await readJson(req), {
       lines: async () => chatLines(threadMessages(bot)),
       submit: async (task) => submitHuman(bot, task),
-      secrets: sprite.voice ? [sprite.voice.apiKey] : [],
+      secrets: secretValues(),
     });
     send(res, result.status, result.body);
     return;
@@ -453,7 +510,12 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
       send(res, 400, { error: voice.error });
       return;
     }
-    reset(setup.name, { connectorType: setup.connectorType, baseApiUrl: setup.baseApiUrl, model: setup.model }, false, voice);
+    const cronApiKey = cronFromSetup(body);
+    if (isCronFailure(cronApiKey)) {
+      send(res, 400, { error: cronApiKey.error });
+      return;
+    }
+    reset(setup.name, { connectorType: setup.connectorType, baseApiUrl: setup.baseApiUrl, model: setup.model }, false, voice, cronApiKey);
     send(res, 201, {
       name: setup.name,
       url: localUrl,
@@ -462,7 +524,36 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
       baseApiUrl: setup.baseApiUrl,
       model: setup.model,
       voice: publicVoice(voice),
+      cron: publicCron(cronApiKey),
     });
+    return;
+  }
+  const hookRoute = url.pathname.match(/^\/hooks\/([^/]+)$/);
+  if (hookRoute && req.method === "POST") {
+    let token = "";
+    try {
+      token = decodeURIComponent(hookRoute[1] ?? "");
+    } catch {
+      token = "";
+    }
+    const bot = bots.find((item) => tokensEqual(token, item.hookToken));
+    if (!sprite || !bot) {
+      send(res, 401, { error: "unauthorized" });
+      return;
+    }
+    let body: unknown;
+    try {
+      body = await readJson(req);
+    } catch {
+      send(res, 400, { error: "content is required" });
+      return;
+    }
+    const message = readHookBody(body);
+    if ("error" in message) {
+      send(res, 400, { error: message.error });
+      return;
+    }
+    send(res, 202, submitHuman(bot, message.content));
     return;
   }
 
@@ -485,11 +576,37 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
 
   const rest = parts.slice(3);
   if (rest.length === 0 && req.method === "DELETE") {
+    const cleared = await deleteSchedulesFor(null);
+    if ("error" in cleared) {
+      send(res, cleared.status, { error: cleared.error });
+      return;
+    }
     clearSessions();
     sprite = null;
     bots = [];
     peers = [];
+    schedules = [];
+    cronJobs = memoryCron();
     send(res, 200, { ok: true });
+    return;
+  }
+  if (rest.length === 1 && rest[0] === "cron" && req.method === "POST") {
+    const read = readCronSettings(await readJson(req), sprite.cronApiKey);
+    if ("error" in read) {
+      send(res, 400, { error: read.error });
+      return;
+    }
+    if (!("unchanged" in read)) {
+      if (!read.apiKey) {
+        const cleared = await deleteSchedulesFor(null);
+        if ("error" in cleared) {
+          send(res, cleared.status, { error: cleared.error });
+          return;
+        }
+      }
+      sprite.cronApiKey = read.apiKey;
+    }
+    send(res, 200, { cron: publicCron(sprite.cronApiKey) });
     return;
   }
   const voiceMatch = matchVoicePath(url.pathname);
@@ -498,7 +615,7 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
     return;
   }
   if (rest.length === 1 && rest[0] === "conversations.zip" && req.method === "GET") {
-    const archive = conversationsArchive(localSnapshot(), sprite.voice ? [sprite.voice.apiKey] : []);
+    const archive = conversationsArchive(localSnapshot(), secretValues());
     res.writeHead(200, archiveHeaders(archive.filename, archive.zip.length));
     res.end(archive.zip);
     return;
@@ -538,6 +655,7 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
       conversationId: id,
       instruction: fields.instruction ?? "",
       look: fields.look ?? nextLook(bots.map((item) => item.look)),
+      hookToken: newHookToken(),
       messages: [],
     };
     bots.push(bot);
@@ -573,7 +691,41 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
       send(res, 200, publicBot(bot));
       return;
     }
+    if (rest.length === 3 && rest[2] === "schedules" && req.method === "GET") {
+      send(res, 200, { jobs: schedules.filter((item) => item.botId === bot.id).map((item) => ({ jobId: item.jobId })) });
+      return;
+    }
+    if (rest.length === 3 && rest[2] === "schedules" && req.method === "POST") {
+      if (!sprite.cronApiKey) {
+        send(res, 400, { error: "cron-job.org API key is not configured" });
+        return;
+      }
+      const read = readScheduleRequest(await readJson(req));
+      if ("error" in read) {
+        send(res, 400, { error: read.error });
+        return;
+      }
+      const urlForJob = webhookUrl(requestBase(req), bot.hookToken);
+      const created = await putCronJob(cronCaller(), sprite.cronApiKey, {
+        url: urlForJob,
+        title: scheduleTitle(bot.name),
+        message: read.message,
+        schedule: read.schedule,
+      });
+      if ("error" in created) {
+        send(res, created.status, { error: created.error });
+        return;
+      }
+      schedules.push({ botId: bot.id, jobId: created.jobId, requestKey: `local-${created.jobId}` });
+      send(res, 201, { jobId: created.jobId, url: urlForJob });
+      return;
+    }
     if (rest.length === 2 && req.method === "DELETE") {
+      const cleared = await deleteSchedulesFor(bot.id);
+      if ("error" in cleared) {
+        send(res, cleared.status, { error: cleared.error });
+        return;
+      }
       const index = bots.findIndex((item) => item.id === bot.id);
       if (index >= 0) bots.splice(index, 1);
       for (let i = peers.length - 1; i >= 0; i -= 1) {

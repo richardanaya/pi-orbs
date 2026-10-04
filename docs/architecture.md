@@ -20,7 +20,7 @@ The client keeps a single sprite. A successful create replaces `sprites` in the 
 
 The client stores its sprite on the machine where it runs, at `~/.pi-orbs/state.json`. The file is created on first successful deploy. Local simulator mode does not read or write it.
 
-The JSON is `{ "sprites": [ { "name", "url", "secret", "apiKey", "connectorId", "connectorType", "baseApiUrl", "model", "voiceProvider", "voiceApiKey" } ] }`. Older files may have `xaiKey` instead of `apiKey`. The client treats a missing `connectorType` as xAI. `voiceProvider` and `voiceApiKey` are optional. Voice stays off when they are absent.
+The JSON is `{ "sprites": [ { "name", "url", "secret", "apiKey", "connectorId", "connectorType", "baseApiUrl", "model", "voiceProvider", "voiceApiKey", "cronApiKey" } ] }`. Older files may have `xaiKey` instead of `apiKey`. The client treats a missing `connectorType` as xAI. `voiceProvider` and `voiceApiKey` are optional. Voice stays off when they are absent. `cronApiKey` is optional. Schedules stay off when it is absent.
 
 - `name` is the Sprite name.
 - `url` is the public Sprite URL.
@@ -31,7 +31,7 @@ The JSON is `{ "sprites": [ { "name", "url", "secret", "apiKey", "connectorId", 
 - `baseApiUrl` is the preset base URL, or the URL typed for Custom.
 - `model` is the one model every bot on this sprite uses.
 
-The page never receives `apiKey`, `xaiKey`, or `voiceApiKey`. The client drops them from API responses. A voice call can return a short-lived provider `clientSecret`. That value is not the stored voice key. Leave this file on that machine. Do not commit it or paste it into an issue. See [SECURITY.md](../SECURITY.md).
+The page never receives `apiKey`, `xaiKey`, `voiceApiKey`, or `cronApiKey`. The client drops them from API responses. A voice call can return a short-lived provider `clientSecret`. That value is not the stored voice key. Sprite responses include `cron: { "configured" }` and nothing else about the cron-job.org key. Leave this file on that machine. Do not commit it or paste it into an issue. See [SECURITY.md](../SECURITY.md).
 
 Create writes the file only after `GET /version` succeeds. **Push server build** writes the connector id before it installs, so a failed push can still leave a state file in place.
 
@@ -55,8 +55,10 @@ The server does not get the key. Its service environment is:
 | `XAI_API_KEY` | `connector` |
 | `OPENAI_API_KEY` | `connector` |
 | `PORT` | `8080` |
+| `PI_PUBLIC_URL` | the public Sprite URL |
+| `CRON_JOB_ORG_API_KEY` | the optional cron-job.org key, only when one is saved |
 
-`XAI_API_KEY=connector` and `OPENAI_API_KEY=connector` are placeholders. The model client uses the gateway URL, so bot requests go through Sprites, which holds the key. **Destroy sprite** deletes that connection, then destroys the Sprite. The voice key is not one of these variables.
+`XAI_API_KEY=connector` and `OPENAI_API_KEY=connector` are placeholders. The model client uses the gateway URL, so bot requests go through Sprites, which holds the connector key. **Destroy sprite** deletes that connection, then destroys the Sprite. The voice key is not one of these variables. `CRON_JOB_ORG_API_KEY` is the saved cron-job.org key when schedules are on. It is not the connector key.
 
 ## Voice
 
@@ -77,6 +79,18 @@ The voice agent has exactly three tools. The page does not add others. It posts 
 3. `stop_voice` ends the call. **Stop** on the page calls `DELETE` on that session, which ends it too.
 
 Spoken lines are stored with `POST .../voice/:sessionId/transcript` so search can see them. They stay on the client for that call. They are not a second bot thread. `GET` of the session returns the three tools and does not return the voice key or the client secret.
+
+## Scheduled messages
+
+Setup and Settings can store an optional [cron-job.org](https://docs.cron-job.org/rest-api.html) API key. Schedules stay off until it is set. On a sprite the key is `cronApiKey` in `~/.pi-orbs/state.json`. Deploy also copies it into the Sprite service environment as `CRON_JOB_ORG_API_KEY`, because the schedule tool runs on the sprite. Settings writes the same value to `cron.json` next to the roster so a later change applies without waiting for the next deploy. The page receives `cron: { "configured" }` only.
+
+Each bot has a durable webhook token (`randomBytes(24)` hex) stored on the roster and omitted from bot JSON. The address is `{PI_PUBLIC_URL}/hooks/{token}`. cron-job.org is not given the API key. A POST to that path is authorized by the token alone, with `timingSafeEqual`. A missing or wrong token is `401`. The cron-job.org key is not accepted as webhook auth.
+
+The `schedule_message` tool creates one cron-job.org job (`PUT /jobs`) for the bot that called it. The job is enabled, POSTs JSON `{ "content" }` to that bot’s webhook, and does not save responses. The tool takes a five-field cron expression and an optional IANA time zone (UTC when omitted). The server stores the remote `jobId`. Creating the same tool call again returns that id and does not create a second job. The tool’s reply is the job id. It does not include the API key or the webhook token.
+
+When the webhook is hit, the server submits that `content` on the bot’s conversation the same way `POST /api/bots/:id/messages` does. The text is a normal user message. It is not a steer, it does not carry `pi-orbs-peer-hop`, and the hop rules are unchanged.
+
+Deleting a bot deletes that bot’s cron-job.org jobs first (`DELETE /jobs/{jobId}`). A `404` from cron-job.org counts as already gone. If the delete fails, the bot stays so the job is not left behind. Clearing the key deletes every stored job first, then forgets the key. Destroying the sprite asks the server to delete every stored job before the sprite is removed. The local simulator keeps the same routes. It stubs cron-job.org in memory and accepts webhook posts in-process. It does not call cron-job.org.
 
 ## Bots and `/home/sprite/work`
 
@@ -131,7 +145,7 @@ Messages are user and assistant text, oldest first, including messages past the 
 
 An empty roster is still a valid zip. `README.txt` and `manifest.json` say there were no conversations. The zip does not include the API key, the Sprites connection id, or `PI_API_SECRET`. If one of those values appears inside a transcript, the export replaces it with `[redacted]`. Import from the zip is not supported.
 
-**Destroy sprite** deletes the Sprite, which removes that disk, the bots, and the URL.
+**Destroy sprite** asks the server to delete stored cron-job.org jobs, then deletes the Sprite, which removes that disk, the bots, and the URL.
 
 ## Request path
 
@@ -140,6 +154,7 @@ sequenceDiagram
   participant Client as Client :8787
   participant Sprite as Sprite server
   participant Bots as Pi bots
+  participant Cron as cron-job.org
   Client->>Sprite: sprite CLI create, connector, deploy
   Sprite-->>Client: GET /version
   Client->>Sprite: POST /api/bots (Bearer secret)
@@ -148,6 +163,8 @@ sequenceDiagram
   Sprite->>Bots: submit on that thread
   Client->>Sprite: POST /api/bots/:id/steer
   Sprite->>Bots: submit whenBusy steer on the target
+  Cron->>Sprite: POST /hooks/:token
+  Sprite->>Bots: submit that text on the bot's thread
   Note over Bots: shared disk /home/sprite/work
   Note over Bots: peer entries stay out of the open thread
   Client->>Sprite: GET /api/bots/:id/peers

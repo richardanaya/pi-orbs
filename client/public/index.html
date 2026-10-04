@@ -827,6 +827,11 @@
         <input id="setup-voice-key" name="voiceApiKey" type="password" autocomplete="off" placeholder="Optional">
       </label>
       <p class="setup-hint">Optional. Voice stays off until you save a Grok or OpenAI realtime key. The key stays on this machine.</p>
+      <label class="setup-field" for="setup-cron-key">
+        <span>cron-job.org API key</span>
+        <input id="setup-cron-key" name="cronApiKey" type="password" autocomplete="off" placeholder="Optional">
+      </label>
+      <p class="setup-hint">Optional. A cron-job.org key lets a bot schedule messages. The key stays on this machine.</p>
       <button id="create-button" type="submit">Create and deploy</button>
     </form>
     <p id="status" role="status"></p>
@@ -867,6 +872,16 @@
           </label>
           <button id="voice-save" type="submit">Save voice</button>
           <p id="voice-status" class="hint" role="status"></p>
+        </form>
+        <p class="hint">Optional. A cron-job.org key lets a bot schedule a message into its own chat. The key stays on this machine.</p>
+        <form id="cron-settings">
+          <label class="setup-field" for="cron-key">
+            <span>cron-job.org API key</span>
+            <input id="cron-key" name="cronApiKey" type="password" autocomplete="off" placeholder="Leave blank to keep the saved key">
+          </label>
+          <button id="cron-save" type="submit">Save cron key</button>
+          <button id="cron-clear" type="button">Remove key</button>
+          <p id="cron-status" class="hint" role="status"></p>
         </form>
         <p class="hint">Downloads a zip of every bot thread: JSON transcripts with id, name, and timestamps. API keys stay on this machine.</p>
         <button id="export" type="button">Download all conversations</button>
@@ -1068,6 +1083,7 @@ async function refreshHome() {
     state.sprite = null;
     state.bot = null;
     applyVoice(null);
+    applyCron(null);
     showSetup("Name your Fly Sprite and choose your Model Provider.");
     if (connectorPresets.length) {
       connectorSelect.value = presetById("xai") ? "xai" : connectorPresets[0].id;
@@ -1083,6 +1099,7 @@ async function refreshHome() {
     form.querySelector("[name=name]").value = body.sprite.name;
     showSavedConnector(body.sprite);
     applyVoice(body.sprite);
+    applyCron(body.sprite);
     resetSetupKey(false);
     document.querySelector("#create-button").textContent = "Finish deploy";
     return;
@@ -1098,6 +1115,7 @@ async function refreshBots(sprite) {
   const body = sprite && sprite.bots ? sprite : await api("/api/sprites/" + state.sprite);
   meta.textContent = body.url + (body.update ? "\nupdate available" : "");
   applyVoice(body);
+  applyCron(body);
   const bots = body.bots || [];
   state.bots = bots;
   if (!state.bot && bots[0]) state.bot = bots[0].id;
@@ -1317,11 +1335,13 @@ document.querySelector("#create-sprite").onsubmit = async (event) => {
       voiceProvider: String(data.get("voiceProvider") || ""),
       voiceApiKey: String(data.get("voiceApiKey") || ""),
     };
+    const cron = { cronApiKey: String(data.get("cronApiKey") || "") };
     if (existing && !apiKey) {
       await api("/api/sprites/" + name + "/deploy", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(fields) });
       await api("/api/sprites/" + name + "/voice", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(voice) });
+      await api("/api/sprites/" + name + "/cron", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(cron) });
     } else {
-      await api("/api/sprites", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, apiKey, ...fields, ...voice }) });
+      await api("/api/sprites", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, apiKey, ...fields, ...voice, ...cron }) });
     }
     event.target.reset();
     status.textContent = "";
@@ -1583,6 +1603,15 @@ function applyVoice(sprite) {
       : "Voice is off.";
   }
   paintVoiceButton();
+}
+function applyCron(sprite) {
+  const cron = sprite && sprite.cron ? sprite.cron : { configured: false };
+  const status = document.querySelector("#cron-status");
+  if (status) {
+    status.textContent = cron.configured
+      ? "Schedules are on. The key stays on this machine."
+      : "Schedules are off.";
+  }
 }
 function paintVoiceButton() {
   const button = document.querySelector("#voice-start");
@@ -1881,6 +1910,38 @@ document.querySelector("#voice-say").onsubmit = async (event) => {
   if (!session || session.provider !== "local" || !text) return;
   input.value = "";
   await postVoiceTranscript(session, "user", text);
+};
+document.querySelector("#cron-settings").onsubmit = async (event) => {
+  event.preventDefault();
+  if (!state.sprite) return;
+  const data = new FormData(event.target);
+  const status = document.querySelector("#cron-status");
+  try {
+    await api("/api/sprites/" + state.sprite + "/cron", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ cronApiKey: String(data.get("cronApiKey") || "") }),
+    });
+    event.target.querySelector("[name=cronApiKey]").value = "";
+    await refreshBots();
+  } catch (error) {
+    status.textContent = error.message;
+  }
+};
+document.querySelector("#cron-clear").onclick = async () => {
+  if (!state.sprite) return;
+  const status = document.querySelector("#cron-status");
+  try {
+    await api("/api/sprites/" + state.sprite + "/cron", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ clear: true }),
+    });
+    document.querySelector("#cron-key").value = "";
+    await refreshBots();
+  } catch (error) {
+    status.textContent = error.message;
+  }
 };
 document.querySelector("#voice-settings").onsubmit = async (event) => {
   event.preventDefault();
