@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { homedir } from "node:os";
@@ -669,10 +670,19 @@ const http = createServer(async (req, res) => {
   }
 });
 
+const pageUrl = "http://127.0.0.1:8787";
+
+function openPage(url: string) {
+  if (process.env.PI_ORBS_NO_OPEN === "1") return;
+  const child = process.platform === "win32"
+    ? spawn("cmd", ["/c", "start", "", url], { stdio: "ignore", detached: true, windowsHide: true })
+    : spawn(process.platform === "darwin" ? "open" : "xdg-open", [url], { stdio: "ignore", detached: true });
+  child.on("error", () => {});
+  child.unref();
+}
+
 http.listen(8787, () => {
-  if (localMode()) {
-    console.log("pi-orbs local simulator http://127.0.0.1:8787 (no Sprite, no xAI)");
-    return;
-  }
-  console.log("pi-orbs client http://127.0.0.1:8787");
+  if (localMode()) console.log(`pi-orbs local simulator ${pageUrl} (no Sprite, no xAI)`);
+  else console.log(`pi-orbs client ${pageUrl}`);
+  openPage(pageUrl);
 });

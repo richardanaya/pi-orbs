@@ -4,7 +4,7 @@ Pi Orbs is two processes. The client is what you install and open in a browser. 
 
 ## Client and server
 
-The client listens on port 8787. `npx pi-orbs`, `npm start`, and `node ./bin/pi-orbs.js` all load `client/dist` (built from `client/src`). The page is http://127.0.0.1:8787. That process serves `client/public` and the `/api/sprites` routes the page calls. It talks to Sprites over HTTPS at `https://api.sprites.dev`, with the API token saved from the first screen. The sprite CLI is not used.
+The client listens on port 8787. `npx pi-orbs`, `npm start`, and `node ./bin/pi-orbs.js` all load `client/dist` (built from `client/src`). The page is http://127.0.0.1:8787. Once the client is listening, it opens that URL in the browser unless `PI_ORBS_NO_OPEN=1`. That process serves `client/public` and the `/api/sprites` routes the page calls. It talks to Sprites over HTTPS at `https://api.sprites.dev`, with the API token saved from the first screen. The sprite CLI is not used.
 
 The server is `server/dist/server.js`, built from `server/src/server.ts`. During normal use it runs on the Sprite. **Create and deploy** and **Push server build** pack `server/dist`, `server/package.json`, `server/package-lock.json`, and `server/VERSION`, copy that archive onto the Sprite, and `npm install --omit=dev` under `/home/sprite/app`. The Sprite service `web` is then recreated as:
 

@@ -135,7 +135,7 @@ test("setup and settings can store a voice provider without showing the key", as
 
 test("settings offers a zip of every conversation", async () => {
   const html = await readFile(join(clientRoot, "public", "index.html"), "utf8");
-  const settingsStart = html.indexOf('<div id="settings">');
+  const settingsStart = html.indexOf('<dialog id="settings"');
   const settingsEnd = html.indexOf("</div>", html.indexOf('id="destroy"'));
   const settings = html.slice(settingsStart, settingsEnd);
   assert.match(settings, /id="export"/);

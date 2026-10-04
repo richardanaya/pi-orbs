@@ -6,6 +6,9 @@
 <meta name="theme-color" content="#000000">
 <title>Pi Orbs</title>
 <link rel="icon" href="/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,600;0,700;1,400&display=swap">
 <style>
   :root {
     color-scheme: dark;
@@ -17,8 +20,9 @@
     --fill: rgba(255, 255, 255, 0.04);
     --fill-strong: rgba(255, 255, 255, 0.07);
     --danger: #ffb3b8;
-    --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    --mono: "JetBrains Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: Nunito, ui-sans-serif, system-ui, sans-serif;
+    --display: Nunito, ui-sans-serif, system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
@@ -31,7 +35,7 @@
     text-rendering: optimizeLegibility;
   }
   button, input, select, textarea { font: inherit; color: inherit; }
-  button { cursor: pointer; }
+  a, button, summary, label, select { cursor: pointer; }
   button[disabled] { opacity: 0.4; cursor: default; }
   ::placeholder { color: #7e868e; }
   ::selection { background: rgba(255, 255, 255, 0.18); color: #fff; }
@@ -61,7 +65,8 @@
     color: #0a0a0a;
     text-align: center;
     font-size: 12px;
-    font-weight: 600;
+    font-family: var(--sans);
+    font-weight: 400;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     flex: none;
@@ -72,11 +77,30 @@
   }
   body.simulator #local-badge { display: block; }
   body.simulator #setup,
-  body.simulator main {
+  body.simulator main,
+  body.simulator #boot {
     flex: 1;
     min-height: 0;
   }
   body.simulator main { height: auto; }
+
+  #boot {
+    display: none;
+    min-height: 100%;
+    place-items: center;
+    background: var(--bg);
+  }
+  body.pending #boot { display: grid; }
+  body.pending #setup { display: none; }
+  .spinner {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.16);
+    border-top-color: #fff;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
   #setup {
     min-height: 100%;
@@ -114,10 +138,11 @@
   .setup-mark { width: 132px; height: 132px; }
   .card h1 {
     margin: 0;
+    font-family: var(--display);
     font-size: 40px;
     font-weight: 600;
-    letter-spacing: -0.045em;
-    line-height: 1;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
   }
   #setup-copy, #status {
     color: var(--muted);
@@ -149,8 +174,10 @@
     display: block;
     margin: 0 0 6px;
     color: var(--muted);
-    font-size: 13px;
-    font-weight: 600;
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.04em;
   }
   .card input[readonly] { color: var(--muted); }
   .card input:focus, .card select:focus, #send:focus-within, #bot-dialog input:focus, #bot-dialog textarea:focus {
@@ -194,23 +221,26 @@
   }
   .brand strong {
     display: block;
-    font-size: 17px;
+    font-family: var(--display);
+    font-size: 22px;
     font-weight: 600;
-    letter-spacing: -0.03em;
+    letter-spacing: -0.02em;
     line-height: 1.1;
   }
   .side-head {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin: 4px 12px 2px 18px;
+    margin: 4px 16px 2px 18px;
   }
   .side-label {
     margin: 0;
     color: var(--muted);
-    font-size: 11px;
+    font-family: var(--sans);
+    font-size: 12px;
     font-weight: 600;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.08em;
+    line-height: 1.4;
     text-transform: uppercase;
   }
   #bots {
@@ -268,10 +298,43 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .row .name { font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; }
-  .row .sub { color: var(--muted); font-size: 13px; line-height: 1.3; }
-  #add-bot {
-    margin: 0 0 0 auto;
+  .row .name {
+    font-family: var(--sans);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
+  }
+  .row .sub {
+    color: var(--muted);
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 0;
+    line-height: 1.3;
+  }
+  .row.skeleton {
+    gap: 12px;
+    padding: 8px;
+    pointer-events: none;
+  }
+  .sk-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .sk {
+    display: block;
+    border-radius: 8px;
+    background: linear-gradient(90deg, #141414 0%, #262626 45%, #141414 100%);
+    background-size: 220% 100%;
+    animation: sk-shine 1.3s ease-in-out infinite;
+  }
+  .sk-face { width: 40px; height: 40px; border-radius: 50%; flex: none; }
+  .sk-name { height: 12px; width: 46%; }
+  .sk-sub { height: 10px; width: 72%; }
+  .row.skeleton:nth-child(2) .sk-name { width: 62%; }
+  .row.skeleton:nth-child(2) .sk-sub { width: 40%; }
+  .row.skeleton:nth-child(3) .sk-name { width: 34%; }
+  .row.skeleton:nth-child(3) .sk-sub { width: 58%; }
+  @keyframes sk-shine { to { background-position: -120% 0; } }
+  #add-bot, #settings-toggle {
     width: 28px;
     height: 28px;
     padding: 0;
@@ -282,63 +345,114 @@
     background: transparent;
     color: var(--muted);
   }
-  #add-bot:hover { color: var(--text); background: var(--fill); }
-  #add-bot svg { display: block; }
-  .side-foot { border-top: 1px solid var(--line); padding: 8px 8px 12px; }
-  #settings-toggle {
-    width: 100%;
+  #add-bot, #settings-toggle { margin: 0 0 0 auto; }
+  #add-bot:hover, #settings-toggle:hover { color: var(--text); background: var(--fill); }
+  #add-bot svg, #settings-toggle svg { display: block; }
+  #settings {
+    width: min(1080px, calc(100vw - 48px));
+    height: min(860px, calc(100vh - 48px));
+    max-height: calc(100vh - 48px);
+    overflow: auto;
+    margin: auto;
+    padding: 28px 32px 32px;
+    border: 1px solid var(--line-strong);
+    border-radius: 24px;
+    background:
+      radial-gradient(640px 220px at 50% -60px, rgba(255, 255, 255, 0.08), transparent 70%),
+      #0a0a0a;
+    color: var(--text);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 24px 80px rgba(0, 0, 0, 0.55);
+  }
+  #settings::backdrop {
+    background: rgba(0, 0, 0, 0.66);
+    backdrop-filter: blur(10px);
+  }
+  #settings h2 {
+    margin: 0;
+    font-family: var(--sans);
+    font-size: 32px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .settings-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 0 0 22px;
+  }
+  #settings-close {
+    width: auto;
+    margin: 0;
+    border-radius: 999px;
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px solid var(--line-strong);
+    color: var(--text);
+    font-weight: 600;
+  }
+  #settings-close:hover { background: var(--fill); }
+  .settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  .settings-card {
+    margin: 0;
+    padding: 18px 18px 14px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.03);
+  }
+  .settings-card.wide { grid-column: 1 / -1; }
+  .settings-card.sprite-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    background: transparent;
-    border: 0;
-    color: var(--muted);
-    padding: 10px 12px;
-    border-radius: 12px;
-    text-align: left;
+    gap: 12px;
+    padding: 10px 12px 10px 16px;
   }
-  #settings-toggle:hover { background: var(--fill); color: var(--text); }
-  #settings-toggle::after {
-    content: "";
-    margin-left: auto;
-    width: 7px;
-    height: 7px;
-    border-right: 1.5px solid currentColor;
-    border-bottom: 1.5px solid currentColor;
-    transform: rotate(45deg) translate(-1px, -1px);
+  .settings-card.sprite-row h3 { margin: 0; flex: none; }
+  .settings-card h3 {
+    margin: 0 0 8px;
+    font-family: var(--sans);
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
   }
-  #settings-toggle[aria-expanded="true"]::after {
-    transform: rotate(225deg) translate(-1px, -1px);
-  }
-  #settings { display: none; padding: 2px 8px 4px; }
-  #settings.open { display: block; }
   #settings p {
     color: var(--muted);
     font-size: 13px;
     line-height: 1.45;
-    margin: 0 0 10px;
+    margin: 0 0 12px;
   }
-  #sprite-meta {
+  @media (max-width: 760px) {
+    #settings { width: calc(100vw - 24px); height: calc(100vh - 24px); padding: 20px 16px 24px; }
+    .settings-grid { grid-template-columns: 1fr; }
+  }
+  #settings #sprite-meta {
+    flex: 1;
+    min-width: 0;
     font-family: var(--mono);
-    font-size: 11.5px;
-    line-height: 1.55;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    margin: 0 4px 12px;
-    padding: 10px 12px;
+    font-size: 12px;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin: 0;
+    padding: 0;
     color: var(--muted);
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.035);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
-  #settings .hint { padding: 0 4px; }
+  #settings #deploy { margin: 0; flex: none; }
+  #settings .hint { padding: 0; }
   #settings button {
-    display: block;
-    width: calc(100% - 8px);
-    margin: 0 4px 8px;
+    display: inline-flex;
+    width: auto;
+    margin: 0 8px 8px 0;
     border-radius: 999px;
-    padding: 9px 14px;
+    padding: 9px 16px;
     background: transparent;
     border: 1px solid var(--line-strong);
     color: var(--text);
@@ -356,14 +470,14 @@
   }
   #settings #export:hover { background: #eceeed; }
   #export-status:empty { display: none; }
-  #export-status { margin-top: -2px; }
+  #export-status { margin-top: 4px; }
   #settings #destroy {
     color: var(--danger);
     border-color: rgba(255, 140, 148, 0.4);
     background: rgba(255, 80, 90, 0.06);
   }
   #settings #destroy:hover { background: rgba(255, 80, 90, 0.12); }
-  #settings .setup-field { margin: 0 4px 10px; }
+  #settings .setup-field { margin: 0 0 12px; }
   #settings input, #settings select {
     width: 100%;
     border: 1px solid var(--line-strong);
@@ -566,8 +680,11 @@
   .steer-body {
     margin: 6px 0 0;
     color: var(--muted);
-    font-size: 13px;
-    line-height: 1.45;
+    font-family: var(--sans);
+    font-size: 17px;
+    font-weight: 400;
+    letter-spacing: 0;
+    line-height: 1.5;
     text-align: center;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -593,12 +710,15 @@
     margin: 0 0 14px;
   }
   .msg.cont { margin-top: -6px; }
-  .msg.cont.bot .avatar { visibility: hidden; }
   .msg.user { margin-left: auto; flex-direction: row-reverse; }
   .bubble {
+    font-family: var(--sans);
+    font-size: 17px;
+    font-weight: 400;
+    letter-spacing: 0;
+    line-height: 1.5;
     white-space: pre-wrap;
     overflow-wrap: break-word;
-    line-height: 1.5;
   }
   .msg.bot .bubble {
     background: rgba(255, 255, 255, 0.035);
@@ -625,7 +745,16 @@
     background: #050505;
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
   }
-  #send input { border: 0; background: transparent; padding: 10px 0; border-radius: 0; }
+  #send input {
+    border: 0;
+    background: transparent;
+    padding: 10px 0;
+    border-radius: 0;
+    font-family: var(--sans);
+    font-size: 17px;
+    font-weight: 400;
+    letter-spacing: 0;
+  }
   #send input:focus { box-shadow: none; }
   .send {
     width: 34px;
@@ -681,9 +810,10 @@
   }
   #bot-dialog h2 {
     margin: 0;
-    font-size: 22px;
+    font-family: var(--sans);
+    font-size: 26px;
     font-weight: 600;
-    letter-spacing: -0.03em;
+    letter-spacing: -0.02em;
   }
   .dialog-head {
     display: flex;
@@ -700,8 +830,10 @@
     margin: 0 0 6px;
     padding: 0;
     color: var(--muted);
-    font-size: 13px;
-    font-weight: 600;
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.04em;
   }
   #bot-dialog textarea {
     min-height: 96px;
@@ -752,18 +884,21 @@
       scroll-behavior: auto !important;
     }
     .glow::before { filter: none; }
-    #bot-dialog::backdrop { backdrop-filter: none; }
+    #bot-dialog::backdrop, #settings::backdrop { backdrop-filter: none; }
   }
 </style>
 </head>
-<body>
+<body class="pending">
 <p id="local-badge">Local simulator</p>
+<div id="boot" role="status" aria-label="Checking saved credentials">
+  <div class="spinner"></div>
+</div>
 <div id="setup">
   <div class="card">
     <div class="glow setup-glow"><img class="setup-mark" src="/logo.png" alt="Pi Orbs"></div>
     <h1>Pi Orbs</h1>
     <p id="setup-copy">Paste a Sprites API token. Pi Orbs uses it to talk to api.sprites.dev.</p>
-    <form id="token-form">
+    <form id="token-form" novalidate>
       <label class="setup-field" for="sprites-token">
         <span>Sprites API token</span>
         <input id="sprites-token" name="token" type="password" autocomplete="off" required>
@@ -771,7 +906,7 @@
       <p class="setup-hint">The token stays on this machine. It is how Pi Orbs creates and deploys the sprite.</p>
       <button id="token-button" type="submit">Save token</button>
     </form>
-    <form id="create-sprite" hidden>
+    <form id="create-sprite" hidden novalidate>
       <label class="setup-field" for="sprite-name">
         <span>Sprite name</span>
         <input id="sprite-name" name="name" autocomplete="off" required>
@@ -819,6 +954,12 @@
   <aside aria-label="Roster">
     <div class="brand">
       <strong>Pi Orbs</strong>
+      <button id="settings-toggle" type="button" aria-label="Settings" aria-expanded="false" aria-controls="settings">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        </svg>
+      </button>
     </div>
     <div class="side-head">
       <div class="side-label">Bots</div>
@@ -828,45 +969,10 @@
         </svg>
       </button>
     </div>
-    <div id="bots"></div>
-    <div class="side-foot">
-      <button id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings">Settings</button>
-      <div id="settings">
-        <p id="sprite-meta"></p>
-        <p class="hint">Optional. A Grok or OpenAI realtime key starts a voice call with the open bot. The key stays on this machine.</p>
-        <form id="voice-settings">
-          <label class="setup-field" for="voice-provider">
-            <span>Voice</span>
-            <select id="voice-provider" name="voiceProvider">
-              <option value="">Off</option>
-              <option value="grok">Grok</option>
-              <option value="openai">OpenAI</option>
-            </select>
-          </label>
-          <label class="setup-field" for="voice-key">
-            <span>Voice API key</span>
-            <input id="voice-key" name="voiceApiKey" type="password" autocomplete="off" placeholder="Leave blank to keep the saved key">
-          </label>
-          <button id="voice-save" type="submit">Save voice</button>
-          <p id="voice-status" class="hint" role="status"></p>
-        </form>
-        <p class="hint">Optional. A cron-job.org key lets a bot schedule a message into its own chat. The key stays on this machine.</p>
-        <form id="cron-settings">
-          <label class="setup-field" for="cron-key">
-            <span>cron-job.org API key</span>
-            <input id="cron-key" name="cronApiKey" type="password" autocomplete="off" placeholder="Leave blank to keep the saved key">
-          </label>
-          <button id="cron-save" type="submit">Save cron key</button>
-          <button id="cron-clear" type="button">Remove key</button>
-          <p id="cron-status" class="hint" role="status"></p>
-        </form>
-        <p class="hint">Downloads a zip of every bot thread: JSON transcripts with id, name, and timestamps. API keys stay on this machine.</p>
-        <button id="export" type="button">Download all conversations</button>
-        <p id="export-status" class="hint" role="status"></p>
-        <button id="deploy" type="button">Push server build</button>
-        <p class="hint">Destroying the sprite deletes its disk, bots, and URL.</p>
-        <button id="destroy" type="button">Destroy sprite</button>
-      </div>
+    <div id="bots" aria-busy="true">
+      <div class="row skeleton" aria-hidden="true"><span class="sk sk-face"></span><span class="sk-copy"><span class="sk sk-name"></span><span class="sk sk-sub"></span></span></div>
+      <div class="row skeleton" aria-hidden="true"><span class="sk sk-face"></span><span class="sk-copy"><span class="sk sk-name"></span><span class="sk sk-sub"></span></span></div>
+      <div class="row skeleton" aria-hidden="true"><span class="sk sk-face"></span><span class="sk-copy"><span class="sk sk-name"></span><span class="sk sk-sub"></span></span></div>
     </div>
   </aside>
   <section class="thread" aria-label="Thread">
@@ -899,7 +1005,7 @@
       </div>
     <div id="log"></div>
     <div class="composer">
-      <form id="send">
+      <form id="send" novalidate>
         <label class="sr-only" for="message">Message</label>
         <input id="message" name="content" placeholder="Message" autocomplete="off" required>
         <button class="send" id="send-button" type="submit" aria-label="Send">
@@ -918,7 +1024,7 @@
   </section>
 </main>
 <dialog id="bot-dialog" aria-labelledby="bot-dialog-title">
-  <form id="bot-form">
+  <form id="bot-form" novalidate>
     <div class="dialog-head">
       <pi-face class="avatar" id="dialog-avatar" aria-hidden="true"></pi-face>
       <div class="dialog-intro">
@@ -945,6 +1051,66 @@
       <button id="bot-save" type="submit">Create</button>
     </div>
   </form>
+</dialog>
+<dialog id="settings" aria-labelledby="settings-title">
+  <div class="settings-head">
+    <div>
+      <h2 id="settings-title">Settings</h2>
+      <p class="dialog-copy">Voice, schedules, export, and this sprite.</p>
+    </div>
+    <button id="settings-close" type="button">Close</button>
+  </div>
+  <div class="settings-grid">
+    <section class="settings-card wide sprite-row">
+      <h3>Sprite</h3>
+      <p id="sprite-meta"></p>
+      <button id="deploy" type="button">Push server build</button>
+    </section>
+    <section class="settings-card">
+      <h3>Voice</h3>
+      <p class="hint">Optional. A Grok or OpenAI realtime key starts a voice call with the open bot. The key stays on this machine.</p>
+      <form id="voice-settings">
+        <label class="setup-field" for="voice-provider">
+          <span>Voice</span>
+          <select id="voice-provider" name="voiceProvider">
+            <option value="">Off</option>
+            <option value="grok">Grok</option>
+            <option value="openai">OpenAI</option>
+          </select>
+        </label>
+        <label class="setup-field" for="voice-key">
+          <span>Voice API key</span>
+          <input id="voice-key" name="voiceApiKey" type="password" autocomplete="off" placeholder="Leave blank to keep the saved key">
+        </label>
+        <button id="voice-save" type="submit">Save voice</button>
+        <p id="voice-status" class="hint" role="status"></p>
+      </form>
+    </section>
+    <section class="settings-card">
+      <h3>Schedules</h3>
+      <p class="hint">Optional. A cron-job.org key lets a bot schedule a message into its own chat. The key stays on this machine.</p>
+      <form id="cron-settings">
+        <label class="setup-field" for="cron-key">
+          <span>cron-job.org API key</span>
+          <input id="cron-key" name="cronApiKey" type="password" autocomplete="off" placeholder="Leave blank to keep the saved key">
+        </label>
+        <button id="cron-save" type="submit">Save cron key</button>
+        <button id="cron-clear" type="button">Remove key</button>
+        <p id="cron-status" class="hint" role="status"></p>
+      </form>
+    </section>
+    <section class="settings-card">
+      <h3>Conversations</h3>
+      <p class="hint">Downloads a zip of every bot thread: JSON transcripts with id, name, and timestamps. API keys stay on this machine.</p>
+      <button id="export" type="button">Download all conversations</button>
+      <p id="export-status" class="hint" role="status"></p>
+    </section>
+    <section class="settings-card">
+      <h3>Danger</h3>
+      <p class="hint">Destroying the sprite deletes its disk, bots, and URL.</p>
+      <button id="destroy" type="button">Destroy sprite</button>
+    </section>
+  </div>
 </dialog>
 <script>
 const LOOKS = [
@@ -1150,7 +1316,7 @@ async function api(path, options) {
   return body;
 }
 function showSetup(copy) {
-  document.body.classList.remove("ready");
+  document.body.classList.remove("pending", "ready");
   document.querySelector("#setup-copy").textContent = copy;
 }
 function setThreadHead(name, sub, look) {
@@ -1203,7 +1369,11 @@ document.querySelector("#token-form").onsubmit = async (event) => {
   event.preventDefault();
   const button = document.querySelector("#token-button");
   const status = document.querySelector("#status");
-  const token = String(new FormData(event.target).get("token") || "");
+  const token = String(new FormData(event.target).get("token") || "").trim();
+  if (!token) {
+    status.textContent = "";
+    return;
+  }
   button.disabled = true;
   status.textContent = "Checking the Sprites API token.";
   try {
@@ -1256,14 +1426,39 @@ async function refreshHome() {
   }
   resetSetupKey(true);
   document.querySelector("#create-button").textContent = "Create and deploy";
+  document.body.classList.remove("pending");
   document.body.classList.add("ready");
   await refreshBots(body.sprite);
+}
+function showBotSkeletons() {
+  const box = document.querySelector("#bots");
+  box.setAttribute("aria-busy", "true");
+  if (box.querySelector(".row.skeleton")) return;
+  box.innerHTML = "";
+  for (let i = 0; i < 3; i++) {
+    const row = document.createElement("div");
+    row.className = "row skeleton";
+    row.setAttribute("aria-hidden", "true");
+    row.innerHTML = '<span class="sk sk-face"></span><span class="sk-copy"><span class="sk sk-name"></span><span class="sk sk-sub"></span></span>';
+    box.append(row);
+  }
 }
 async function refreshBots(sprite) {
   const meta = document.querySelector("#sprite-meta");
   const box = document.querySelector("#bots");
-  const body = sprite && sprite.bots ? sprite : await api("/api/sprites/" + state.sprite);
-  meta.textContent = body.url + (body.update ? "\nupdate available" : "");
+  const known = sprite && sprite.bots;
+  if (!known && !box.querySelector(".row:not(.skeleton)")) showBotSkeletons();
+  let body;
+  try {
+    body = known ? sprite : await api("/api/sprites/" + state.sprite);
+  } catch (error) {
+    if (!box.querySelector(".row:not(.skeleton)")) {
+      box.innerHTML = "";
+      box.removeAttribute("aria-busy");
+    }
+    throw error;
+  }
+  meta.textContent = body.url + (body.update ? " · update available" : "");
   applyVoice(body);
   applyCron(body);
   const bots = body.bots || [];
@@ -1271,6 +1466,7 @@ async function refreshBots(sprite) {
   if (!state.bot && bots[0]) state.bot = bots[0].id;
   if (state.bot && !bots.some((bot) => bot.id === state.bot)) state.bot = bots[0] ? bots[0].id : null;
   box.innerHTML = "";
+  box.removeAttribute("aria-busy");
   for (const bot of bots) {
     const row = document.createElement("div");
     row.className = "row" + (state.bot === bot.id ? " on" : "");
@@ -1452,12 +1648,6 @@ async function refreshThread() {
     const block = document.createElement("div");
     block.className = "msg " + kind + (previous === kind ? " cont" : "");
     previous = kind;
-    if (!mine) {
-      const face = document.createElement("pi-face");
-      face.className = "avatar sm";
-      paintAvatar(face, body.bot);
-      block.append(face);
-    }
     const bubble = document.createElement("div");
     bubble.className = "bubble";
     bubble.textContent = message.text;
@@ -1471,14 +1661,19 @@ document.querySelector("#create-sprite").onsubmit = async (event) => {
   const button = document.querySelector("#create-button");
   const status = document.querySelector("#status");
   const data = new FormData(event.target);
+  const name = String(data.get("name") || "").trim();
+  const apiKey = String(data.get("apiKey") || "");
+  const baseApiUrl = String(data.get("baseApiUrl") || "").trim();
+  const model = String(data.get("model") || "").trim();
+  const keyRequired = document.querySelector("#api-key").required;
+  if (!name || !baseApiUrl || !model || (keyRequired && !apiKey.trim())) {
+    status.textContent = "";
+    return;
+  }
   button.disabled = true;
   status.textContent = "Creating the sprite and installing the server. This takes a few minutes.";
   try {
-    const name = data.get("name");
-    const apiKey = String(data.get("apiKey") || "");
     const connectorType = String(data.get("connectorType") || "");
-    const baseApiUrl = String(data.get("baseApiUrl") || "").trim();
-    const model = String(data.get("model") || "").trim();
     const existing = state.sprite === name;
     const fields = { connectorType, baseApiUrl, model };
     const voice = {
@@ -1561,7 +1756,6 @@ function openBotDialog(bot) {
   document.querySelector("#bot-delete").hidden = !bot;
   botName.value = bot ? bot.name : "";
   botInstruction.value = bot && bot.instruction ? bot.instruction : "";
-  botName.setCustomValidity("");
   botError.textContent = "";
   const used = state.bots.map((item) => item.look);
   selectLook(bot && knownLook(bot.look) ? bot.look : nextLook(used));
@@ -1569,7 +1763,7 @@ function openBotDialog(bot) {
   botName.focus();
 }
 botName.addEventListener("input", () => {
-  botName.setCustomValidity("");
+  botError.textContent = "";
   paintDialogAvatar();
 });
 botDialog.addEventListener("cancel", (event) => {
@@ -1615,11 +1809,10 @@ botForm.onsubmit = async (event) => {
   botName.value = botName.value.trim();
   botInstruction.value = botInstruction.value.trim();
   if (!botName.value) {
-    botName.setCustomValidity("Name is required.");
-    botName.reportValidity();
+    botError.textContent = "Name is required.";
+    botName.focus();
     return;
   }
-  botName.setCustomValidity("");
   const editing = botDialog.dataset.mode === "edit";
   const id = botDialog.dataset.id;
   const save = document.querySelector("#bot-save");
@@ -1650,11 +1843,19 @@ botForm.onsubmit = async (event) => {
     save.disabled = false;
   }
 };
-document.querySelector("#settings-toggle").onclick = () => {
-  const panel = document.querySelector("#settings");
-  const open = panel.classList.toggle("open");
-  document.querySelector("#settings-toggle").setAttribute("aria-expanded", open ? "true" : "false");
+const settingsDialog = document.querySelector("#settings");
+const settingsToggle = document.querySelector("#settings-toggle");
+settingsToggle.onclick = () => {
+  if (typeof settingsDialog.showModal === "function") settingsDialog.showModal();
+  settingsToggle.setAttribute("aria-expanded", "true");
 };
+document.querySelector("#settings-close").onclick = () => settingsDialog.close();
+settingsDialog.addEventListener("click", (event) => {
+  if (event.target === settingsDialog) settingsDialog.close();
+});
+settingsDialog.addEventListener("close", () => {
+  settingsToggle.setAttribute("aria-expanded", "false");
+});
 document.querySelector("#export").onclick = async () => {
   if (!state.sprite) return;
   const button = document.querySelector("#export");
@@ -1705,19 +1906,20 @@ document.querySelector("#destroy").onclick = async () => {
   await api("/api/sprites/" + name, { method: "DELETE" });
   state.sprite = null;
   state.bot = null;
-  document.querySelector("#settings").classList.remove("open");
-  document.querySelector("#settings-toggle").setAttribute("aria-expanded", "false");
+  settingsDialog.close();
   await refreshHome();
 };
 document.querySelector("#send").onsubmit = async (event) => {
   event.preventDefault();
   if (!state.sprite || !state.bot) return;
   const data = new FormData(event.target);
+  const content = String(data.get("content") || "").trim();
+  if (!content) return;
   const button = event.target.querySelector("button");
   button.disabled = true;
   stickToBottom = true;
   try {
-    await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/messages", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ content: data.get("content") }) });
+    await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/messages", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ content }) });
     event.target.reset();
     paintVoiceButton();
     setTimeout(refreshThread, 1500);
@@ -2165,7 +2367,10 @@ async function loadPresets() {
   document.querySelector("#create-button").disabled = false;
 }
 document.querySelector("#create-button").disabled = true;
-loadPresets().then(() => refreshHome()).catch((error) => { document.querySelector("#status").textContent = error.message; });
+loadPresets().then(() => refreshHome()).catch((error) => {
+  document.body.classList.remove("pending");
+  document.querySelector("#status").textContent = error.message;
+});
 setInterval(() => {
   if (!state.sprite || !state.bot) return;
   refreshThread();
