@@ -48,8 +48,8 @@ npm run check
 
 | Time | Frames | Beat |
 | --- | --- | --- |
-| 0.0–5.3s | 0–160 | Title: live π-face (`look="silver"`) + **Pi Orbs** + 0.3 |
-| 4.3–7.3s | 128–220 | Tagline: Named Pi bots on one shared Fly.io Sprite |
+| 0.0–7.3s | 0–220 | Title: live π-face (`look="silver"`) + **Pi Orbs** + 0.3 |
+| 3.9–7.3s | 118–220 | Tagline under the title: Named Pi bots on one shared Fly.io Sprite |
 | 6.7–18.1s | 200–542 | Product: `OffthreadVideo` of `pi-orbs-site-hero.mp4`, trimmed to the live app (skips the old 0.2 orb open and the v0.2.0 end card). Captions: Sprites API token, optional voice, scheduled messages, MCP event webhooks |
 | 17.6–24.7s | 528–740 | Brand: pastel π-face row. Live π-face — pastels, dark teal eyes, traced π, blush |
 | 23.7–32.0s | 710–960 | CTA: **`npx pi-orbs`** and piorbs.com |

@@ -46,8 +46,8 @@ export const HERO_TRIM_AFTER = 414;
 export const HERO_FRAMES = HERO_TRIM_AFTER - HERO_TRIM_BEFORE;
 
 export const TITLE_IN = 0;
-export const TITLE_OUT = 160;
-export const TAG_IN = 128;
+export const TITLE_OUT = 220;
+export const TAG_IN = 118;
 export const TAG_OUT = 220;
 export const PRODUCT_IN = 200;
 export const PRODUCT_OUT = PRODUCT_IN + HERO_FRAMES;

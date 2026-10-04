@@ -57,7 +57,8 @@ const TitleCard: React.FC = () => {
     config: { damping: 16, stiffness: 90, mass: 0.85 },
   });
   const titleY = rise(frame, 8, 36, 22);
-  const sub = fade(frame, 28, 48, TITLE_OUT - 18, TITLE_OUT);
+  const version = fade(frame, 28, 48, TAG_IN - 8, TAG_IN + 10);
+  const line = fade(frame, TAG_IN, TAG_IN + 16, TAG_OUT - 16, TAG_OUT);
 
   return (
     <AbsoluteFill
@@ -89,42 +90,35 @@ const TitleCard: React.FC = () => {
         >
           Pi Orbs
         </div>
-        <div
-          style={{
-            marginTop: 16,
-            fontFamily: MONO,
-            fontSize: 18,
-            letterSpacing: "0.18em",
-            color: COLORS.muted,
-            opacity: sub,
-          }}
-        >
-          0.3
+        <div style={{ position: "relative", marginTop: 20, minHeight: 44, width: 820 }}>
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              textAlign: "center",
+              fontFamily: MONO,
+              fontSize: 22,
+              letterSpacing: "0.14em",
+              color: COLORS.text,
+              opacity: version,
+            }}
+          >
+            0.3
+          </div>
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              textAlign: "center",
+              fontSize: 26,
+              lineHeight: 1.4,
+              color: COLORS.muted,
+              opacity: line,
+            }}
+          >
+            Named Pi bots on one shared Fly.io Sprite
+          </div>
         </div>
-      </div>
-    </AbsoluteFill>
-  );
-};
-
-const Tagline: React.FC = () => {
-  const frame = useCurrentFrame();
-  const opacity = fade(frame, TAG_IN, TAG_IN + 16, TAG_OUT - 16, TAG_OUT);
-  const y = rise(frame, TAG_IN, TAG_IN + 22, 16);
-
-  return (
-    <AbsoluteFill style={{ opacity, alignItems: "center", justifyContent: "center" }}>
-      <div
-        style={{
-          marginTop: 340,
-          maxWidth: 820,
-          textAlign: "center",
-          fontSize: 28,
-          lineHeight: 1.4,
-          color: COLORS.muted,
-          transform: `translateY(${y}px)`,
-        }}
-      >
-        Named Pi bots on one shared Fly.io Sprite
       </div>
     </AbsoluteFill>
   );
@@ -205,7 +199,7 @@ const BrandBeat: React.FC = () => {
             const appear = fade(frame, BRAND_IN + 6 + i * 4, BRAND_IN + 18 + i * 4, BRAND_OUT - 18, BRAND_OUT);
             return (
               <div key={face.look} style={{ opacity: appear }}>
-                <PiFace size={112} look={face.look} seed={face.seed} />
+                <PiFace size={128} look={face.look} seed={face.seed} />
               </div>
             );
           })}
@@ -329,7 +323,6 @@ export const Release030: React.FC = () => {
       }}
     >
       <TitleCard />
-      <Tagline />
       <Sequence from={PRODUCT_IN} durationInFrames={HERO_FRAMES} name="Product" layout="none">
         <ProductShot />
       </Sequence>
