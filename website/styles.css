@@ -103,52 +103,10 @@ code {
   white-space: nowrap;
 }
 
-.glow {
-  position: relative;
-  display: inline-grid;
-  place-items: center;
-  isolation: isolate;
-  flex: none;
-}
-
-.glow::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 160%;
-  height: 160%;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.07) 42%, transparent 68%);
-  filter: blur(8px);
-  z-index: 0;
-  pointer-events: none;
-}
-
-.glow img {
-  position: relative;
-  z-index: 1;
-  display: block;
-}
-
-.glow-nav,
 .glow-foot {
   width: 28px;
   height: 28px;
-}
-
-.glow-nav::before,
-.glow-foot::before {
-  filter: blur(4px);
-  width: 180%;
-  height: 180%;
-}
-
-.glow-nav img,
-.glow-foot img {
-  width: 28px;
-  height: 28px;
+  justify-self: center;
 }
 
 .nav-github {
@@ -225,23 +183,10 @@ code {
   text-align: center;
 }
 
-.hero-glow {
-  width: 168px;
-  height: 168px;
-  margin: 0 auto 12px;
-}
-
-.hero-glow::before {
-  width: 220px;
-  height: 220px;
-  filter: blur(12px);
-}
-
 .hero-mark {
   width: 168px;
   height: 168px;
-  margin: 0;
-  display: block;
+  margin: 0 auto 18px;
 }
 
 h1 {
@@ -624,14 +569,6 @@ footer {
     white-space: nowrap;
   }
 
-  .glow-nav,
-  .glow-nav img {
-    width: 22px;
-    height: 22px;
-  }
-
-  .glow-nav::before { display: none; }
-
   /* Menu is in the bar even when the js class never lands (inline script
      blocked, or a browser that drops html.js rules). GitHub stays in that
      row too, so the source link is visible before Menu opens. */
@@ -755,17 +692,10 @@ footer {
     overflow-x: clip;
   }
 
-  .hero-glow,
   .hero-mark {
     width: 120px;
     height: 120px;
-  }
-
-  .hero-glow { margin-bottom: 8px; }
-
-  .hero-glow::before {
-    width: 168px;
-    height: 168px;
+    margin-bottom: 8px;
   }
 
   h1 { font-size: clamp(2.75rem, 13vw, 3.5rem); }
@@ -814,5 +744,4 @@ footer {
     animation: none !important;
     transition: none !important;
   }
-  .glow::before { filter: none; }
 }
