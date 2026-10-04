@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Homepage and README screenshots. Setup shows voice and the cron-job.org key. The roster, thread, steer, and reply shots use the pastel π faces. `docs/local-demo.gif` matches that page.
+
 ### Added
 
 - 0.3 release / product video. Remotion project in `website/remotion/` renders a 1920×1080 cut to `website/pi-orbs-0.3-release.mp4`: live `<pi-face>`, the existing site hero footage, 0.3 feature captions, and `npx pi-orbs`.

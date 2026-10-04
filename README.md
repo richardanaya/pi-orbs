@@ -42,15 +42,15 @@ Open http://127.0.0.1:8787.
 
 Until a sprite is running, the page is the setup form: a sprite name, a connector, an API key, a base URL, a model, and **Create and deploy**. The connectors are xAI, OpenAI, Anthropic, and Custom. xAI is the default. That creates the Sprite, makes its URL public, stores the key in a Sprites connection, and installs the server. The connection id, the sprite URL, and an API secret are written to `~/.pi-orbs/state.json`. The API key is not copied into the sprite service environment. Voice is optional on that form: Grok or OpenAI, plus a realtime key. The voice key stays in the state file too, and the page does not receive it. A cron-job.org API key is optional on the same form. The page does not receive that key either.
 
-![Setup form with the connector list open: xAI, OpenAI, Anthropic, and Custom](docs/local-setup.png)
+![Setup form: sprite name, connector xAI, model grok-4.7, and optional voice and cron-job.org keys](docs/local-setup.png)
 
 ## The interface
 
 After a sprite is up, the page is a roster and a thread. The first bot is selected on load.
 
-![Roster of Ada, Kepler, and Nova with flat pi faces beside Ada’s thread](docs/local-roster.png)
+![Roster of Ada, Kepler, and Nova with pastel pi faces beside Ada’s thread](docs/local-roster.png)
 
-Ada, Kepler, and Nova. Flat π faces, and **Add** is the plus on the right. The selected bot’s thread is open beside the roster.
+Ada, Kepler, and Nova. Pastel π faces, and **Add** is the plus on the right. The selected bot’s thread is open beside the roster.
 
 ![Kepler’s thread with a steer from Ada between the messages](docs/local-thread.png)
 
@@ -60,7 +60,7 @@ Open the line to read who sent it and the message. The roster face pulses while 
 
 ![Ada’s thread with steers to and from Kepler opened](docs/local-peers.png)
 
-Choose **Add** (the plus) to name a bot, write its instruction, and pick a glass orb. The same dialog edits a bot from the roster, and can delete it. Each bot is its own Pi conversation. They share `/home/sprite/work` and the one model from setup. Send a message in the bar at the bottom. The thread refreshes every few seconds.
+Choose **Add** (the plus) to name a bot, write its instruction, and pick a pastel orb. The same dialog edits a bot from the roster, and can delete it. Each bot is its own Pi conversation. They share `/home/sprite/work` and the one model from setup. Send a message in the bar at the bottom. The thread refreshes every few seconds.
 
 ![Ada’s thread after a message is sent](docs/local-reply.png)
 
