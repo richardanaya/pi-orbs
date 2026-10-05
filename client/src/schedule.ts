@@ -10,7 +10,7 @@ export type PublicCron = { configured: boolean };
 
 export type JobSchedule = {
   timezone: string;
-  expiresAt: 0;
+  expiresAt: number;
   minutes: number[];
   hours: number[];
   mdays: number[];
@@ -23,12 +23,14 @@ export type ScheduleRequest = {
   cron: string;
   timezone: string;
   schedule: JobSchedule;
+  once: boolean;
+  at?: string;
 };
 
 export type CronResult = { status: number; json: unknown };
 
 export type CronCaller = (input: {
-  method: "PUT" | "DELETE";
+  method: "PUT" | "PATCH" | "DELETE";
   path: string;
   apiKey: string;
   json?: unknown;
@@ -188,18 +190,47 @@ export function readTimezone(value: string | undefined): string | { error: strin
   return zone;
 }
 
-export function readScheduleRequest(body: Record<string, unknown>): ScheduleRequest | { error: string } {
+export function onceSchedule(at: string, now = Date.now()): { cron: string; at: string; schedule: JobSchedule } | { error: string } {
+  const date = new Date(at);
+  if (Number.isNaN(date.getTime())) return { error: "time is invalid" };
+  if (date.getTime() < now - 60_000) return { error: "time is in the past" };
+  const minute = date.getUTCMinutes();
+  const hour = date.getUTCHours();
+  const day = date.getUTCDate();
+  const month = date.getUTCMonth() + 1;
+  return {
+    cron: `${minute} ${hour} ${day} ${month} *`,
+    at: date.toISOString(),
+    schedule: {
+      timezone: "UTC",
+      expiresAt: Math.floor(date.getTime() / 1000) + 180,
+      minutes: [minute],
+      hours: [hour],
+      mdays: [day],
+      months: [month],
+      wdays: [-1],
+    },
+  };
+}
+
+export function readScheduleRequest(body: Record<string, unknown>, now = Date.now()): ScheduleRequest | { error: string } {
   if (typeof body.message !== "string") return { error: "message is required" };
   const message = body.message.trim();
   if (!message) return { error: "message is required" };
   if (message.length > MESSAGE_MAX) return { error: "message is too long" };
+  const at = typeof body.at === "string" ? body.at.trim() : "";
+  if (at) {
+    const once = onceSchedule(at, now);
+    if ("error" in once) return once;
+    return { message, cron: once.cron, timezone: "UTC", schedule: once.schedule, once: true, at: once.at };
+  }
   if (typeof body.cron !== "string" || !body.cron.trim()) return { error: "cron is required" };
   if (body.timezone !== undefined && typeof body.timezone !== "string") return { error: "timezone is invalid" };
   const timezone = readTimezone(typeof body.timezone === "string" ? body.timezone : undefined);
   if (typeof timezone !== "string") return timezone;
   const schedule = parseCron(body.cron, timezone);
   if ("error" in schedule) return schedule;
-  return { message, cron: body.cron.trim(), timezone, schedule };
+  return { message, cron: body.cron.trim(), timezone, schedule, once: false };
 }
 
 export function readHookBody(body: unknown): { content: string } | { error: string } {
@@ -263,6 +294,25 @@ export async function putCronJob(
   return { error: "cron-job.org request failed", status: 502 };
 }
 
+export async function setCronJobEnabled(
+  call: CronCaller,
+  apiKey: string,
+  jobId: number,
+  enabled: boolean,
+): Promise<{ ok: true } | { error: string; status: number }> {
+  if (!apiKey.trim()) return { error: "cron-job.org API key is not configured", status: 409 };
+  let result: CronResult;
+  try {
+    result = await call({ method: "PATCH", path: `/jobs/${jobId}`, apiKey, json: { job: { enabled } } });
+  } catch {
+    return { error: "cron-job.org request failed", status: 502 };
+  }
+  if (result.status >= 200 && result.status < 300) return { ok: true };
+  if (result.status === 404) return { error: "schedule not found", status: 404 };
+  if (result.status === 401 || result.status === 403) return { error: "cron-job.org rejected the API key", status: 502 };
+  return { error: "cron-job.org request failed", status: 502 };
+}
+
 export async function deleteCronJob(
   call: CronCaller,
   apiKey: string,
@@ -280,7 +330,7 @@ export async function deleteCronJob(
   return { error: "cron-job.org request failed", status: 502 };
 }
 
-export type MemoryJob = { jobId: number; url: string; title: string; body: string; schedule: JobSchedule };
+export type MemoryJob = { jobId: number; url: string; title: string; body: string; schedule: JobSchedule; enabled: boolean };
 
 export function memoryCron(): { call: CronCaller; list: () => MemoryJob[] } {
   let next = 1;
@@ -298,8 +348,20 @@ export function memoryCron(): { call: CronCaller; list: () => MemoryJob[] } {
         title: typeof job.title === "string" ? job.title : "",
         body: job.extendedData?.body ?? "",
         schedule: job.schedule,
+        enabled: true,
       });
       return { status: 200, json: { jobId } };
+    }
+    if (method === "PATCH" && path.startsWith("/jobs/")) {
+      const id = Number(path.slice("/jobs/".length));
+      const saved = jobs.get(id);
+      if (!Number.isInteger(id) || !saved) return { status: 404, json: {} };
+      const enabled = json && typeof json === "object" && "job" in json
+        ? (json as { job?: { enabled?: unknown } }).job?.enabled
+        : undefined;
+      if (typeof enabled !== "boolean") return { status: 400, json: {} };
+      saved.enabled = enabled;
+      return { status: 200, json: { jobId: id } };
     }
     if (method === "DELETE" && path.startsWith("/jobs/")) {
       const id = Number(path.slice("/jobs/".length));

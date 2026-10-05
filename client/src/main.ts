@@ -64,6 +64,42 @@ async function saveState(state: StateFile): Promise<void> {
   await writeFile(statePath, JSON.stringify(state, null, 2));
 }
 
+async function readRaw(req: IncomingMessage, limit: number): Promise<Buffer | undefined> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += buffer.length;
+    if (size > limit) return undefined;
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks);
+}
+
+async function relaySprite(saved: SavedSprite, path: string, req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const method = req.method ?? "GET";
+  const limit = path.includes("/files") && method === "POST" ? 12_000_000 : 1_000_000;
+  let body: Buffer | undefined;
+  if (method !== "GET" && method !== "HEAD") {
+    body = await readRaw(req, limit);
+    if (!body) {
+      send(res, 413, { error: "body too large" });
+      return;
+    }
+  }
+  const response = await spriteFetch(saved, path, {
+    method,
+    ...(body && body.length > 0 ? { body: new Uint8Array(body) } : {}),
+  });
+  const type = response.headers.get("content-type") ?? "application/json; charset=utf-8";
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const bytes = Buffer.from(await response.arrayBuffer());
+  const headers: Record<string, string> = { "content-type": type, "cache-control": "no-store" };
+  if (disposition) headers["content-disposition"] = disposition;
+  res.writeHead(response.status, headers);
+  res.end(bytes);
+}
+
 async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -165,6 +201,7 @@ function contentType(file: string): string {
     case ".svg": return "image/svg+xml";
     case ".ico": return "image/x-icon";
     case ".webp": return "image/webp";
+    case ".js": return "text/javascript; charset=utf-8";
     default: return "application/octet-stream";
   }
 }
@@ -341,6 +378,17 @@ async function pushCronKey(saved: SavedSprite): Promise<void> {
 const http = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://localhost");
   try {
+    if (url.pathname === "/thread-view.js" || url.pathname === "/words.js") {
+      const file = join(dirname(fileURLToPath(import.meta.url)), url.pathname.slice(1));
+      try {
+        const body = await readFile(file);
+        res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
+        res.end(body);
+      } catch {
+        send(res, 404, { error: "not found" });
+      }
+      return;
+    }
     if (await servePublic(url.pathname, res)) return;
     if (url.pathname === "/api/connector-presets" && req.method === "GET") {
       send(res, 200, { connectors: publicConnectors() });
@@ -579,6 +627,17 @@ const http = createServer(async (req, res) => {
         return;
       }
       send(res, 404, { error: "not found" });
+      return;
+    }
+    const botExtra = url.pathname.match(/^\/api\/sprites\/([^/]+)\/bots\/([^/]+)\/(schedules|questions|files|work)(?:\/([^/]+))?(?:\/([^/]+))?$/);
+    if (botExtra) {
+      const saved = state.sprites.find((item) => item.name === botExtra[1]);
+      if (!saved) {
+        send(res, 404, { error: "sprite is not managed by this client" });
+        return;
+      }
+      const tail = [botExtra[3], botExtra[4], botExtra[5]].filter((part): part is string => Boolean(part));
+      await relaySprite(saved, `/api/bots/${botExtra[2]}/${tail.join("/")}`, req, res);
       return;
     }
     const route = url.pathname.match(/^\/api\/sprites\/([^/]+)(\/bots(?:\/([^/]+)(?:\/messages)?)?)?(\/deploy)?$/);

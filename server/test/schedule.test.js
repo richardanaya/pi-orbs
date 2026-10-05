@@ -1,7 +1,22 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import test from "node:test";
-import { deleteCronJob, fetchCron, parseCron, putCronJob, readHookBody, tokensEqual } from "../dist/schedule.js";
+import { deleteCronJob, fetchCron, onceSchedule, parseCron, putCronJob, readHookBody, readScheduleRequest, setCronJobEnabled, tokensEqual } from "../dist/schedule.js";
+
+test("onceSchedule turns an ISO time into a single UTC cron minute", () => {
+  const at = "2026-10-06T15:04:00.000Z";
+  const once = onceSchedule(at, Date.parse("2026-10-05T12:00:00.000Z"));
+  assert.equal(once.cron, "4 15 6 10 *");
+  assert.equal(once.at, at);
+  assert.equal(once.schedule.expiresAt, Math.floor(Date.parse(at) / 1000) + 180);
+  assert.deepEqual(once.schedule.minutes, [4]);
+  assert.equal(onceSchedule("not-a-time").error, "time is invalid");
+  assert.equal(onceSchedule("2020-01-01T00:00:00.000Z", Date.parse(at)).error, "time is in the past");
+  const read = readScheduleRequest({ message: "Remind me.", at }, Date.parse("2026-10-05T12:00:00.000Z"));
+  assert.equal(read.once, true);
+  assert.equal(read.cron, "4 15 6 10 *");
+  assert.equal(readScheduleRequest({ message: "Later." }).error, "cron is required");
+});
 
 test("parseCron accepts five fields and rejects a bad expression", () => {
   assert.deepEqual(parseCron("0 9 * * 1", "UTC"), {
@@ -48,6 +63,18 @@ test("putCronJob posts the webhook and delete removes that job", async () => {
       res.end(JSON.stringify({ jobId }));
       return;
     }
+    if (req.method === "PATCH" && req.url === "/jobs/1") {
+      const job = jobs.get(1);
+      if (!job) {
+        res.writeHead(404, { "content-type": "application/json" });
+        res.end("{}");
+        return;
+      }
+      job.job.enabled = body.job.enabled;
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end("{}");
+      return;
+    }
     if (req.method === "DELETE" && req.url === "/jobs/1") {
       jobs.delete(1);
       res.writeHead(200, { "content-type": "application/json" });
@@ -78,9 +105,17 @@ test("putCronJob posts the webhook and delete removes that job", async () => {
     assert.equal(seen[0].body.job.url, "http://127.0.0.1/hooks/abc");
     assert.equal(seen[0].body.job.extendedData.body, JSON.stringify({ content: "Check the status page." }));
     assert.equal(JSON.stringify(seen[0].body).includes("cron-test-key"), false);
+    const paused = await setCronJobEnabled(call, "cron-test-key", 1, false);
+    assert.deepEqual(paused, { ok: true });
+    assert.equal(seen.at(-1).method, "PATCH");
+    assert.equal(seen.at(-1).body.job.enabled, false);
+    assert.equal(jobs.get(1).job.enabled, false);
+    const resumed = await setCronJobEnabled(call, "cron-test-key", 1, true);
+    assert.deepEqual(resumed, { ok: true });
+    assert.equal(jobs.get(1).job.enabled, true);
     const removed = await deleteCronJob(call, "cron-test-key", 1);
     assert.deepEqual(removed, { ok: true });
-    assert.equal(seen[1].method, "DELETE");
+    assert.equal(seen.at(-1).method, "DELETE");
     assert.equal(jobs.size, 0);
     const missing = await putCronJob(call, "", {
       url: "http://127.0.0.1/hooks/abc",
