@@ -40,6 +40,37 @@ import {
 } from "./schedule.js";
 import { answerText, decodeBase64, fileMarker, readAnswerInput, readQuestionInput, safeFileName, takeFileMarker } from "./thread-view.js";
 import { hangLimit, hangNote, isHung, workingOn } from "./work.js";
+import {
+  CHECK_IN_MS,
+  CHECK_IN_PROMPT,
+  copyName,
+  deleteSecret,
+  dismissSecret,
+  dropBot,
+  expireApprovals,
+  forgetMemory,
+  fulfillSecret,
+  guardRoster,
+  guardSpawn,
+  normalizeApprovals,
+  publicApprovals,
+  publicMemories,
+  publicVault,
+  readTemplate,
+  redactText,
+  requestSecret,
+  resolveApproval,
+  reviewAction,
+  revokeAlways,
+  saveMemory,
+  searchPalette,
+  templateFrom,
+  vaultValues,
+  type ApprovalState,
+  type MemoryRecord,
+  type SearchMessage,
+  type VaultState,
+} from "./features.js";
 
 const LOOKS = ["slate", "silver", "mist", "tide", "pine", "amber", "clay", "plum"] as const;
 const NAME_MAX = 80;
@@ -84,6 +115,7 @@ type Bot = {
   hookToken: string;
   messages: Message[];
   busyUntil?: number;
+  createdBy?: string;
 };
 type ScheduledJob = {
   botId: string;
@@ -115,6 +147,11 @@ let cronJobs = memoryCron();
 let files: StoredFile[] = [];
 let questions: Question[] = [];
 let work: WorkItem[] = [];
+let memories: MemoryRecord[] = [];
+let vault: VaultState = { secrets: [], requests: [] };
+let approvals: ApprovalState = { cards: [], grants: [] };
+let mainBotId: string | null = null;
+let nextCheckInAt = 0;
 let nextFile = 1;
 let nextQuestion = 1;
 let nextOption = 1;
@@ -131,7 +168,7 @@ function publicMessage(item: Message): { id: string; kind: Kind; text: string; f
   return {
     id: item.id,
     kind: item.kind,
-    text: taken.text,
+    text: redactText(taken.text, secretValues()),
     ...(item.files && item.files.length > 0 ? { files: item.files } : {}),
   };
 }
@@ -201,7 +238,7 @@ function threadMessages(bot: Bot) {
     const line = {
       id: `peer:${peer.id}`,
       kind: "pi.peer",
-      text: peer.content,
+      text: redactText(peer.content, secretValues()),
       createdAt: peer.createdAt,
       from: peer.from,
       to: peer.to,
@@ -296,6 +333,11 @@ function reset(name: string, connector: SpriteConnector = defaultConnector(), sa
   files = [];
   questions = [];
   work = [];
+  memories = [];
+  vault = { secrets: [], requests: [] };
+  approvals = { cards: [], grants: [] };
+  mainBotId = null;
+  nextCheckInAt = 0;
   nextFile = 1;
   nextQuestion = 1;
   nextOption = 1;
@@ -397,8 +439,109 @@ function readFields(body: Record<string, unknown>, mode: "create" | "edit"): Fie
   return patch;
 }
 
-function publicBot(bot: Bot): { id: string; name: string; conversationId: string; instruction: string; look: Look } {
-  return { id: bot.id, name: bot.name, conversationId: bot.conversationId, instruction: bot.instruction, look: bot.look };
+function publicBot(bot: Bot): {
+  id: string;
+  name: string;
+  conversationId: string;
+  instruction: string;
+  look: Look;
+  createdBy?: string;
+  main?: true;
+} {
+  return {
+    id: bot.id,
+    name: bot.name,
+    conversationId: bot.conversationId,
+    instruction: bot.instruction,
+    look: bot.look,
+    ...(bot.createdBy ? { createdBy: bot.createdBy } : {}),
+    ...(bot.id === mainBotId ? { main: true } : {}),
+  };
+}
+
+function createLocalBot(fields: FieldPatch, createdBy?: string): { status: number; body: Record<string, unknown> } {
+  const guard = createdBy ? guardSpawn(bots, createdBy) : guardRoster(bots.length);
+  if ("error" in guard) return { status: guard.error === "bot not found" ? 404 : 409, body: { error: guard.error } };
+  const id = `bot-${nextBot++}`;
+  const bot: Bot = {
+    id,
+    name: fields.name ?? "",
+    conversationId: id,
+    instruction: fields.instruction ?? "",
+    look: fields.look ?? nextLook(bots.map((item) => item.look)),
+    hookToken: newHookToken(),
+    messages: [],
+    ...(createdBy ? { createdBy } : {}),
+  };
+  bots.push(bot);
+  return { status: 201, body: publicBot(bot) };
+}
+
+function mainBody(): { botId: string | null; nextCheckInAt: string | null } {
+  return {
+    botId: mainBotId,
+    nextCheckInAt: nextCheckInAt > 0 ? new Date(nextCheckInAt).toISOString() : null,
+  };
+}
+
+function coordinate(bot: Bot): void {
+  const other = bots.find((item) => item.id !== bot.id);
+  if (!other) return;
+  const id = `peer-${nextPeer++}`;
+  rememberPeer({
+    id,
+    from: bot.id,
+    to: other.id,
+    fromName: bot.name,
+    toName: other.name,
+    content: "Main Bot check-in. Continue your current work and report anything blocked.",
+    submissionId: `local-${id}`,
+    createdAt: new Date().toISOString(),
+  });
+  other.busyUntil = Date.now() + PEER_BUSY_MS;
+}
+
+function runCheckIn(force: boolean): { status: number; body: Record<string, unknown> } {
+  const bot = mainBotId ? bots.find((item) => item.id === mainBotId) : undefined;
+  if (!bot) return { status: 409, body: { error: "no Main Bot" } };
+  if (!force && Date.now() < nextCheckInAt) return { status: 409, body: { error: "check-in is not due" } };
+  nextCheckInAt = Date.now() + CHECK_IN_MS;
+  const submitted = submitHuman(bot, CHECK_IN_PROMPT);
+  coordinate(bot);
+  return { status: 202, body: { ...submitted, botId: bot.id } };
+}
+
+function maybeCheckIn(): void {
+  if (!mainBotId || Date.now() < nextCheckInAt) return;
+  runCheckIn(false);
+}
+
+function searchMessages(): SearchMessage[] {
+  const messages: SearchMessage[] = [];
+  for (const bot of bots) {
+    for (const item of threadMessages(bot)) {
+      messages.push({
+        botId: bot.id,
+        botName: bot.name,
+        look: bot.look,
+        messageId: item.id,
+        kind: item.kind,
+        text: item.text,
+        createdAt: item.createdAt,
+      });
+    }
+  }
+  return messages;
+}
+
+function forgetLocalBot(botId: string): void {
+  memories = dropBot(memories, botId);
+  vault = { secrets: dropBot(vault.secrets, botId), requests: dropBot(vault.requests, botId) };
+  approvals = { cards: dropBot(approvals.cards, botId), grants: dropBot(approvals.grants, botId) };
+  if (mainBotId === botId) {
+    mainBotId = null;
+    nextCheckInAt = 0;
+  }
 }
 
 function requestBase(req: IncomingMessage): string {
@@ -442,7 +585,7 @@ function publicPeer(record: Peer): {
     to: record.to,
     fromName: record.fromName,
     toName: record.toName,
-    content: record.content,
+    content: redactText(record.content, secretValues()),
     submissionId: record.submissionId,
     ...(record.entryId ? { entryId: record.entryId } : {}),
     createdAt: record.createdAt,
@@ -508,6 +651,7 @@ function secretValues(): string[] {
     ...(sprite?.voice ? [sprite.voice.apiKey] : []),
     ...(sprite?.cronApiKey ? [sprite.cronApiKey] : []),
     ...bots.map((bot) => bot.hookToken),
+    ...vaultValues(vault),
   ];
 }
 
@@ -708,6 +852,11 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
     files = [];
     questions = [];
     work = [];
+    memories = [];
+    vault = { secrets: [], requests: [] };
+    approvals = { cards: [], grants: [] };
+    mainBotId = null;
+    nextCheckInAt = 0;
     send(res, 200, { ok: true });
     return;
   }
@@ -752,7 +901,29 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
     return;
   }
   if (rest.length === 1 && rest[0] === "activity" && req.method === "GET") {
+    maybeCheckIn();
     send(res, 200, { busy: busyIds(), status: statusLines() });
+    return;
+  }
+  if (rest.length === 1 && rest[0] === "search" && req.method === "GET") {
+    const needles = secretValues();
+    const result = searchPalette(url.searchParams.get("q") ?? "", bots.map((bot) => ({
+      id: bot.id,
+      name: redactText(bot.name, needles),
+      look: bot.look,
+      instruction: redactText(bot.instruction, needles),
+      ...(bot.id === mainBotId ? { main: true } : {}),
+    })), searchMessages());
+    send(res, 200, result);
+    return;
+  }
+  if (rest.length === 1 && rest[0] === "main" && req.method === "GET") {
+    send(res, 200, mainBody());
+    return;
+  }
+  if (rest.length === 2 && rest[0] === "main" && rest[1] === "check-in" && req.method === "POST") {
+    const result = runCheckIn(true);
+    send(res, result.status, result.body);
     return;
   }
   if (rest.length === 0 && req.method === "GET") {
@@ -763,24 +934,33 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
     });
     return;
   }
+  if (rest[0] === "bots" && rest.length === 2 && rest[1] === "import" && req.method === "POST") {
+    const read = readTemplate(await readJson(req));
+    if ("error" in read) {
+      send(res, 400, { error: read.error });
+      return;
+    }
+    const room = guardRoster(bots.length);
+    if ("error" in room) {
+      send(res, 409, { error: room.error });
+      return;
+    }
+    const created = createLocalBot({
+      name: copyName(read.name, bots.map((bot) => bot.name)),
+      instruction: read.instruction,
+      look: read.look,
+    });
+    send(res, created.status, created.body);
+    return;
+  }
   if (rest[0] === "bots" && rest.length === 1 && req.method === "POST") {
     const fields = readFields(await readJson(req), "create");
     if ("error" in fields) {
       send(res, 400, { error: fields.error });
       return;
     }
-    const id = `bot-${nextBot++}`;
-    const bot: Bot = {
-      id,
-      name: fields.name ?? "",
-      conversationId: id,
-      instruction: fields.instruction ?? "",
-      look: fields.look ?? nextLook(bots.map((item) => item.look)),
-      hookToken: newHookToken(),
-      messages: [],
-    };
-    bots.push(bot);
-    send(res, 201, publicBot(bot));
+    const created = createLocalBot(fields);
+    send(res, created.status, created.body);
     return;
   }
   if (rest[0] === "bots" && rest.length >= 2 && rest[1]) {
@@ -1020,7 +1200,191 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
       files = files.filter((item) => item.botId !== bot.id);
       questions = questions.filter((item) => item.botId !== bot.id);
       work = work.filter((item) => item.botId !== bot.id);
+      forgetLocalBot(bot.id);
       send(res, 200, { ok: true });
+      return;
+    }
+    if (rest.length === 3 && rest[2] === "template" && req.method === "GET") {
+      send(res, 200, templateFrom(bot, secretValues()));
+      return;
+    }
+    if (rest.length === 3 && rest[2] === "spawn" && req.method === "POST") {
+      const fields = readFields(await readJson(req), "create");
+      if ("error" in fields) {
+        send(res, 400, { error: fields.error });
+        return;
+      }
+      const created = createLocalBot(fields, bot.id);
+      send(res, created.status, created.body);
+      return;
+    }
+    if (rest.length === 3 && rest[2] === "main" && req.method === "POST") {
+      const body = await readJson(req);
+      if (typeof body.main !== "boolean") {
+        send(res, 400, { error: "main must be a boolean" });
+        return;
+      }
+      if (body.main) {
+        mainBotId = bot.id;
+        nextCheckInAt = Date.now() + CHECK_IN_MS;
+      } else if (mainBotId === bot.id) {
+        mainBotId = null;
+        nextCheckInAt = 0;
+      }
+      send(res, 200, publicBot(bot));
+      return;
+    }
+    if (rest.length === 3 && rest[2] === "memories" && req.method === "GET") {
+      send(res, 200, { memories: publicMemories(memories, bot.id) });
+      return;
+    }
+    if (rest.length === 3 && rest[2] === "memories" && req.method === "POST") {
+      const next = saveMemory(memories, bot.id, (await readJson(req)).fact);
+      if ("error" in next) {
+        send(res, 400, { error: next.error });
+        return;
+      }
+      memories = next.memories;
+      send(res, 201, { memory: { id: next.memory.id, fact: next.memory.fact, createdAt: next.memory.createdAt } });
+      return;
+    }
+    if (rest.length === 4 && rest[2] === "memories" && rest[3] && req.method === "DELETE") {
+      let memoryId = "";
+      try {
+        memoryId = decodeURIComponent(rest[3]);
+      } catch {
+        send(res, 404, { error: "memory not found" });
+        return;
+      }
+      const next = forgetMemory(memories, bot.id, { id: memoryId });
+      if ("error" in next) {
+        send(res, 404, { error: next.error });
+        return;
+      }
+      memories = next.memories;
+      send(res, 200, { ok: true });
+      return;
+    }
+    if (rest.length === 3 && rest[2] === "secrets" && req.method === "GET") {
+      send(res, 200, publicVault(vault, bot.id, vaultValues(vault, bot.id)));
+      return;
+    }
+    if (rest.length === 3 && rest[2] === "secrets" && req.method === "POST") {
+      const body = await readJson(req);
+      if (body.dismiss === true) {
+        const requestId = typeof body.requestId === "string" ? body.requestId : "";
+        const dismissed = dismissSecret(vault, bot.id, requestId);
+        if ("error" in dismissed) {
+          send(res, 400, { error: dismissed.error });
+          return;
+        }
+        vault = dismissed.vault;
+        send(res, 200, { dismissed: true });
+        return;
+      }
+      if (body.request === true) {
+        const opened = requestSecret(vault, bot.id, body.name, body.reason);
+        if ("error" in opened) {
+          send(res, 400, { error: opened.error });
+          return;
+        }
+        vault = opened.vault;
+        send(res, 201, {
+          request: {
+            id: opened.request.id,
+            name: opened.request.name,
+            reason: opened.request.reason,
+            createdAt: opened.request.createdAt,
+            status: opened.request.status,
+          },
+        });
+        return;
+      }
+      const saved = fulfillSecret(vault, bot.id, body);
+      if ("error" in saved) {
+        send(res, 400, { error: saved.error });
+        return;
+      }
+      vault = saved.vault;
+      send(res, 200, { name: saved.name, saved: true });
+      return;
+    }
+    if (rest.length === 4 && rest[2] === "secrets" && rest[3] && req.method === "DELETE") {
+      let name = "";
+      try {
+        name = decodeURIComponent(rest[3]);
+      } catch {
+        send(res, 404, { error: "secret not found" });
+        return;
+      }
+      const removed = deleteSecret(vault, bot.id, name);
+      if ("error" in removed) {
+        send(res, 404, { error: removed.error });
+        return;
+      }
+      vault = removed.vault;
+      send(res, 200, { ok: true });
+      return;
+    }
+    if (rest.length === 3 && rest[2] === "approvals" && req.method === "GET") {
+      approvals = expireApprovals(normalizeApprovals(approvals));
+      send(res, 200, publicApprovals(approvals, bot.id, vaultValues(vault, bot.id)));
+      return;
+    }
+    if (rest.length === 3 && rest[2] === "approvals" && req.method === "POST") {
+      const body = await readJson(req);
+      const resolved = resolveApproval(approvals, {
+        botId: bot.id,
+        cardId: body.cardId,
+        decision: body.decision,
+        secrets: vaultValues(vault, bot.id),
+      });
+      if ("error" in resolved) {
+        send(res, 400, { error: resolved.error });
+        return;
+      }
+      approvals = resolved.state;
+      submitHuman(bot, resolved.note);
+      send(res, 200, { card: resolved.card });
+      return;
+    }
+    if (rest.length === 4 && rest[2] === "approvals" && rest[3] && req.method === "DELETE") {
+      let action = "";
+      try {
+        action = decodeURIComponent(rest[3]);
+      } catch {
+        send(res, 400, { error: "action is not recognized" });
+        return;
+      }
+      const revoked = revokeAlways(approvals, bot.id, action);
+      if ("error" in revoked) {
+        send(res, 400, { error: revoked.error });
+        return;
+      }
+      approvals = revoked.state;
+      send(res, 200, { ok: true });
+      return;
+    }
+    if (rest.length === 3 && rest[2] === "actions" && req.method === "POST") {
+      const body = await readJson(req);
+      const reviewed = reviewAction(approvals, {
+        botId: bot.id,
+        command: body.command,
+        ...(body.action !== undefined ? { action: body.action } : {}),
+        secrets: vaultValues(vault, bot.id),
+      });
+      if ("error" in reviewed) {
+        send(res, 400, { error: reviewed.error });
+        return;
+      }
+      approvals = reviewed.state;
+      send(res, reviewed.decision === "allow" ? 200 : 202, {
+        decision: reviewed.decision,
+        action: reviewed.action,
+        message: reviewed.message,
+        ...(reviewed.card ? { card: reviewed.card } : {}),
+        ...(reviewed.decision === "allow" ? { result: "local simulator did not run this command" } : {}),
+      });
       return;
     }
     if (rest.length === 3 && rest[2] === "peers" && req.method === "GET") {

@@ -347,7 +347,104 @@
   }
   #add-bot, #settings-toggle { margin: 0 0 0 auto; }
   #add-bot:hover, #settings-toggle:hover { color: var(--text); background: var(--fill); }
-  #add-bot svg, #settings-toggle svg { display: block; }
+  #add-bot svg, #settings-toggle svg, #search-open svg { display: block; }
+  .side-actions { display: flex; margin-left: auto; }
+  .side-actions #add-bot, #search-open { margin: 0; }
+  #search-open {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+  }
+  #search-open:hover { color: var(--text); background: var(--fill); }
+  .main-star { margin-left: 6px; color: #fff; font-size: 12px; }
+  #main-toggle, #check-in {
+    border: 1px solid var(--line-strong);
+    background: transparent;
+    color: var(--text);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font: inherit;
+    font-size: 13px;
+  }
+  #main-toggle[aria-pressed="true"] { background: #fff; color: #0a0a0a; }
+  #cards { display: grid; gap: 8px; margin: 0 0 8px; }
+  #cards:empty { display: none; }
+  .ask-card {
+    border: 1px solid var(--line-strong);
+    border-radius: 16px;
+    padding: 12px 14px;
+    background: var(--fill);
+  }
+  .ask-card h3 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+  .ask-card p, .ask-card .hint { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
+  .ask-card pre {
+    margin: 0 0 8px;
+    white-space: pre-wrap;
+    font: 12px/1.4 ui-monospace, monospace;
+  }
+  .ask-card input, #memory-fact {
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0 0 8px;
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    padding: 8px 10px;
+  }
+  .ask-card .row-actions, #bot-memory .row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  #bot-memory { margin-top: 14px; }
+  #bot-memory h3 { margin: 0 0 8px; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  #memory-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+  #memory-list li { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
+  #palette {
+    width: min(560px, calc(100vw - 32px));
+    margin: 12vh auto auto;
+    padding: 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 16px;
+    background: #0a0a0a;
+    color: var(--text);
+  }
+  #palette::backdrop { background: rgba(0, 0, 0, 0.62); }
+  #palette input {
+    width: 100%;
+    box-sizing: border-box;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 16px;
+    padding: 8px;
+  }
+  #palette-results { max-height: min(50vh, 420px); overflow: auto; }
+  .palette-group {
+    margin: 8px 8px 4px;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .palette-item {
+    width: 100%;
+    text-align: left;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    padding: 8px 10px;
+    border-radius: 10px;
+    display: grid;
+  }
+  .palette-item small { color: var(--muted); }
+  .palette-item.on, .palette-item:hover { background: var(--fill-strong, rgba(255,255,255,0.08)); }
   #settings {
     width: min(1080px, calc(100vw - 48px));
     height: min(860px, calc(100vh - 48px));
@@ -1196,11 +1293,19 @@
     </div>
     <div class="side-head">
       <div class="side-label">Bots</div>
+      <div class="side-actions">
+      <button id="search-open" type="button" aria-label="Search" aria-keyshortcuts="Control+K Meta+K">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <circle cx="11" cy="11" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M16 16.5 20 20.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
       <button id="add-bot" type="button" aria-label="Add">
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
           <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
       </button>
+      </div>
     </div>
     <div id="bots" aria-busy="true">
       <div class="row skeleton" aria-hidden="true"><span class="sk sk-face"></span><span class="sk-copy"><span class="sk sk-name"></span><span class="sk sk-sub"></span></span></div>
@@ -1224,6 +1329,8 @@
           <span class="peer-pulse" aria-hidden="true"></span>
           <span id="peer-activity-text"></span>
         </p>
+        <button id="main-toggle" type="button" hidden aria-pressed="false">☆ Main</button>
+        <button id="check-in" type="button" hidden>Check in</button>
         <button id="library-toggle" type="button" aria-pressed="false" aria-controls="library">Library</button>
       </div>
     </div>
@@ -1243,6 +1350,7 @@
       </div>
     <div id="log"></div>
     <button id="scroll-bottom" type="button" hidden>Scroll to bottom</button>
+    <div id="cards"></div>
     <aside id="library" hidden>
       <h2>Library</h2>
       <h3>Today</h3>
@@ -1306,8 +1414,19 @@
       <legend>Look <span id="look-name"></span></legend>
       <div id="looks"></div>
     </fieldset>
+    <div id="bot-memory" hidden>
+      <h3>Memory</h3>
+      <ul id="memory-list"></ul>
+      <div id="memory-form">
+        <label class="sr-only" for="memory-fact">Fact</label>
+        <input id="memory-fact" maxlength="500" placeholder="A fact this bot should remember" autocomplete="off">
+        <button id="memory-save" type="button">Save memory</button>
+      </div>
+    </div>
     <p id="bot-dialog-error" role="alert"></p>
     <div class="dialog-actions">
+      <button id="bot-export" type="button" hidden>Export template</button>
+      <button id="bot-import" type="button">Import template</button>
       <button id="bot-delete" type="button" hidden>Delete</button>
       <button id="bot-cancel" type="button">Cancel</button>
       <button id="bot-save" type="submit">Create</button>
@@ -1375,6 +1494,14 @@
   </div>
 </dialog>
 <button id="add-to-prompt" type="button" hidden>Add to prompt</button>
+<input id="bot-import-file" type="file" accept="application/json,.json" hidden>
+<dialog id="palette" aria-label="Search">
+  <form id="palette-form">
+    <label class="sr-only" for="palette-input">Search bots, settings, and messages</label>
+    <input id="palette-input" placeholder="Search bots, settings, and messages. Quote a phrase for messages." autocomplete="off">
+  </form>
+  <div id="palette-results" role="listbox"></div>
+</dialog>
 <dialog id="viewer" aria-labelledby="viewer-title">
   <div class="viewer-bar">
     <span id="viewer-title" class="sr-only">Preview</span>
@@ -1772,6 +1899,13 @@ async function refreshBots(sprite) {
     const name = document.createElement("div");
     name.className = "name";
     name.textContent = bot.name;
+    if (bot.main) {
+      const star = document.createElement("span");
+      star.className = "main-star";
+      star.textContent = "★";
+      star.setAttribute("aria-label", "Main Bot");
+      name.append(document.createTextNode(" "), star);
+    }
     const sub = document.createElement("div");
     sub.className = "sub";
     sub.textContent = bot.instruction ? bot.instruction : state.sprite;
@@ -1817,6 +1951,7 @@ function steerChip(message, expanded) {
   const otherName = incoming ? (message.fromName || message.from) : (message.toName || message.to);
   const row = document.createElement("div");
   row.className = "steer";
+  row.dataset.messageId = message.id;
   const button = document.createElement("button");
   button.type = "button";
   button.className = "steer-toggle";
@@ -2160,12 +2295,15 @@ async function refreshThread() {
     log.innerHTML = "";
     setThreadHead("Choose a bot", "");
     setComposer(false, "Message");
+    paintMainButtons(null);
+    document.querySelector("#cards").replaceChildren();
     return;
   }
   const requested = state.bot;
   const body = await api("/api/sprites/" + state.sprite + "/bots/" + requested);
   if (state.bot !== requested) return;
   setThreadHead(body.bot.name, state.sprite, body.bot.look);
+  paintMainButtons(body.bot);
   setComposer(true, "Message " + body.bot.name);
   state.threadBody = body;
   const messages = visibleThreadMessages(body.messages);
@@ -2173,6 +2311,7 @@ async function refreshThread() {
   const signature = threadSignature(requested, messages, questions);
   paintWork(messages);
   paintLibrary();
+  refreshCards().catch(() => {});
   if (signature === threadView && log.childElementCount > 0) {
     paintScroll();
     return;
@@ -2209,6 +2348,7 @@ async function refreshThread() {
     const kind = mine ? "user" : "bot";
     const block = document.createElement("div");
     block.className = "msg " + kind + (previous === kind ? " cont" : "");
+    block.dataset.messageId = message.id;
     previous = kind;
     const sent = formatSent(message.createdAt);
     if (sent) {
@@ -2232,6 +2372,7 @@ async function refreshThread() {
   }
   log.scrollTop = pinned ? log.scrollHeight : kept;
   paintScroll();
+  scrollToMessage();
 }
 document.querySelector("#create-sprite").onsubmit = async (event) => {
   event.preventDefault();
@@ -2331,6 +2472,10 @@ function openBotDialog(bot) {
     : "Name it, give it an instruction, and choose a glass orb. The instruction can be empty. A shared need-to-know rule is added after it.";
   document.querySelector("#bot-save").textContent = bot ? "Save" : "Create";
   document.querySelector("#bot-delete").hidden = !bot;
+  document.querySelector("#bot-export").hidden = !bot;
+  document.querySelector("#bot-import").hidden = Boolean(bot);
+  document.querySelector("#bot-memory").hidden = !bot;
+  if (bot) paintMemories(bot.id);
   botName.value = bot ? bot.name : "";
   botInstruction.value = bot && bot.instruction ? bot.instruction : "";
   botError.textContent = "";
@@ -3452,6 +3597,350 @@ document.querySelector("#viewer-source").onclick = () => {
 document.querySelector("#viewer-png").onclick = () => downloadDiagram(document.querySelector("#viewer").dataset.source || "");
 document.querySelector("#viewer").addEventListener("click", (event) => {
   if (event.target.id === "viewer") closeViewer();
+});
+let cardView = "";
+const secretDrafts = new Map();
+let paletteIndex = 0;
+let paletteRows = [];
+function paintMainButtons(bot) {
+  const main = document.querySelector("#main-toggle");
+  const check = document.querySelector("#check-in");
+  if (!bot) {
+    main.hidden = true;
+    check.hidden = true;
+    return;
+  }
+  main.hidden = false;
+  check.hidden = !bot.main;
+  main.setAttribute("aria-pressed", bot.main ? "true" : "false");
+  main.textContent = bot.main ? "★ Main" : "☆ Main";
+}
+async function setMain(on) {
+  if (!state.sprite || !state.bot) return;
+  await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/main", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ main: on }),
+  });
+  await refreshBots();
+}
+async function checkInNow() {
+  if (!state.sprite) return;
+  await api("/api/sprites/" + state.sprite + "/main/check-in", { method: "POST" });
+  await refreshThread();
+  refreshActivity();
+}
+function scrollToMessage() {
+  const id = state.scrollTo;
+  if (!id) return;
+  state.scrollTo = "";
+  const node = document.querySelector('[data-message-id="' + CSS.escape(id) + '"]');
+  if (node) node.scrollIntoView({ block: "center" });
+}
+function cardButton(label, onClick) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "file-chip";
+  button.textContent = label;
+  button.onclick = onClick;
+  return button;
+}
+async function refreshCards() {
+  const box = document.querySelector("#cards");
+  if (!state.sprite || !state.bot) {
+    box.replaceChildren();
+    cardView = "";
+    return;
+  }
+  const botId = state.bot;
+  const [secrets, approvals] = await Promise.all([
+    api("/api/sprites/" + state.sprite + "/bots/" + botId + "/secrets"),
+    api("/api/sprites/" + state.sprite + "/bots/" + botId + "/approvals"),
+  ]);
+  if (state.bot !== botId) return;
+  const signature = JSON.stringify({ botId, secrets, approvals });
+  if (signature === cardView) return;
+  cardView = signature;
+  box.replaceChildren();
+  for (const request of secrets.requests || []) {
+    const card = document.createElement("form");
+    card.className = "ask-card";
+    const title = document.createElement("h3");
+    title.textContent = "Secret · " + request.name;
+    const reason = document.createElement("p");
+    reason.textContent = request.reason || "Type the value. It stays out of the chat.";
+    const input = document.createElement("input");
+    input.type = "password";
+    input.autocomplete = "off";
+    input.placeholder = request.name;
+    input.value = secretDrafts.get(request.id) || "";
+    input.addEventListener("input", () => secretDrafts.set(request.id, input.value));
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    actions.append(
+      cardButton("Save", async (event) => {
+        event.preventDefault();
+        const value = input.value;
+        secretDrafts.set(request.id, value);
+        try {
+          await api("/api/sprites/" + state.sprite + "/bots/" + botId + "/secrets", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ requestId: request.id, value }),
+          });
+          secretDrafts.delete(request.id);
+          cardView = "";
+          refreshCards();
+        } catch {
+          input.value = secretDrafts.get(request.id) || value;
+        }
+      }),
+      cardButton("Dismiss", async (event) => {
+        event.preventDefault();
+        await api("/api/sprites/" + state.sprite + "/bots/" + botId + "/secrets", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ requestId: request.id, dismiss: true }),
+        });
+        secretDrafts.delete(request.id);
+        cardView = "";
+        refreshCards();
+      }),
+    );
+    card.append(title, reason, input, actions);
+    card.onsubmit = (event) => event.preventDefault();
+    box.append(card);
+  }
+  const labels = { shell: "Shell", browser: "Browser", network: "Network", sprite: "Sprite" };
+  for (const item of approvals.cards || []) {
+    const card = document.createElement("div");
+    card.className = "ask-card";
+    const title = document.createElement("h3");
+    title.textContent = "Review an action · " + (labels[item.action] || item.action);
+    if (item.status === "expired") {
+      const expired = document.createElement("p");
+      expired.textContent = "This card expired. Allow once or Always allow asks again.";
+      card.append(expired);
+    }
+    const command = document.createElement("pre");
+    command.textContent = item.command || "";
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    const decide = async (decision) => {
+      await api("/api/sprites/" + state.sprite + "/bots/" + botId + "/approvals", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ cardId: item.id, decision }),
+      });
+      cardView = "";
+      refreshCards();
+      refreshThread();
+    };
+    actions.append(
+      cardButton("Deny", () => decide("deny")),
+      cardButton("Allow once", () => decide("once")),
+      cardButton("Always allow", () => decide("always")),
+    );
+    card.append(title, command, actions);
+    box.append(card);
+  }
+}
+async function paintMemories(botId) {
+  const list = document.querySelector("#memory-list");
+  list.replaceChildren();
+  if (!state.sprite) return;
+  const body = await api("/api/sprites/" + state.sprite + "/bots/" + botId + "/memories");
+  for (const memory of body.memories || []) {
+    const item = document.createElement("li");
+    const text = document.createElement("span");
+    text.textContent = memory.fact;
+    item.append(text, cardButton("Forget", async () => {
+      await api("/api/sprites/" + state.sprite + "/bots/" + botId + "/memories/" + encodeURIComponent(memory.id), { method: "DELETE" });
+      paintMemories(botId);
+    }));
+    list.append(item);
+  }
+}
+async function exportTemplate() {
+  if (!state.sprite || !botDialog.dataset.id) return;
+  const template = await api("/api/sprites/" + state.sprite + "/bots/" + botDialog.dataset.id + "/template");
+  const blob = new Blob([JSON.stringify(template, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = (template.name || "bot") + ".pi-orbs.json";
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+async function importTemplate(file) {
+  if (!state.sprite || !file) return;
+  const text = await file.text();
+  const template = JSON.parse(text);
+  await api("/api/sprites/" + state.sprite + "/bots/import", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(template),
+  });
+  botDialog.close();
+  await refreshBots();
+}
+document.querySelector("#main-toggle").onclick = () => {
+  const on = document.querySelector("#main-toggle").getAttribute("aria-pressed") !== "true";
+  setMain(on).catch((error) => { document.querySelector("#thread-sub").textContent = error.message; });
+};
+document.querySelector("#check-in").onclick = () => {
+  checkInNow().catch((error) => { document.querySelector("#thread-sub").textContent = error.message; });
+};
+document.querySelector("#bot-export").onclick = () => { exportTemplate().catch((error) => { botError.textContent = error.message; }); };
+document.querySelector("#bot-import").onclick = () => document.querySelector("#bot-import-file").click();
+document.querySelector("#bot-import-file").onchange = (event) => {
+  const file = event.target.files && event.target.files[0];
+  event.target.value = "";
+  importTemplate(file).catch((error) => { botError.textContent = error.message; });
+};
+document.querySelector("#memory-save").onclick = async () => {
+  const fact = document.querySelector("#memory-fact").value;
+  if (!state.sprite || !botDialog.dataset.id || !fact.trim()) return;
+  try {
+    await api("/api/sprites/" + state.sprite + "/bots/" + botDialog.dataset.id + "/memories", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ fact }),
+    });
+    document.querySelector("#memory-fact").value = "";
+    await paintMemories(botDialog.dataset.id);
+  } catch (error) {
+    botError.textContent = error.message;
+  }
+};
+function paletteEntries(body) {
+  const rows = [];
+  for (const item of body.bots || []) rows.push({ group: "Bots", kind: "bot", item });
+  for (const item of body.settings || []) rows.push({ group: "Settings", kind: "setting", item });
+  for (const item of body.actions || []) rows.push({ group: "Actions", kind: "action", item });
+  for (const item of body.messages || []) rows.push({ group: "Messages", kind: "message", item });
+  return rows;
+}
+function paintPalette(body) {
+  const box = document.querySelector("#palette-results");
+  box.replaceChildren();
+  paletteRows = paletteEntries(body);
+  let last = "";
+  paletteRows.forEach((row, index) => {
+    if (row.group !== last) {
+      last = row.group;
+      const heading = document.createElement("div");
+      heading.className = "palette-group";
+      heading.textContent = row.group;
+      box.append(heading);
+    }
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "palette-item" + (index === paletteIndex ? " on" : "");
+    button.setAttribute("role", "option");
+    button.setAttribute("aria-selected", index === paletteIndex ? "true" : "false");
+    const label = document.createElement("span");
+    const item = row.item;
+    label.textContent = row.kind === "message" ? (item.text || "").slice(0, 120) : (item.label || item.name || "");
+    const hint = document.createElement("small");
+    hint.textContent = row.kind === "message" ? (item.botName || "") : (item.hint || item.instruction || "");
+    button.append(label, hint);
+    button.onclick = () => { paletteIndex = index; runPalette(row); };
+    box.append(button);
+  });
+  const current = box.querySelector(".palette-item.on");
+  if (current) current.scrollIntoView({ block: "nearest" });
+}
+async function loadPalette(query) {
+  if (!state.sprite) {
+    paletteRows = [];
+    return;
+  }
+  const body = await api("/api/sprites/" + state.sprite + "/search?q=" + encodeURIComponent(query || ""));
+  paletteIndex = 0;
+  paintPalette(body);
+}
+function openSettings() {
+  const settingsDialog = document.querySelector("#settings");
+  if (typeof settingsDialog.showModal === "function") settingsDialog.showModal();
+  document.querySelector("#settings-toggle").setAttribute("aria-expanded", "true");
+}
+function runPalette(row) {
+  if (!row) return;
+  const item = row.item;
+  document.querySelector("#palette").close();
+  if (row.kind === "bot") {
+    state.bot = item.id;
+    refreshBots();
+    return;
+  }
+  if (row.kind === "message") {
+    state.bot = item.botId;
+    state.scrollTo = item.messageId;
+    threadView = "";
+    refreshBots();
+    return;
+  }
+  if (row.kind === "setting") {
+    openSettings();
+    const map = { voice: "#voice-provider", schedules: "#cron-key", export: "#export", deploy: "#deploy", destroy: "#destroy" };
+    const target = document.querySelector(map[item.id] || "#settings");
+    if (target && target.focus) target.focus();
+    return;
+  }
+  if (item.id === "add-bot") openBotDialog(null);
+  else if (item.id === "import-template") document.querySelector("#bot-import-file").click();
+  else if (item.id === "export-template") {
+    const bot = state.bots.find((entry) => entry.id === state.bot);
+    if (bot) {
+      openBotDialog(bot);
+      exportTemplate();
+    }
+  } else if (item.id === "main-bot") setMain(true);
+  else if (item.id === "check-in") checkInNow();
+  else if (item.id === "voice-call") {
+    const start = document.querySelector("#voice-start");
+    if (start && !start.hidden) start.click();
+  }
+}
+function openPalette() {
+  const palette = document.querySelector("#palette");
+  palette.showModal();
+  const input = document.querySelector("#palette-input");
+  input.value = "";
+  input.focus();
+  loadPalette("").catch(() => {});
+}
+document.querySelector("#search-open").onclick = () => { openPalette(); };
+document.querySelector("#palette").addEventListener("close", () => { paletteRows = []; });
+document.querySelector("#palette-form").onsubmit = (event) => {
+  event.preventDefault();
+  runPalette(paletteRows[paletteIndex]);
+};
+document.querySelector("#palette-input").addEventListener("input", (event) => {
+  loadPalette(event.target.value).catch(() => {});
+});
+document.querySelector("#palette-input").addEventListener("keydown", (event) => {
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    paletteIndex = Math.min(paletteRows.length - 1, paletteIndex + 1);
+    const box = document.querySelector("#palette-results");
+    [...box.querySelectorAll(".palette-item")].forEach((button, index) => button.classList.toggle("on", index === paletteIndex));
+  } else if (event.key === "ArrowUp") {
+    event.preventDefault();
+    paletteIndex = Math.max(0, paletteIndex - 1);
+    const box = document.querySelector("#palette-results");
+    [...box.querySelectorAll(".palette-item")].forEach((button, index) => button.classList.toggle("on", index === paletteIndex));
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "k") return;
+  const palette = document.querySelector("#palette");
+  event.preventDefault();
+  if (palette.open) palette.close();
+  else openPalette();
 });
 setInterval(() => {
   if (!state.sprite || !state.bot) return;

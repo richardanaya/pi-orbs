@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Search. Ctrl/Cmd+K opens a palette of bots, settings, and actions, then matching messages. A quoted phrase matches that text in a thread.
+- A bot can create another bot. `create_bot` and `POST /api/bots/:id/spawn` add it to the roster. The human Add dialog still works. Name, instruction, and look use the same limits, a bot can create at most 8, and the roster holds at most 24.
+- Bot templates. Export saves a bot’s name, instruction, and look. Import creates a copy for this user. It is not a marketplace.
+- Per-bot memory. `save_memory` and `forget_memory` store facts on that bot and add them to its prompt. The edit dialog can save and forget them too.
+- Secrets. `request_secret` opens a card. The typed value is stored for that bot and is not written into the chat. `read_secret` is how the bot uses it later.
+- Action review. Shell, browser, network, and sprite commands wait on a card. Allow once runs the next match. Always allow covers that kind of command. An expired card can still be allowed, and a later try asks again.
+- Main Bot. One bot can be starred. It checks in and can steer the other bots. Check in runs that pass now.
 - Composer. Select text in the thread and press Cmd/Ctrl+L, or Add to prompt, to quote it into the next message. Enter continues a `-` or `1.` list; an empty marker line leaves the list. `:` opens an emoji picker. Misspellings are underlined, with suggestions and Add to Dictionary in this browser.
 - Message times. Hover a message to see when it was sent. Scroll to bottom appears when the thread is scrolled up.
 - Link chips. A URL in a message is a chip with a generic site icon. There is no GitHub connector and no pull-request state.

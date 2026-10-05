@@ -1411,6 +1411,195 @@ describe("local simulator API", { concurrency: 1 }, () => {
     const notes = (await kepler.json()).messages.filter((item) => item.kind === "pi.note");
     assert.match(notes.at(-1).text, /Stopped an unresponsive read so the next message can continue/);
   });
+
+  test("the page can search, import a template, and review secret and approval cards", async () => {
+    const html = await readFile(join(clientRoot, "public", "index.html"), "utf8");
+    const bots = html.indexOf('group: "Bots"');
+    const settings = html.indexOf('group: "Settings"');
+    const actions = html.indexOf('group: "Actions"');
+    const messages = html.indexOf('group: "Messages"');
+    assert.ok(bots > 0 && bots < settings && settings < actions && actions < messages);
+    assert.match(html, /id="palette"/);
+    assert.match(html, /id="search-open"/);
+    assert.match(html, /Control\+K/);
+    assert.match(html, /event\.key\.toLowerCase\(\) !== "k"/);
+    assert.match(html, /id="cards"/);
+    assert.match(html, /Allow once/);
+    assert.match(html, /Always allow/);
+    assert.match(html, /This card expired/);
+    assert.match(html, /id="main-toggle"/);
+    assert.match(html, /Export template/);
+    assert.match(html, /Import template/);
+    assert.match(html, /id="bot-memory"/);
+    assert.match(html, /type="password"/);
+    const main = await readFile(join(clientRoot, "src", "main.ts"), "utf8");
+    assert.match(main, /\/api\/search/);
+    assert.match(main, /\/bots\/import/);
+
+    const seeded = await fetch(`${session.base}/api/sprites`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "atlas", xaiKey: "local-simulator-test" }),
+    });
+    assert.equal(seeded.status, 201);
+
+    const empty = await fetch(`${session.base}/api/sprites/atlas/search`);
+    const emptyBody = await empty.json();
+    assert.deepEqual(Object.keys(emptyBody), ["query", "quoted", "bots", "settings", "actions", "messages"]);
+    assert.equal(emptyBody.messages.length, 0);
+    assert.deepEqual(emptyBody.bots.map((bot) => bot.name), ["Ada", "Kepler", "Nova"]);
+    assert.equal(emptyBody.settings[0].label, "Voice");
+    assert.equal(emptyBody.actions[0].label, "Add bot");
+
+    const quoted = await fetch(`${session.base}/api/sprites/atlas/search?q=${encodeURIComponent("\"status page\"")}`);
+    const quotedBody = await quoted.json();
+    assert.equal(quotedBody.quoted, true);
+    assert.equal(quotedBody.messages.some((item) => item.botId === "ada" && item.text.includes("status page")), true);
+    assert.equal(quotedBody.settings.length, 0);
+
+    const spawned = await fetch(`${session.base}/api/sprites/atlas/bots/ada/spawn`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Scribe", instruction: "Write commit messages.", look: "plum" }),
+    });
+    assert.equal(spawned.status, 201);
+    const child = await spawned.json();
+    assert.equal(child.createdBy, "ada");
+    assert.equal(child.look, "plum");
+    assert.equal((await (await fetch(`${session.base}/api/sprites/atlas`)).json()).bots.some((bot) => bot.id === child.id), true);
+    const human = await fetch(`${session.base}/api/sprites/atlas/bots`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Manual" }),
+    });
+    assert.equal((await human.json()).createdBy, undefined);
+
+    const template = await (await fetch(`${session.base}/api/sprites/atlas/bots/ada/template`)).json();
+    assert.equal(template.format, "pi-orbs-bot-template");
+    assert.equal(template.formatVersion, 1);
+    assert.equal(template.look, "tide");
+    assert.equal(template.instruction.includes("status pages"), true);
+    assert.equal(template.id, undefined);
+    const imported = await fetch(`${session.base}/api/sprites/atlas/bots/import`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(template),
+    });
+    assert.equal(imported.status, 201);
+    const copy = await imported.json();
+    assert.equal(copy.name, "Ada copy");
+    assert.equal(copy.id === "ada", false);
+    assert.equal(copy.instruction, template.instruction);
+
+    const remembered = await fetch(`${session.base}/api/sprites/atlas/bots/ada/memories`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ fact: "The roster background is black." }),
+    });
+    assert.equal(remembered.status, 201);
+    const memory = (await remembered.json()).memory;
+    const listed = await (await fetch(`${session.base}/api/sprites/atlas/bots/ada/memories`)).json();
+    assert.equal(listed.memories.some((item) => item.id === memory.id), true);
+    assert.equal((await (await fetch(`${session.base}/api/sprites/atlas/bots/kepler/memories`)).json()).memories.length, 0);
+    const forgotten = await fetch(`${session.base}/api/sprites/atlas/bots/ada/memories/${memory.id}`, { method: "DELETE" });
+    assert.equal(forgotten.status, 200);
+    assert.equal((await (await fetch(`${session.base}/api/sprites/atlas/bots/ada/memories`)).json()).memories.length, 0);
+
+    const secret = "local-vault-secret-value";
+    const card = await fetch(`${session.base}/api/sprites/atlas/bots/ada/secrets`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ request: true, name: "GITHUB_TOKEN", reason: "deploy" }),
+    });
+    assert.equal(card.status, 201);
+    const request = (await card.json()).request;
+    assert.equal(JSON.stringify(request).includes(secret), false);
+    const saved = await fetch(`${session.base}/api/sprites/atlas/bots/ada/secrets`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ requestId: request.id, value: secret }),
+    });
+    const savedText = await saved.text();
+    assert.equal(saved.status, 200);
+    assert.equal(savedText.includes(secret), false);
+    const vault = await (await fetch(`${session.base}/api/sprites/atlas/bots/ada/secrets`)).text();
+    assert.equal(vault.includes(secret), false);
+    assert.match(vault, /GITHUB_TOKEN/);
+    await fetch(`${session.base}/api/sprites/atlas/bots/ada/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: `remember ${secret} please` }),
+    });
+    const thread = await (await fetch(`${session.base}/api/sprites/atlas/bots/ada`)).text();
+    assert.equal(thread.includes(secret), false);
+    assert.match(thread, /remember \[redacted\] please/);
+
+    const pending = await fetch(`${session.base}/api/sprites/atlas/bots/ada/actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ command: "curl https://example.com" }),
+    });
+    assert.equal(pending.status, 202);
+    const pendingBody = await pending.json();
+    assert.equal(pendingBody.decision, "pending");
+    assert.equal(pendingBody.action, "network");
+    assert.equal(pendingBody.result, undefined);
+    const once = await fetch(`${session.base}/api/sprites/atlas/bots/ada/approvals`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ cardId: pendingBody.card.id, decision: "once" }),
+    });
+    assert.equal(once.status, 200);
+    const ran = await fetch(`${session.base}/api/sprites/atlas/bots/ada/actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ command: "curl https://example.com" }),
+    });
+    const ranBody = await ran.json();
+    assert.equal(ran.status, 200);
+    assert.equal(ranBody.decision, "allow");
+    assert.equal(ranBody.result, "local simulator did not run this command");
+    const spriteAction = await fetch(`${session.base}/api/sprites/atlas/bots/kepler/actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ command: "sync", action: "sprite" }),
+    });
+    const spriteBody = await spriteAction.json();
+    assert.equal(spriteBody.action, "sprite");
+    const always = await fetch(`${session.base}/api/sprites/atlas/bots/kepler/approvals`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ cardId: spriteBody.card.id, decision: "always" }),
+    });
+    assert.equal(always.status, 200);
+    const kept = await fetch(`${session.base}/api/sprites/atlas/bots/kepler/actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ command: "sync again", action: "sprite" }),
+    });
+    assert.equal((await kept.json()).decision, "allow");
+
+    const starred = await fetch(`${session.base}/api/sprites/atlas/bots/ada/main`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ main: true }),
+    });
+    assert.equal((await starred.json()).main, true);
+    const moved = await fetch(`${session.base}/api/sprites/atlas/bots/kepler/main`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ main: true }),
+    });
+    assert.equal((await moved.json()).main, true);
+    const roster = await (await fetch(`${session.base}/api/sprites/atlas`)).json();
+    assert.deepEqual(roster.bots.filter((bot) => bot.main).map((bot) => bot.id), ["kepler"]);
+    const check = await fetch(`${session.base}/api/sprites/atlas/main/check-in`, { method: "POST" });
+    assert.equal(check.status, 202);
+    const keplerThread = await (await fetch(`${session.base}/api/sprites/atlas/bots/kepler`)).json();
+    assert.equal(keplerThread.messages.some((item) => item.kind === "pi.user" && item.text.includes("Main Bot check-in")), true);
+    assert.equal(keplerThread.messages.some((item) => item.kind === "pi.peer"), true);
+    assert.equal(await stateDigest(), session.state);
+  });
 });
 
 test("the open thread does not treat peer traffic as user messages", async () => {
