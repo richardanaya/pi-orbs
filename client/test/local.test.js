@@ -308,7 +308,7 @@ describe("local simulator API", { concurrency: 1 }, () => {
     assert.deepEqual((await nova.json()).peers, []);
     const activity = await fetch(`${session.base}/api/sprites/atlas/activity`);
     assert.equal(activity.status, 200);
-    assert.deepEqual(await activity.json(), { busy: [] });
+    assert.deepEqual(await activity.json(), { busy: [], status: [] });
   });
 
   test("GET /api/sprites returns the seeded sprite and localVersion", async () => {
@@ -771,7 +771,9 @@ describe("local simulator API", { concurrency: 1 }, () => {
     assert.equal(Number.isNaN(Date.parse(steerBody.createdAt)), false);
     const working = await fetch(`${session.base}/api/sprites/atlas/activity`);
     assert.equal(working.status, 200);
-    assert.deepEqual(await working.json(), { busy: ["kepler"] });
+    const workingBody = await working.json();
+    assert.deepEqual(workingBody.busy, ["kepler"]);
+    assert.deepEqual(workingBody.status, [{ id: "kepler", text: "working on a message from Ada" }]);
 
     const toAda = await fetch(`${session.base}/api/sprites/atlas/bots/ada/steer`, {
       method: "POST",
@@ -1217,7 +1219,16 @@ describe("local simulator API", { concurrency: 1 }, () => {
   assert.match(job.url, /^http:\/\/127\.0\.0\.1:\d+\/hooks\/[0-9a-f]{48}$/);
   assert.equal(job.url.includes(cronKey), false);
   const listed = await fetch(`${session.base}/api/sprites/atlas/bots/ada/schedules`);
-  assert.deepEqual(await listed.json(), { jobs: [{ jobId: job.jobId }] });
+  assert.deepEqual(await listed.json(), {
+    jobs: [{
+      jobId: job.jobId,
+      message: "Check the status page.",
+      cron: "0 9 * * 1",
+      timezone: "UTC",
+      enabled: true,
+      once: false,
+    }],
+  });
 
   const forged = await fetch(`${session.base}/hooks/${"ab".repeat(24)}`, {
     method: "POST",
@@ -1271,15 +1282,154 @@ describe("local simulator API", { concurrency: 1 }, () => {
   });
   assert.equal(afterDelete.status, 401);
   });
+
+  test("schedules pause and resume, questions submit, files attach, and a hang leaves a note", async () => {
+    const created = await fetch(`${session.base}/api/sprites`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "atlas", apiKey: "local-simulator-test", cronApiKey: "cron-job-org-key-not-for-the-page" }),
+    });
+    assert.equal(created.status, 201);
+
+    const onceAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const once = await fetch(`${session.base}/api/sprites/atlas/bots/ada/schedules`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ message: "Remind me once.", at: onceAt }),
+    });
+    assert.equal(once.status, 201);
+    const onceJob = await once.json();
+    assert.equal(onceJob.once, true);
+    assert.equal(typeof onceJob.at, "string");
+
+    const weekly = await fetch(`${session.base}/api/sprites/atlas/bots/ada/schedules`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ message: "Weekly check.", cron: "0 9 * * 1" }),
+    });
+    const weeklyJob = await weekly.json();
+    const paused = await fetch(`${session.base}/api/sprites/atlas/bots/ada/schedules/${weeklyJob.jobId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enabled: false }),
+    });
+    assert.equal(paused.status, 200);
+    assert.equal((await paused.json()).enabled, false);
+    const resumed = await fetch(`${session.base}/api/sprites/atlas/bots/ada/schedules/${weeklyJob.jobId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enabled: true }),
+    });
+    assert.equal((await resumed.json()).enabled, true);
+    const listed = await fetch(`${session.base}/api/sprites/atlas/bots/ada/schedules`);
+    const jobs = (await listed.json()).jobs;
+    assert.equal(jobs.length, 2);
+    assert.equal(jobs.some((job) => job.once === true && job.message === "Remind me once."), true);
+    const deleted = await fetch(`${session.base}/api/sprites/atlas/bots/ada/schedules/${onceJob.jobId}`, { method: "DELETE" });
+    assert.equal(deleted.status, 200);
+    const left = await fetch(`${session.base}/api/sprites/atlas/bots/ada/schedules`);
+    const leftJobs = (await left.json()).jobs;
+    assert.equal(leftJobs.length, 1);
+    assert.equal(leftJobs[0].jobId, weeklyJob.jobId);
+
+    const asked = await fetch(`${session.base}/api/sprites/atlas/bots/ada/questions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prompt: "Which pages?", options: ["Status", "Roster", "Both"] }),
+    });
+    assert.equal(asked.status, 201);
+    const question = await asked.json();
+    assert.equal(question.options.length, 3);
+    const threadBefore = await fetch(`${session.base}/api/sprites/atlas/bots/ada`);
+    const beforeBody = await threadBefore.json();
+    assert.equal(beforeBody.questions.some((item) => item.id === question.id && !item.answeredAt), true);
+    const picked = question.options.slice(0, 2).map((option) => option.id);
+    const answered = await fetch(`${session.base}/api/sprites/atlas/bots/ada/questions/${question.id}/answer`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ selected: picked }),
+    });
+    assert.equal(answered.status, 202);
+    const after = await fetch(`${session.base}/api/sprites/atlas/bots/ada`);
+    const afterBody = await after.json();
+    const stored = afterBody.questions.find((item) => item.id === question.id);
+    assert.deepEqual(stored.selected, picked);
+    assert.equal(typeof stored.answeredAt, "string");
+    const selectedLine = afterBody.messages.filter((item) => item.kind === "pi.user").at(-1);
+    assert.equal(selectedLine.text, "Selected: Status, Roster");
+
+    const payload = Buffer.from("name,status\nAda,ok\n").toString("base64");
+    const uploaded = await fetch(`${session.base}/api/sprites/atlas/bots/ada/files`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "status.csv", mime: "text/csv", data: payload }),
+    });
+    assert.equal(uploaded.status, 201);
+    const file = await uploaded.json();
+    assert.match(file.path, /^uploads\/ada\/f\d+-status\.csv$/);
+    const sent = await fetch(`${session.base}/api/sprites/atlas/bots/ada/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: "See the sheet.", fileIds: [file.id] }),
+    });
+    assert.equal(sent.status, 202);
+    const withFile = await fetch(`${session.base}/api/sprites/atlas/bots/ada`);
+    const fileBody = await withFile.json();
+    const attached = fileBody.messages.filter((item) => item.kind === "pi.user").at(-1);
+    assert.equal(attached.text.includes("pi-orbs-files"), false);
+    assert.equal(attached.text.includes("Attached:"), true);
+    assert.equal(attached.files[0].id, file.id);
+    const downloaded = await fetch(`${session.base}/api/sprites/atlas/bots/ada/files/${file.id}`);
+    assert.equal(downloaded.status, 200);
+    assert.match(downloaded.headers.get("content-disposition") ?? "", /status\.csv/);
+    assert.equal(await downloaded.text(), "name,status\nAda,ok\n");
+    const zip = await fetch(`${session.base}/api/sprites/atlas/conversations.zip`);
+    const exported = await unzip(await zip.arrayBuffer());
+    const ada = JSON.parse(exported["bots/ada.json"]);
+    const exportedUser = ada.messages.filter((item) => item.text.includes("See the sheet.")).at(-1);
+    assert.equal(exportedUser.text.includes("pi-orbs-files"), false);
+    assert.match(exportedUser.text, /Attached: uploads\/ada\//);
+
+    const live = await fetch(`${session.base}/api/sprites/atlas/bots/kepler/work`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ tool: "bash", detail: "ls -la" }),
+    });
+    assert.equal(live.status, 200);
+    assert.deepEqual((await live.json()).status, [{ id: "kepler", text: "working on ls -la" }]);
+    const activity = await fetch(`${session.base}/api/sprites/atlas/activity`);
+    const activityBody = await activity.json();
+    assert.equal(activityBody.status.some((item) => item.id === "kepler" && item.text === "working on ls -la"), true);
+    const hung = await fetch(`${session.base}/api/sprites/atlas/bots/kepler/work`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ tool: "read", detail: "status.html", startedAt: Date.now() - 120_000 }),
+    });
+    assert.equal(hung.status, 200);
+    assert.deepEqual((await hung.json()).status, []);
+    const kepler = await fetch(`${session.base}/api/sprites/atlas/bots/kepler`);
+    const notes = (await kepler.json()).messages.filter((item) => item.kind === "pi.note");
+    assert.match(notes.at(-1).text, /Stopped an unresponsive read so the next message can continue/);
+  });
 });
 
 test("the open thread does not treat peer traffic as user messages", async () => {
   const html = await readFile(join(clientRoot, "public", "index.html"), "utf8");
   assert.match(html, /function visibleThreadMessages/);
   assert.match(html, /message\.peer !== true && message\.source !== "peer"/);
-  assert.match(html, /signature === threadView && log\.childElementCount > 0\) return/);
+  assert.match(html, /if \(signature === threadView && log\.childElementCount > 0\) \{\s*paintScroll\(\);\s*return;\s*\}/);
   assert.match(html, /function steerChip/);
   assert.match(html, /Message from /);
+  assert.match(html, /id="add-to-prompt"/);
+  assert.match(html, /id="scroll-bottom"/);
+  assert.match(html, /id="library-toggle"/);
+  assert.match(html, /id="work-status"/);
+  assert.match(html, /id="attach"/);
+  assert.match(html, /id="emoji-pop"/);
+  assert.match(html, /id="spell-pop"/);
+  assert.match(html, /id="viewer"/);
+  assert.match(html, /faviconUrl/);
+  assert.doesNotMatch(html, /github\.com\/favicon|pr-state|Secure Form/);
   assert.doesNotMatch(html, /id="peers-toggle"/);
   assert.doesNotMatch(html, /id="roster-peers"/);
   assert.doesNotMatch(html, /<section id="peers"/);

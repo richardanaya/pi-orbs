@@ -86,7 +86,9 @@ Setup and Settings can store an optional [cron-job.org](https://docs.cron-job.or
 
 Each bot has a durable webhook token (`randomBytes(24)` hex) stored on the roster and omitted from bot JSON. The address is `{PI_PUBLIC_URL}/hooks/{token}`. cron-job.org is not given the API key. A POST to that path is authorized by the token alone, with `timingSafeEqual`. A missing or wrong token is `401`. The cron-job.org key is not accepted as webhook auth.
 
-The `schedule_message` tool creates one cron-job.org job (`PUT /jobs`) for the bot that called it. The job is enabled, POSTs JSON `{ "content" }` to that bot’s webhook, and does not save responses. The tool takes a five-field cron expression and an optional IANA time zone (UTC when omitted). The server stores the remote `jobId`. Creating the same tool call again returns that id and does not create a second job. The tool’s reply is the job id. It does not include the API key or the webhook token.
+The `schedule_message` tool creates one cron-job.org job (`PUT /jobs`) for the bot that called it. The job is enabled, POSTs JSON `{ "content" }` to that bot’s webhook, and does not save responses. The tool takes a five-field cron expression and an optional IANA time zone (UTC when omitted), or an ISO `at` time for a one-shot Once reminder. Once uses UTC cron fields for that minute and sets `expiresAt` three minutes later. The server stores the remote `jobId`, the message, the cron, whether it is enabled, and whether it is Once. Creating the same tool call again returns that id and does not create a second job. The tool’s reply is the job id. It does not include the API key or the webhook token.
+
+`list_schedules`, `pause_schedule`, `resume_schedule`, and `delete_schedule` manage that bot’s jobs. Pause and resume are `PATCH /jobs/{id}` with `{ "job": { "enabled" } }`. Delete is `DELETE /jobs/{id}` for that one job. The same list, pause, resume, and delete are `GET`, `PATCH`, and `DELETE` on `/api/bots/:id/schedules`. The Library pane calls those routes. The local simulator keeps the jobs in memory and does not call cron-job.org.
 
 When the webhook is hit, the server submits that `content` on the bot’s conversation the same way `POST /api/bots/:id/messages` does. The text is a normal user message. It is not a steer, it does not carry `pi-orbs-peer-hop`, and the hop rules are unchanged.
 
@@ -100,7 +102,17 @@ The coding tools for every bot use `PI_CWD`, which deploy sets to `/home/sprite/
 
 Each bot can call `create_mcp_event_webhook`. That mints a public `POST /api/mcp-events/:token` URL on `PI_PUBLIC_URL` (the sprite URL) and a `whsec_` secret. An MCP server uses both as `events/subscribe` webhook delivery. The route is unauthenticated aside from the token and a Standard Webhooks signature. A body with `type: "verification"` echoes `challenge`. Any other signed body is submitted into that bot's conversation with `whenBusy: "followUp"`. Hooks live in `mcp-events.json` beside the roster.
 
-Sending a message submits text to that conversation and returns immediately (`202`). The page reloads the thread every few seconds. A reload that does not change the visible messages leaves the scroll where it is. Sending a message still follows the new line.
+Sending a message submits text to that conversation and returns immediately (`202`). The page reloads the thread every few seconds. A reload that does not change the visible messages leaves the scroll where it is. Sending a message still follows the new line. When the thread is scrolled up, Scroll to bottom returns to the latest line. Hovering a message shows when it was sent.
+
+The composer quotes selected thread text with Cmd/Ctrl+L or Add to prompt. Enter continues a `-` or `1.` list. `:` opens a short emoji list. Misspellings are underlined from a built-in word list, with suggestions and Add to Dictionary stored in this browser. A URL in a message is a chip whose icon is a generic favicon for that host. There is no GitHub-specific chip.
+
+While a tool or reply is running, the open bot shows a “working on…” line from `GET /api/bots/activity` (`status`: `{ id, text }`). `busy` is still the list of bot ids. A tool that is still active after `PI_ORBS_HANG_MS` (default 90 seconds) plus a short grace is aborted, and a note is written on that bot so the next message can continue. Bash timeouts are capped to that same limit. The local simulator does not run model tools. `POST /api/bots/:id/work` is only in the simulator, so tests can show the line and the hang note.
+
+`update_self` changes that bot’s name and look through the same fields as the edit dialog. Looks stay `slate`, `silver`, `mist`, `tide`, `pine`, `amber`, `clay`, and `plum`. `ask_question` stores a prompt and two to twelve options. The page shows checkboxes and Submit. The answer is a normal user message (`Selected: …`). A typed message still works. The local simulator accepts `POST /api/bots/:id/questions` and `POST /api/bots/:id/questions/:id/answer` because it has no model tools.
+
+The composer can attach files. The page posts JSON `{ name, mime, data }` (base64, at most 8MB decoded) to `POST /api/bots/:id/files`. On a sprite the bytes go under `PI_CWD/uploads/<botId>/`. The local simulator keeps them in memory. Sending a message may include `fileIds`. The stored text gains `Attached:` lines and an HTML comment that the page and the conversation zip strip. Each file on a message can be downloaded. Download all packs several into a zip in the browser. Images and videos open in the thread. CSV and TSV open as a sheet. HTML opens in a sandboxed preview with Source. A short `A -> B` or `A-->B` diagram can be downloaded as PNG. Spreadsheet preview is CSV and TSV only.
+
+Library is computed on the page from that bot’s messages and files. Pages, files, and links are grouped Today, This week, and Older. Schedules for that bot are listed in the same pane. There is no separate library route.
 
 ## Cross-bot steering
 
