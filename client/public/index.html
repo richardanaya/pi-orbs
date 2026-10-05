@@ -184,7 +184,7 @@
     border-color: rgba(255, 255, 255, 0.72);
     box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.06);
   }
-  #create-button, #token-button, .send, #bot-save {
+  #create-button, #token-button, .send, #bot-save, #update-go {
     border: 0;
     background: #fff;
     color: #0a0a0a;
@@ -197,7 +197,7 @@
     padding: 14px 18px;
     letter-spacing: -0.01em;
   }
-  #create-button:hover, #token-button:hover, #bot-save:hover, .send:hover { background: #eceeed; }
+  #create-button:hover, #token-button:hover, #bot-save:hover, #update-go:hover, .send:hover { background: #eceeed; }
   #create-button:focus-visible, #token-button:focus-visible, .send:focus-visible, #add-bot:focus-visible, #bot-save:focus-visible, #bot-cancel:focus-visible, #bot-delete:focus-visible { outline-offset: 3px; }
 
   main {
@@ -345,7 +345,34 @@
     background: transparent;
     color: var(--muted);
   }
-  #add-bot, #settings-toggle { margin: 0 0 0 auto; }
+  #add-bot { margin: 0 0 0 auto; }
+  .brand-actions { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+  #settings-toggle { margin: 0; }
+  #update-push {
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+  }
+  .update-label { position: relative; top: 1px; }
+  #update-push[hidden] { display: none; }
+  #update-push:hover { background: var(--fill); }
+  .update-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.55);
+    animation: peer-pulse 1.8s ease-out infinite;
+  }
   #add-bot:hover, #settings-toggle:hover { color: var(--text); background: var(--fill); }
   #add-bot svg, #settings-toggle svg, #search-open svg { display: block; }
   .side-actions { display: flex; margin-left: auto; }
@@ -363,16 +390,6 @@
   }
   #search-open:hover { color: var(--text); background: var(--fill); }
   .main-star { margin-left: 6px; color: #fff; font-size: 12px; }
-  #main-toggle, #check-in {
-    border: 1px solid var(--line-strong);
-    background: transparent;
-    color: var(--text);
-    border-radius: 999px;
-    padding: 4px 10px;
-    font: inherit;
-    font-size: 13px;
-  }
-  #main-toggle[aria-pressed="true"] { background: #fff; color: #0a0a0a; }
   #cards { display: grid; gap: 8px; margin: 0 0 8px; }
   #cards:empty { display: none; }
   .ask-card {
@@ -543,6 +560,7 @@
     color: var(--muted);
   }
   #settings #deploy { margin: 0; flex: none; }
+  #settings #deploy[hidden] { display: none; }
   #settings .hint { padding: 0; }
   #settings button {
     display: inline-flex;
@@ -685,6 +703,7 @@
     border-radius: 999px;
     padding: 6px 12px;
   }
+  #thread-avatar, .thread-id { display: none; }
   .thread-id { min-width: 0; flex: 1; }
   .thread-name, .thread-sub {
     overflow: hidden;
@@ -886,8 +905,8 @@
   }
 
   #bot-dialog {
-    width: min(440px, calc(100vw - 32px));
-    max-height: min(640px, calc(100vh - 32px));
+    width: min(720px, calc(100vw - 32px));
+    max-height: min(860px, calc(100vh - 32px));
     overflow: auto;
     margin: auto;
     padding: 22px;
@@ -964,9 +983,54 @@
   .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
   #bot-delete { margin-right: auto; background: transparent; border: 0; color: var(--muted); font-weight: 600; padding: 8px 4px; }
   #bot-delete:hover { color: var(--text); }
-  #bot-cancel, #bot-save { border-radius: 999px; padding: 8px 16px; }
-  #bot-cancel { background: transparent; border: 1px solid var(--line-strong); color: var(--text); font-weight: 600; }
-  #bot-cancel:hover { background: var(--fill); }
+  #bot-cancel, #bot-save, #bot-export, #bot-import, #memory-save, #main-toggle, #check-in, #update-cancel, #update-go { border-radius: 999px; padding: 8px 16px; }
+  #bot-cancel, #bot-export, #bot-import, #memory-save, #main-toggle, #check-in, #update-cancel {
+    background: transparent;
+    border: 1px solid var(--line-strong);
+    color: var(--text);
+    font-weight: 600;
+    font-size: 13px;
+    width: auto;
+  }
+  #bot-cancel:hover, #bot-export:hover, #bot-import:hover, #memory-save:hover, #main-toggle:hover, #check-in:hover, #update-cancel:hover { background: var(--fill); }
+  #update-dialog {
+    width: min(420px, calc(100vw - 32px));
+    margin: auto;
+    padding: 22px;
+    border: 1px solid var(--line-strong);
+    border-radius: 20px;
+    background:
+      radial-gradient(420px 180px at 50% -40px, rgba(255, 255, 255, 0.08), transparent 70%),
+      #0a0a0a;
+    color: var(--text);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 24px 80px rgba(0, 0, 0, 0.55);
+  }
+  #update-dialog::backdrop { background: rgba(0, 0, 0, 0.66); backdrop-filter: blur(10px); }
+  #update-dialog h2 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+  #update-error { color: var(--danger); margin: 12px 0 0; font-size: 13px; }
+  #update-error:empty { display: none; }
+  #main-toggle[aria-pressed="true"] { background: #fff; color: #0a0a0a; }
+  #memory-form, .manage-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  #memory-form #memory-fact { flex: 1; min-width: 180px; width: auto; margin: 0; }
+  #bot-manage { margin-top: 8px; }
+  #bot-manage h3, #library-toggle {
+    display: block;
+    width: 100%;
+    margin: 16px 0 8px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    text-align: left;
+    height: auto;
+  }
+  #library-toggle { cursor: pointer; }
 
   .work-status {
     display: inline-flex;
@@ -983,19 +1047,13 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  #library-toggle, #scroll-bottom, #add-to-prompt, .file-chip, .chip-link, .question button, .viewer-bar button, #attach {
+  #scroll-bottom, #add-to-prompt, .file-chip, .chip-link, .question button, .viewer-bar button, #attach {
     border: 1px solid var(--line-strong);
     background: #050505;
     color: var(--text);
     border-radius: 999px;
   }
-  #library-toggle {
-    height: 28px;
-    padding: 0 12px;
-    font-size: 13px;
-    font-weight: 600;
-  }
-  #library-toggle[aria-pressed="true"], #library-toggle:hover, #scroll-bottom:hover, #add-to-prompt:hover { background: var(--fill); }
+  #scroll-bottom:hover, #add-to-prompt:hover { background: var(--fill); }
   #scroll-bottom, #add-to-prompt {
     position: absolute;
     z-index: 3;
@@ -1005,7 +1063,7 @@
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
   }
   #scroll-bottom { left: 50%; bottom: 88px; transform: translateX(-50%); }
-  #scroll-bottom[hidden], #add-to-prompt[hidden], #emoji-pop[hidden], #spell-pop[hidden], #library[hidden] { display: none; }
+  #scroll-bottom[hidden], #add-to-prompt[hidden], #emoji-pop[hidden], #spell-pop[hidden], #mention-pop[hidden], #library[hidden], #bot-manage[hidden] { display: none; }
   #add-to-prompt { position: fixed; }
   .msg { position: relative; }
   .msg-time {
@@ -1076,20 +1134,6 @@
   .question p { margin: 0 0 8px; }
   .question label { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0; }
   .question button { background: #fff; color: #0a0a0a; border-color: #fff; }
-  .thread.with-library { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 300px); grid-template-rows: auto minmax(0, 1fr) auto; }
-  .thread.with-library .thread-bar { grid-column: 1 / -1; }
-  .thread.with-library #voice-dock { grid-column: 1; }
-  .thread.with-library #log, .thread.with-library #scroll-bottom { grid-column: 1; }
-  .thread.with-library .composer { grid-column: 1; }
-  #library {
-    grid-column: 2;
-    grid-row: 2 / span 2;
-    border-left: 1px solid var(--line);
-    overflow: auto;
-    padding: 16px 14px 24px;
-    background: #000;
-  }
-  #library h2 { margin: 0 0 12px; font-size: 18px; }
   #library h3 {
     margin: 16px 0 6px;
     color: var(--muted);
@@ -1141,8 +1185,10 @@
   }
   #message-back .misspell { border-bottom: 1px solid #fff; }
   #message { position: relative; resize: none; caret-color: #fff; }
-  #send textarea:focus { box-shadow: none; }
-  #emoji-pop, #spell-pop {
+  #send textarea:focus,
+  #message:focus,
+  #message:focus-visible { outline: none; box-shadow: none; }
+  #emoji-pop, #spell-pop, #mention-pop {
     position: absolute;
     left: 0;
     bottom: calc(100% + 8px);
@@ -1155,7 +1201,7 @@
     background: #0a0a0a;
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
   }
-  #emoji-pop button, #spell-pop button {
+  #emoji-pop button, #spell-pop button, #mention-pop button {
     display: flex;
     width: 100%;
     gap: 8px;
@@ -1165,7 +1211,9 @@
     text-align: left;
     padding: 6px 8px;
   }
-  #emoji-pop button[aria-selected="true"], #emoji-pop button:hover, #spell-pop button:hover { background: var(--fill); }
+  #emoji-pop button[aria-selected="true"], #mention-pop button[aria-selected="true"], #emoji-pop button:hover, #spell-pop button:hover, #mention-pop button:hover { background: var(--fill); }
+  #mention-pop button { align-items: center; }
+  #mention-pop .avatar { width: 22px; height: 22px; flex: none; }
   .pending-files { margin: 0 0 8px; }
   #viewer {
     width: min(960px, calc(100vw - 32px));
@@ -1189,20 +1237,6 @@
 
   @media (max-width: 760px) {
     main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(220px, 42vh) minmax(0, 1fr); }
-    .thread.with-library {
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: auto minmax(0, 1fr) auto 168px;
-    }
-    .thread.with-library .thread-bar { grid-row: 1; }
-    .thread.with-library #log,
-    .thread.with-library #scroll-bottom { grid-row: 2; }
-    .thread.with-library .composer { grid-row: 3; }
-    #library {
-      grid-column: 1;
-      grid-row: 4;
-      border-left: 0;
-      border-top: 1px solid var(--line);
-    }
     aside { border-right: 0; border-bottom: 1px solid var(--line); }
     .thread-bar, .composer { padding-left: 16px; padding-right: 16px; }
     #log { padding-left: 16px; padding-right: 16px; }
@@ -1214,7 +1248,7 @@
       scroll-behavior: auto !important;
     }
     .glow::before { filter: none; }
-    #bot-dialog::backdrop, #settings::backdrop { backdrop-filter: none; }
+    #bot-dialog::backdrop, #settings::backdrop, #update-dialog::backdrop { backdrop-filter: none; }
   }
 </style>
 </head>
@@ -1284,12 +1318,15 @@
   <aside aria-label="Roster">
     <div class="brand">
       <strong>Pi Orbs</strong>
+      <div class="brand-actions">
+      <button id="update-push" type="button" hidden><span class="update-dot" aria-hidden="true"></span><span class="update-label">Update</span></button>
       <button id="settings-toggle" type="button" aria-label="Settings" aria-expanded="false" aria-controls="settings">
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
           <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/>
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
         </svg>
       </button>
+      </div>
     </div>
     <div class="side-head">
       <div class="side-label">Bots</div>
@@ -1329,9 +1366,6 @@
           <span class="peer-pulse" aria-hidden="true"></span>
           <span id="peer-activity-text"></span>
         </p>
-        <button id="main-toggle" type="button" hidden aria-pressed="false">☆ Main</button>
-        <button id="check-in" type="button" hidden>Check in</button>
-        <button id="library-toggle" type="button" aria-pressed="false" aria-controls="library">Library</button>
       </div>
     </div>
     <div id="voice-dock" class="voice-dock" hidden>
@@ -1351,17 +1385,6 @@
     <div id="log"></div>
     <button id="scroll-bottom" type="button" hidden>Scroll to bottom</button>
     <div id="cards"></div>
-    <aside id="library" hidden>
-      <h2>Library</h2>
-      <h3>Today</h3>
-      <div id="library-today"></div>
-      <h3>This week</h3>
-      <div id="library-week"></div>
-      <h3>Older</h3>
-      <div id="library-older"></div>
-      <h3>Routines</h3>
-      <div id="routines"></div>
-    </aside>
     <div class="composer">
       <div id="pending-files" class="pending-files" hidden></div>
       <form id="send" novalidate>
@@ -1370,6 +1393,7 @@
           <div id="message-back" class="message-back" aria-hidden="true"></div>
           <textarea id="message" name="content" placeholder="Message" rows="1" autocomplete="off" spellcheck="true"></textarea>
           <div id="emoji-pop" hidden></div>
+          <div id="mention-pop" hidden role="listbox"></div>
           <div id="spell-pop" hidden role="menu"></div>
         </div>
         <input id="attach-input" type="file" multiple hidden>
@@ -1393,6 +1417,15 @@
     </div>
   </section>
 </main>
+<dialog id="update-dialog" aria-labelledby="update-title">
+  <h2 id="update-title">Push server build</h2>
+  <p id="update-copy" class="dialog-copy"></p>
+  <p id="update-error" role="alert"></p>
+  <div class="dialog-actions">
+    <button id="update-cancel" type="button">Cancel</button>
+    <button id="update-go" type="button">Push</button>
+  </div>
+</dialog>
 <dialog id="bot-dialog" aria-labelledby="bot-dialog-title">
   <form id="bot-form" novalidate>
     <div class="dialog-head">
@@ -1414,14 +1447,32 @@
       <legend>Look <span id="look-name"></span></legend>
       <div id="looks"></div>
     </fieldset>
-    <div id="bot-memory" hidden>
-      <h3>Memory</h3>
-      <ul id="memory-list"></ul>
-      <div id="memory-form">
-        <label class="sr-only" for="memory-fact">Fact</label>
-        <input id="memory-fact" maxlength="500" placeholder="A fact this bot should remember" autocomplete="off">
-        <button id="memory-save" type="button">Save memory</button>
+    <div id="bot-manage" hidden>
+      <h3>Primary</h3>
+      <div class="manage-actions">
+        <button id="main-toggle" type="button" aria-pressed="false">Make primary</button>
+        <button id="check-in" type="button" hidden>Check in</button>
       </div>
+      <div id="bot-memory">
+        <h3>Memory</h3>
+        <ul id="memory-list"></ul>
+        <div id="memory-form">
+          <label class="sr-only" for="memory-fact">Fact</label>
+          <input id="memory-fact" maxlength="500" placeholder="A fact this bot should remember" autocomplete="off">
+          <button id="memory-save" type="button">Save memory</button>
+        </div>
+      </div>
+      <button id="library-toggle" type="button" aria-expanded="true" aria-controls="library">Library</button>
+      <div id="library">
+        <h3>Today</h3>
+        <div id="library-today"></div>
+        <h3>This week</h3>
+        <div id="library-week"></div>
+        <h3>Older</h3>
+        <div id="library-older"></div>
+      </div>
+      <h3>Routines</h3>
+      <div id="routines"></div>
     </div>
     <p id="bot-dialog-error" role="alert"></p>
     <div class="dialog-actions">
@@ -1445,7 +1496,7 @@
     <section class="settings-card wide sprite-row">
       <h3>Sprite</h3>
       <p id="sprite-meta"></p>
-      <button id="deploy" type="button">Push server build</button>
+      <button id="deploy" type="button" hidden>Push server build</button>
     </section>
     <section class="settings-card">
       <h3>Voice</h3>
@@ -1517,6 +1568,8 @@ import {
   continueList,
   emojiQuery,
   filterEmoji,
+  filterMentions,
+  mentionQuery,
   spellRanges,
   segments,
   faviconUrl,
@@ -1875,6 +1928,8 @@ async function refreshBots(sprite) {
     throw error;
   }
   meta.textContent = body.url + (body.update ? " · update available" : "");
+  document.querySelector("#update-push").hidden = body.update !== true;
+  document.querySelector("#deploy").hidden = body.update !== true;
   applyVoice(body);
   applyCron(body);
   const bots = body.bots || [];
@@ -2194,10 +2249,19 @@ function paintScroll() {
   const distance = log.scrollHeight - log.scrollTop - log.clientHeight;
   button.hidden = distance < 80 || log.childElementCount === 0;
 }
-function paintLibrary() {
-  const body = state.threadBody;
+async function paintLibrary() {
   const box = document.querySelector("#library");
-  if (!body || box.hidden) return;
+  const id = botDialog.open ? botDialog.dataset.id : "";
+  if (!id || box.hidden || !state.sprite) return;
+  let body = state.bot === id ? state.threadBody : null;
+  if (!body) {
+    try {
+      body = await api("/api/sprites/" + state.sprite + "/bots/" + id);
+    } catch {
+      return;
+    }
+    if (botDialog.dataset.id !== id) return;
+  }
   const items = libraryItems({ messages: body.messages || [], files: body.files || [] });
   const groups = groupLibrary(items);
   const fill = (id, list) => {
@@ -2237,10 +2301,11 @@ function paintLibrary() {
 }
 async function paintRoutines() {
   const node = document.querySelector("#routines");
-  if (!state.sprite || !state.bot || document.querySelector("#library").hidden) return;
+  const id = botDialog.open ? botDialog.dataset.id : "";
+  if (!state.sprite || !id) return;
   let jobs = [];
   try {
-    const body = await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/schedules");
+    const body = await api("/api/sprites/" + state.sprite + "/bots/" + id + "/schedules");
     jobs = body.jobs || [];
   } catch {
     jobs = [];
@@ -2268,7 +2333,7 @@ async function paintRoutines() {
     toggle.className = "file-chip";
     toggle.textContent = job.enabled ? "Pause" : "Resume";
     toggle.onclick = async () => {
-      await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/schedules/" + job.jobId, {
+      await api("/api/sprites/" + state.sprite + "/bots/" + id + "/schedules/" + job.jobId, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ enabled: !job.enabled }),
@@ -2280,7 +2345,7 @@ async function paintRoutines() {
     remove.className = "file-chip";
     remove.textContent = "Delete";
     remove.onclick = async () => {
-      await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/schedules/" + job.jobId, { method: "DELETE" });
+      await api("/api/sprites/" + state.sprite + "/bots/" + id + "/schedules/" + job.jobId, { method: "DELETE" });
       paintRoutines();
     };
     actions.append(toggle, remove);
@@ -2295,7 +2360,6 @@ async function refreshThread() {
     log.innerHTML = "";
     setThreadHead("Choose a bot", "");
     setComposer(false, "Message");
-    paintMainButtons(null);
     document.querySelector("#cards").replaceChildren();
     return;
   }
@@ -2303,7 +2367,7 @@ async function refreshThread() {
   const body = await api("/api/sprites/" + state.sprite + "/bots/" + requested);
   if (state.bot !== requested) return;
   setThreadHead(body.bot.name, state.sprite, body.bot.look);
-  paintMainButtons(body.bot);
+  if (botDialog.open && botDialog.dataset.id === body.bot.id) paintMainButtons(body.bot);
   setComposer(true, "Message " + body.bot.name);
   state.threadBody = body;
   const messages = visibleThreadMessages(body.messages);
@@ -2474,8 +2538,13 @@ function openBotDialog(bot) {
   document.querySelector("#bot-delete").hidden = !bot;
   document.querySelector("#bot-export").hidden = !bot;
   document.querySelector("#bot-import").hidden = Boolean(bot);
-  document.querySelector("#bot-memory").hidden = !bot;
-  if (bot) paintMemories(bot.id);
+  document.querySelector("#bot-manage").hidden = !bot;
+  if (bot) {
+    paintMainButtons(bot);
+    paintMemories(bot.id);
+    paintLibrary();
+    paintRoutines();
+  }
   botName.value = bot ? bot.name : "";
   botInstruction.value = bot && bot.instruction ? bot.instruction : "";
   botError.textContent = "";
@@ -2608,6 +2677,32 @@ document.querySelector("#export").onclick = async () => {
     button.disabled = false;
     button.removeAttribute("aria-busy");
     button.textContent = "Download all conversations";
+  }
+};
+const updateDialog = document.querySelector("#update-dialog");
+document.querySelector("#update-push").onclick = () => {
+  if (!state.sprite) return;
+  document.querySelector("#update-copy").textContent = "Push the server build to " + state.sprite + ". The sprite keeps its bots and chats.";
+  document.querySelector("#update-error").textContent = "";
+  updateDialog.showModal();
+};
+document.querySelector("#update-cancel").onclick = () => updateDialog.close();
+updateDialog.addEventListener("click", (event) => {
+  if (event.target === updateDialog) updateDialog.close();
+});
+document.querySelector("#update-go").onclick = async () => {
+  if (!state.sprite) return;
+  const button = document.querySelector("#update-go");
+  button.disabled = true;
+  document.querySelector("#update-error").textContent = "";
+  try {
+    await api("/api/sprites/" + state.sprite + "/deploy", { method: "POST" });
+    updateDialog.close();
+    await refreshBots();
+  } catch (error) {
+    document.querySelector("#update-error").textContent = error.message;
+  } finally {
+    button.disabled = false;
   }
 };
 document.querySelector("#deploy").onclick = async () => {
@@ -2990,6 +3085,7 @@ document.querySelector("#message").addEventListener("input", () => {
   paintVoiceButton();
   paintSpell();
   resizeComposer();
+  paintMentions();
   paintEmoji();
 });
 document.querySelector("#voice-start").onclick = () => { startVoiceCall(); };
@@ -3112,6 +3208,7 @@ loadPresets().then(() => refreshHome()).catch((error) => {
   document.querySelector("#status").textContent = error.message;
 });
 let emojiIndex = 0;
+let mentionIndex = 0;
 let spellTarget = null;
 function extraWords() {
   try {
@@ -3226,6 +3323,57 @@ function applyEmoji(emoji) {
   input.value = next;
   input.selectionStart = input.selectionEnd = caret;
   hideEmoji();
+  paintSpell();
+  paintVoiceButton();
+  resizeComposer();
+  input.focus();
+}
+function hideMentions() {
+  document.querySelector("#mention-pop").hidden = true;
+}
+function paintMentions() {
+  const input = document.querySelector("#message");
+  const found = mentionQuery(input.value, input.selectionStart);
+  const pop = document.querySelector("#mention-pop");
+  if (!found) {
+    hideMentions();
+    return;
+  }
+  const names = filterMentions(state.bots.map((bot) => bot.name), found.query);
+  if (!names.length) {
+    hideMentions();
+    return;
+  }
+  if (mentionIndex >= names.length) mentionIndex = 0;
+  pop.replaceChildren();
+  names.forEach((name, index) => {
+    const bot = state.bots.find((item) => item.name === name);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.setAttribute("role", "option");
+    button.setAttribute("aria-selected", index === mentionIndex ? "true" : "false");
+    const face = document.createElement("pi-face");
+    face.className = "avatar";
+    paintAvatar(face, bot || { name });
+    const label = document.createElement("span");
+    label.textContent = name;
+    button.append(face, label);
+    button.onclick = () => applyMention(name);
+    pop.append(button);
+  });
+  pop.hidden = false;
+  hideEmoji();
+}
+function applyMention(name) {
+  const input = document.querySelector("#message");
+  const found = mentionQuery(input.value, input.selectionStart);
+  if (!found) return;
+  const insert = "@" + name + " ";
+  const next = input.value.slice(0, found.start) + insert + input.value.slice(input.selectionStart);
+  const caret = found.start + insert.length;
+  input.value = next;
+  input.selectionStart = input.selectionEnd = caret;
+  hideMentions();
   paintSpell();
   paintVoiceButton();
   resizeComposer();
@@ -3476,6 +3624,27 @@ async function downloadAll(files) {
   URL.revokeObjectURL(link.href);
 }
 document.querySelector("#message").addEventListener("keydown", (event) => {
+  const mentions = document.querySelector("#mention-pop");
+  if (!mentions.hidden && event.key === "ArrowDown") {
+    event.preventDefault();
+    mentionIndex += 1;
+    paintMentions();
+    return;
+  }
+  if (!mentions.hidden && event.key === "ArrowUp") {
+    event.preventDefault();
+    mentionIndex = Math.max(0, mentionIndex - 1);
+    paintMentions();
+    return;
+  }
+  if (!mentions.hidden && (event.key === "Enter" || event.key === "Tab")) {
+    const picked = mentions.querySelector('[aria-selected="true"] span');
+    if (picked) {
+      event.preventDefault();
+      applyMention(picked.textContent);
+      return;
+    }
+  }
   const pop = document.querySelector("#emoji-pop");
   if (!pop.hidden && event.key === "ArrowDown") {
     event.preventDefault();
@@ -3499,6 +3668,7 @@ document.querySelector("#message").addEventListener("keydown", (event) => {
   }
   if (event.key === "Escape") {
     hideEmoji();
+    hideMentions();
     hideSpell();
     return;
   }
@@ -3571,12 +3741,8 @@ document.querySelector("#library-toggle").onclick = () => {
   const library = document.querySelector("#library");
   const open = library.hidden;
   library.hidden = !open;
-  document.querySelector(".thread").classList.toggle("with-library", open);
-  document.querySelector("#library-toggle").setAttribute("aria-pressed", open ? "true" : "false");
-  if (open) {
-    paintLibrary();
-    paintRoutines();
-  }
+  document.querySelector("#library-toggle").setAttribute("aria-expanded", open ? "true" : "false");
+  if (open) paintLibrary();
 };
 document.querySelector("#viewer-close").onclick = closeViewer;
 document.querySelector("#viewer-source").onclick = () => {
@@ -3613,11 +3779,12 @@ function paintMainButtons(bot) {
   main.hidden = false;
   check.hidden = !bot.main;
   main.setAttribute("aria-pressed", bot.main ? "true" : "false");
-  main.textContent = bot.main ? "★ Main" : "☆ Main";
+  main.textContent = bot.main ? "Primary" : "Make primary";
 }
 async function setMain(on) {
-  if (!state.sprite || !state.bot) return;
-  await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/main", {
+  const id = botDialog.open && botDialog.dataset.id ? botDialog.dataset.id : state.bot;
+  if (!state.sprite || !id) return;
+  await api("/api/sprites/" + state.sprite + "/bots/" + id + "/main", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ main: on }),
@@ -3788,10 +3955,16 @@ async function importTemplate(file) {
 }
 document.querySelector("#main-toggle").onclick = () => {
   const on = document.querySelector("#main-toggle").getAttribute("aria-pressed") !== "true";
-  setMain(on).catch((error) => { document.querySelector("#thread-sub").textContent = error.message; });
+  setMain(on).catch((error) => {
+    document.querySelector("#work-status-text").textContent = error.message;
+    document.querySelector("#work-status").hidden = false;
+  });
 };
 document.querySelector("#check-in").onclick = () => {
-  checkInNow().catch((error) => { document.querySelector("#thread-sub").textContent = error.message; });
+  checkInNow().catch((error) => {
+    document.querySelector("#work-status-text").textContent = error.message;
+    document.querySelector("#work-status").hidden = false;
+  });
 };
 document.querySelector("#bot-export").onclick = () => { exportTemplate().catch((error) => { botError.textContent = error.message; }); };
 document.querySelector("#bot-import").onclick = () => document.querySelector("#bot-import-file").click();
@@ -3858,9 +4031,25 @@ async function loadPalette(query) {
     paletteRows = [];
     return;
   }
-  const body = await api("/api/sprites/" + state.sprite + "/search?q=" + encodeURIComponent(query || ""));
-  paletteIndex = 0;
-  paintPalette(body);
+  try {
+    const body = await api("/api/sprites/" + state.sprite + "/search?q=" + encodeURIComponent(query || ""));
+    paletteIndex = 0;
+    paintPalette(body);
+    if (paletteRows.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "palette-group";
+      empty.textContent = "No matches";
+      document.querySelector("#palette-results").append(empty);
+    }
+  } catch (error) {
+    paletteRows = [];
+    const box = document.querySelector("#palette-results");
+    box.replaceChildren();
+    const note = document.createElement("p");
+    note.className = "palette-group";
+    note.textContent = error.message;
+    box.append(note);
+  }
 }
 function openSettings() {
   const settingsDialog = document.querySelector("#settings");
@@ -3946,7 +4135,7 @@ setInterval(() => {
   if (!state.sprite || !state.bot) return;
   refreshThread();
   refreshActivity();
-  if (!document.querySelector("#library").hidden) paintRoutines();
+  if (botDialog.open && botDialog.dataset.id) paintRoutines();
 }, 3000);
 </script>
 </body>

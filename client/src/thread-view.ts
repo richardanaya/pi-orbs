@@ -124,6 +124,21 @@ export function emojiQuery(value: string, caret: number): { start: number; query
   return { start: caret - match[1].length, query };
 }
 
+export function mentionQuery(value: string, caret: number): { start: number; query: string } | null {
+  const before = value.slice(0, caret);
+  const match = /(?:^|\s)(@([^\s@]{0,40}))$/.exec(before);
+  if (!match || match[1] === undefined) return null;
+  return { start: caret - match[1].length, query: match[2] ?? "" };
+}
+
+export function filterMentions(names: readonly string[], query: string): string[] {
+  const needle = query.toLowerCase();
+  return names
+    .filter((name) => name.trim() && name.toLowerCase().startsWith(needle))
+    .sort((left, right) => left.localeCompare(right))
+    .slice(0, 8);
+}
+
 export function filterEmoji(query: string): Emoji[] {
   const needle = query.toLowerCase();
   const ranked = EMOJI.filter((item) => !needle || item.name.includes(needle));

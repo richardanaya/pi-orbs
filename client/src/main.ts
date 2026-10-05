@@ -8,6 +8,7 @@ import { archiveHeaders, conversationsArchive, readExport } from "./archive.js";
 import { deleteConnector, ensureConnector, gatewayBaseUrl } from "./connector.js";
 import { connectionName, normalizeConnector, providerApi, publicConnectors, readDeployUpdate, readSetup, type SpriteConnector } from "./connectors.js";
 import { deploySprite, localVersion, newSecret, remoteVersion } from "./deploy.js";
+import { searchPalette, type SearchBot, type SearchMessage } from "./features.js";
 import { handleLocal, localMode } from "./local.js";
 import { createSprite, destroySprite, getSprite, hasSpritesToken, listSprites, publishSprite, setSpritesToken, verifySpritesToken } from "./sprite.js";
 import {
@@ -74,6 +75,41 @@ async function readRaw(req: IncomingMessage, limit: number): Promise<Buffer | un
     chunks.push(buffer);
   }
   return Buffer.concat(chunks);
+}
+
+async function searchFromRoster(saved: SavedSprite, query: string): Promise<ReturnType<typeof searchPalette>> {
+  const listed = await spriteFetch(saved, "/api/bots");
+  const payload = await listed.json().catch(() => null) as { bots?: { id?: unknown; name?: unknown; look?: unknown; instruction?: unknown; main?: unknown }[] } | null;
+  const bots: SearchBot[] = [];
+  for (const item of payload?.bots ?? []) {
+    if (!item || typeof item.id !== "string" || typeof item.name !== "string") continue;
+    bots.push({
+      id: item.id,
+      name: item.name,
+      look: typeof item.look === "string" ? item.look : "",
+      instruction: typeof item.instruction === "string" ? item.instruction : "",
+      ...(item.main === true ? { main: true } : {}),
+    });
+  }
+  const messages: SearchMessage[] = [];
+  for (const bot of bots) {
+    const thread = await spriteFetch(saved, `/api/bots/${encodeURIComponent(bot.id)}`);
+    if (!thread.ok) continue;
+    const body = await thread.json().catch(() => null) as { messages?: { id?: unknown; kind?: unknown; text?: unknown; createdAt?: unknown }[] } | null;
+    for (const item of body?.messages ?? []) {
+      if (!item || typeof item.id !== "string" || typeof item.text !== "string") continue;
+      messages.push({
+        botId: bot.id,
+        botName: bot.name,
+        look: bot.look,
+        messageId: item.id,
+        kind: typeof item.kind === "string" ? item.kind : "",
+        text: item.text,
+        createdAt: typeof item.createdAt === "string" ? item.createdAt : null,
+      });
+    }
+  }
+  return searchPalette(query, bots, messages);
 }
 
 async function relaySprite(saved: SavedSprite, path: string, req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -638,7 +674,21 @@ const http = createServer(async (req, res) => {
         return;
       }
       const tail = featureRoute[2] ?? "";
-      await relaySprite(saved, tail === "/search" ? `/api/search${url.search}` : `/api${tail}`, req, res);
+      if (tail === "/search" && (req.method ?? "GET") === "GET") {
+        const response = await spriteFetch(saved, `/api/search${url.search}`);
+        if (response.ok) {
+          send(res, response.status, await response.json());
+          return;
+        }
+        if (response.status !== 404) {
+          const failed = await response.json().catch(() => null) as { error?: unknown } | null;
+          send(res, response.status, { error: failed && typeof failed.error === "string" ? failed.error : "search failed" });
+          return;
+        }
+        send(res, 200, await searchFromRoster(saved, url.searchParams.get("q") ?? ""));
+        return;
+      }
+      await relaySprite(saved, `/api${tail}`, req, res);
       return;
     }
     const botExtra = url.pathname.match(/^\/api\/sprites\/([^/]+)\/bots\/([^/]+)\/(schedules|questions|files|work|template|spawn|main|memories|secrets|approvals|actions)(?:\/([^/]+))?(?:\/([^/]+))?$/);

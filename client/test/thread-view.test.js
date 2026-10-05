@@ -8,6 +8,8 @@ import {
   faviconUrl,
   fileMarker,
   filterEmoji,
+  filterMentions,
+  mentionQuery,
   groupLibrary,
   layoutDiagram,
   libraryItems,
@@ -41,6 +43,10 @@ test("quote, lists, emoji, and spellcheck stay in the composer helpers", () => {
   assert.equal(emojiQuery("smile", 5), null);
   assert.equal(filterEmoji("roc")[0].name, "rocket");
   assert.ok(filterEmoji("").length <= 8);
+  assert.deepEqual(mentionQuery("ask @su", 7), { start: 4, query: "su" });
+  assert.equal(mentionQuery("ask @", 5).query, "");
+  assert.equal(mentionQuery("email me@host", 13), null);
+  assert.deepEqual(filterMentions(["Suzza", "Daedius", "Ada"], "s"), ["Suzza"]);
 
   const ranges = spellRanges("The staatus page");
   assert.equal(ranges.length, 1);
