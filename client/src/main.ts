@@ -629,7 +629,19 @@ const http = createServer(async (req, res) => {
       send(res, 404, { error: "not found" });
       return;
     }
-    const botExtra = url.pathname.match(/^\/api\/sprites\/([^/]+)\/bots\/([^/]+)\/(schedules|questions|files|work)(?:\/([^/]+))?(?:\/([^/]+))?$/);
+    const featurePaths = ["/search", "/main", "/main/check-in", "/bots/import"];
+    const featureRoute = url.pathname.match(/^\/api\/sprites\/([^/]+)(\/.*)$/);
+    if (featureRoute && featurePaths.includes(featureRoute[2] ?? "")) {
+      const saved = state.sprites.find((item) => item.name === featureRoute[1]);
+      if (!saved) {
+        send(res, 404, { error: "sprite is not managed by this client" });
+        return;
+      }
+      const tail = featureRoute[2] ?? "";
+      await relaySprite(saved, tail === "/search" ? `/api/search${url.search}` : `/api${tail}`, req, res);
+      return;
+    }
+    const botExtra = url.pathname.match(/^\/api\/sprites\/([^/]+)\/bots\/([^/]+)\/(schedules|questions|files|work|template|spawn|main|memories|secrets|approvals|actions)(?:\/([^/]+))?(?:\/([^/]+))?$/);
     if (botExtra) {
       const saved = state.sprites.find((item) => item.name === botExtra[1]);
       if (!saved) {

@@ -161,6 +161,22 @@ An empty roster is still a valid zip. `README.txt` and `manifest.json` say there
 
 **Destroy sprite** asks the server to delete stored cron-job.org jobs, then deletes the Sprite, which removes that disk, the bots, and the URL.
 
+## Search, templates, memory, secrets, review, and the Main Bot
+
+`GET /api/search?q=` returns bots, settings, actions, then messages. An empty query lists bots, settings, and actions and does not search messages. A quoted phrase matches that text. The page opens this with Ctrl/Cmd+K.
+
+`POST /api/bots/:id/spawn` creates a bot from another bot. The new bot is on the roster and carries `createdBy`. A bot can also call `create_bot`. The name, instruction, and look use the same limits as the Add dialog. A bot can create at most 8 others. The roster holds at most 24. The human Add dialog is still `POST /api/bots` and does not set `createdBy`.
+
+`GET /api/bots/:id/template` exports `pi-orbs-bot-template` version 1: name, instruction, and look. `POST /api/bots/import` creates a copy for this user. A taken name becomes “Ada copy”. This is not a shared catalog.
+
+Each bot has a memory file beside the roster. `save_memory` and `forget_memory` change it, and the saved facts are added to that bot’s prompt. `GET` and `POST /api/bots/:id/memories` and `DELETE /api/bots/:id/memories/:id` are the same store. Memory is not shared with other bots.
+
+Each bot has a secrets vault. `request_secret` opens a card. The human types the value on the card. The value is stored in the vault and is not returned by `GET /api/bots/:id/secrets` or written into the thread. If saving fails, the card keeps what was typed. `read_secret` is how the model reads a saved value for a tool call. Thread text, search, templates, and the conversation zip redact saved values of 16 characters or more.
+
+Bash is gated before it runs. The command is classed as browser, network, or shell. A sprite action is only the `sprite` class when the caller says so. `POST /api/bots/:id/actions` records the decision and does not run the command. Allow once consumes that exact command. Always allow covers that class for that bot until it is revoked. A card lasts 15 minutes. An expired card can still be allowed. Retrying the same command after it expires opens that card again. The local simulator returns a stub result when the decision is allow.
+
+One bot can be the Main Bot. `POST /api/bots/:id/main` sets or clears it, and the roster shows a star. The sprite asks that bot to check in about once an hour, as a normal message, and tells it to call `steer_peer` once. `POST /api/main/check-in` does that immediately. The local simulator also records one steer to another bot.
+
 ## Request path
 
 ```mermaid

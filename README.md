@@ -62,6 +62,8 @@ Open the line to read who sent it and the message. The roster face pulses while 
 
 Choose **Add** (the plus) to name a bot, write its instruction, and pick a pastel orb. The same dialog edits a bot from the roster, and can delete it. Each bot is its own Pi conversation. They share `/home/sprite/work` and the one model from setup. Send a message in the bar at the bottom. The thread refreshes every few seconds.
 
+Ctrl/Cmd+K searches bots, settings, and actions, then messages in the threads. The edit dialog can export a template of the name, instruction, and face, and a new bot can import that copy. It can also save or forget facts that stay with that bot. Star one bot as Main Bot so it can check in and steer the others. A secret request or a risky command shows a card under the thread. The value you type on a secret card is not added to the chat. Allow once or Always allow is how a reviewed command proceeds.
+
 ![Ada’s thread after a message is sent](docs/local-reply.png)
 
 The same thread after a message is sent.

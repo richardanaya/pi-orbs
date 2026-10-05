@@ -43,6 +43,14 @@ export function workingOn(tool: string, args: Record<string, unknown> = {}): str
       return "working on a schedule";
     case "steer_peer":
       return "working on a message to another bot";
+    case "create_bot":
+      return "working on a new bot";
+    case "save_memory":
+    case "forget_memory":
+      return "working on memory";
+    case "request_secret":
+    case "read_secret":
+      return "working on a secret";
     default:
       return `working on ${tool.replaceAll("_", " ")}`;
   }
