@@ -588,7 +588,6 @@
     border-radius: 999px;
     padding: 6px 12px;
   }
-  #thread-avatar, #thread-name, #thread-sub { display: none; }
   .thread-id { min-width: 0; flex: 1; }
   .thread-name, .thread-sub {
     overflow: hidden;
@@ -694,6 +693,7 @@
   .thread-sub:empty, .thread-sub[hidden], #thread-avatar[hidden] { display: none; }
   #log {
     flex: 1;
+    min-width: 0;
     overflow: auto;
     display: flex;
     flex-direction: column;
@@ -1091,9 +1091,21 @@
   #viewer-source-text { white-space: pre-wrap; font-family: var(--mono); font-size: 13px; }
 
   @media (max-width: 760px) {
-    main { grid-template-columns: 1fr; grid-template-rows: minmax(220px, 42vh) minmax(0, 1fr); }
-    .thread.with-library { grid-template-columns: 1fr; }
-    #library { grid-column: 1; grid-row: 2; }
+    main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(220px, 42vh) minmax(0, 1fr); }
+    .thread.with-library {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr) auto 168px;
+    }
+    .thread.with-library .thread-bar { grid-row: 1; }
+    .thread.with-library #log,
+    .thread.with-library #scroll-bottom { grid-row: 2; }
+    .thread.with-library .composer { grid-row: 3; }
+    #library {
+      grid-column: 1;
+      grid-row: 4;
+      border-left: 0;
+      border-top: 1px solid var(--line);
+    }
     aside { border-right: 0; border-bottom: 1px solid var(--line); }
     .thread-bar, .composer { padding-left: 16px; padding-right: 16px; }
     #log { padding-left: 16px; padding-right: 16px; }
@@ -1884,7 +1896,7 @@ async function refreshActivity() {
     state.status = [];
   }
   paintBusy();
-  paintWork();
+  paintWork(state.threadBody && state.threadBody.messages);
 }
 function threadSignature(botId, messages, questions) {
   const files = messages.map((message) => (message.files || []).map((file) => file.id).join(",")).join("\t");
@@ -3256,10 +3268,14 @@ function drawDiagram(source) {
 function downloadDiagram(source) {
   const canvas = drawDiagram(source);
   if (!canvas) return;
-  const link = document.createElement("a");
-  link.href = canvas.toDataURL("image/png");
-  link.download = "diagram.png";
-  link.click();
+  canvas.toBlob((blob) => {
+    if (!blob) return;
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "diagram.png";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1500);
+  }, "image/png");
 }
 async function openStoredFile(file) {
   const kind = viewerKind(file.name || "", file.mime || "");
