@@ -1,20 +1,56 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { Context } from "@earendil-works/chord";
 import { Type } from "@earendil-works/pi-ai";
 import { createModels } from "@earendil-works/pi-ai/models";
-import { ConversationBusy, createRegistry, defineExtension, defineTool, Harness, section, type Conversation, type ConversationId, type Cursor, type EntryRecord, type Extension, type SubmissionId } from "@earendil-works/pi-durable";
+import { ConversationBusy, createRegistry, defineExtension, defineTool, GenerationTask, Harness, hook, section, ToolTask, wrapTool, type Conversation, type ConversationId, type Cursor, type EntryRecord, type Extension, type SubmissionId, type ToolRegistration } from "@earendil-works/pi-durable";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { createMcpHook, publicBase, receiveMcpWebhook, rememberWebhook } from "./mcp-events.js";
 import { installSharedModel, sharedModel } from "./model.js";
 import { hiddenThreadEntryIds, normalizePeers, outgoingHop, PEER_CONTENT_MAX, PEER_LEDGER_MAX, PEER_REQUEST_PREFIX, peerChainUsed, peerPrompt, peerTurn, publicPeer, readSteer, resolvePeerTarget, withPeerInstruction, withPeerLines, type PeerRecord, type PublicPeer } from "./peers.js";
-import { CRON_API_DEFAULT, CRON_KEY_MAX, deleteCronJob, fetchCron, newHookToken, putCronJob, readHookBody, readScheduleRequest, scheduleTitle, tokensEqual, validHookToken, webhookUrl } from "./schedule.js";
+import { CRON_API_DEFAULT, CRON_KEY_MAX, deleteCronJob, fetchCron, newHookToken, putCronJob, readHookBody, readScheduleRequest, scheduleTitle, setCronJobEnabled, tokensEqual, validHookToken, webhookUrl } from "./schedule.js";
+import { answerText, decodeUpload, fileMarker, loadFiles, loadNotes, loadQuestions, newId, publicFile, publicQuestion, readAnswerInput, readQuestionInput, saveFiles, saveNotes, saveQuestions, takeFileMarker, type FileRecord, type NoteRecord, type QuestionRecord } from "./share.js";
+import { bashTimeoutSeconds, hangLimit, hangNote, isHung, WATCH_GRACE_MS, workingOn } from "./work.js";
+import {
+  approvalPrompt,
+  CHECK_IN_MS,
+  CHECK_IN_PROMPT,
+  coordinatorPrompt,
+  copyName,
+  deleteSecret,
+  dismissSecret,
+  dropBot,
+  expireApprovals,
+  forgetMemory,
+  fulfillSecret,
+  guardRoster,
+  guardSpawn,
+  memoryPrompt,
+  normalizeApprovals,
+  normalizeMemories,
+  normalizeVault,
+  publicApprovals,
+  publicMemories,
+  publicVault,
+  readSecret,
+  readTemplate,
+  requestSecret,
+  resolveApproval,
+  reviewAction,
+  revokeAlways,
+  saveMemory,
+  searchPalette,
+  secretsPrompt,
+  templateFrom,
+  vaultValues,
+  type SearchMessage,
+} from "./features.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const version = (await readFile(join(here, "../VERSION"), "utf8").catch(() => readFile(join(here, "VERSION"), "utf8"))).trim();
@@ -26,6 +62,12 @@ const peersPath = process.env.PI_PEERS ?? botsPath.replace(/[^/]+$/, "peers.json
 const schedulesPath = process.env.PI_SCHEDULES ?? botsPath.replace(/[^/]+$/, "schedules.json");
 const cronKeyPath = process.env.PI_CRON_KEY ?? botsPath.replace(/[^/]+$/, "cron.json");
 const hooksPath = process.env.PI_HOOKS ?? botsPath.replace(/[^/]+$/, "mcp-events.json");
+const filesPath = process.env.PI_FILES ?? botsPath.replace(/[^/]+$/, "files.json");
+const questionsPath = process.env.PI_QUESTIONS ?? botsPath.replace(/[^/]+$/, "questions.json");
+const notesPath = process.env.PI_NOTES ?? botsPath.replace(/[^/]+$/, "notes.json");
+const memoriesPath = process.env.PI_MEMORIES ?? botsPath.replace(/[^/]+$/, "memories.json");
+const secretsPath = process.env.PI_SECRETS ?? botsPath.replace(/[^/]+$/, "secrets.json");
+const approvalsPath = process.env.PI_APPROVALS ?? botsPath.replace(/[^/]+$/, "approvals.json");
 const publicUrl = publicBase(process.env.PI_PUBLIC_URL);
 const workdir = process.env.PI_CWD ?? process.cwd();
 const context = BACKGROUND_CONTEXT;
@@ -42,8 +84,19 @@ type BotRecord = {
   instruction: string;
   look: Look;
   hookToken: string;
+  createdBy?: string;
 };
-type ScheduleRecord = { botId: string; jobId: number; requestKey: string };
+type ScheduleRecord = {
+  botId: string;
+  jobId: number;
+  requestKey: string;
+  message: string;
+  cron: string;
+  timezone: string;
+  enabled: boolean;
+  once: boolean;
+  at?: string;
+};
 type BotsFile = { bots: BotRecord[] };
 type FieldPatch = { name?: string; instruction?: string; look?: Look };
 
@@ -135,25 +188,46 @@ function normalizeBots(parsed: unknown): { bots: BotRecord[]; changed: boolean }
     used.push(look);
     const hookToken = validHookToken(item.hookToken) ? item.hookToken : newHookToken();
     if (hookToken !== item.hookToken) changed = true;
-    bots.push({ id, name: name.slice(0, NAME_MAX), conversationId, instruction, look, hookToken });
+    const createdBy = typeof item.createdBy === "string" && item.createdBy ? item.createdBy : undefined;
+    bots.push({ id, name: name.slice(0, NAME_MAX), conversationId, instruction, look, hookToken, ...(createdBy ? { createdBy } : {}) });
   }
   return { bots, changed };
 }
 
-function publicBot(bot: BotRecord): Omit<BotRecord, "hookToken"> {
+let mainBotId: string | null = null;
+let nextCheckInAt = 0;
+
+function publicBot(bot: BotRecord): {
+  id: string;
+  name: string;
+  conversationId: string;
+  instruction: string;
+  look: Look;
+  createdBy?: string;
+  main?: true;
+} {
   return {
     id: bot.id,
     name: bot.name,
     conversationId: bot.conversationId,
     instruction: bot.instruction,
     look: bot.look,
+    ...(bot.createdBy ? { createdBy: bot.createdBy } : {}),
+    ...(bot.id === mainBotId ? { main: true } : {}),
   };
 }
 
 async function loadBots(): Promise<BotRecord[]> {
   try {
-    const normalized = normalizeBots(JSON.parse(await readFile(botsPath, "utf8")) as unknown);
-    if (normalized.changed) await saveBots(normalized.bots);
+    const parsed = JSON.parse(await readFile(botsPath, "utf8")) as unknown;
+    const normalized = normalizeBots(parsed);
+    const record = parsed && typeof parsed === "object" ? parsed as { mainBotId?: unknown; nextCheckInAt?: unknown } : {};
+    const id = typeof record.mainBotId === "string" ? record.mainBotId : null;
+    const next = typeof record.nextCheckInAt === "number" && Number.isFinite(record.nextCheckInAt) ? record.nextCheckInAt : 0;
+    const keptMain = id && normalized.bots.some((bot) => bot.id === id) ? id : null;
+    mainBotId = keptMain;
+    nextCheckInAt = next;
+    if (normalized.changed || keptMain !== id) await saveBots(normalized.bots);
     return normalized.bots;
   } catch {
     return [];
@@ -168,7 +242,7 @@ async function applyInstruction(conversation: Conversation, instruction: string)
 
 async function saveBots(bots: BotRecord[]): Promise<void> {
   await mkdir(dirname(botsPath), { recursive: true });
-  await writeFile(botsPath, JSON.stringify({ bots }, null, 2));
+  await writeFile(botsPath, JSON.stringify({ bots, mainBotId, nextCheckInAt }, null, 2));
 }
 
 let cronApiKey = (process.env.CRON_JOB_ORG_API_KEY ?? "").trim();
@@ -199,11 +273,21 @@ function normalizeSchedules(parsed: unknown): ScheduleRecord[] {
   const jobs: ScheduleRecord[] = [];
   for (const item of list) {
     if (!item || typeof item !== "object") continue;
-    const record = item as { botId?: unknown; jobId?: unknown; requestKey?: unknown };
+    const record = item as Partial<ScheduleRecord>;
     const botId = typeof record.botId === "string" ? record.botId : "";
     const requestKey = typeof record.requestKey === "string" ? record.requestKey : "";
     if (!botId || !requestKey || typeof record.jobId !== "number" || !Number.isInteger(record.jobId)) continue;
-    jobs.push({ botId, jobId: record.jobId, requestKey });
+    jobs.push({
+      botId,
+      jobId: record.jobId,
+      requestKey,
+      message: typeof record.message === "string" ? record.message : "",
+      cron: typeof record.cron === "string" ? record.cron : "",
+      timezone: typeof record.timezone === "string" && record.timezone ? record.timezone : "UTC",
+      enabled: record.enabled !== false,
+      once: record.once === true,
+      ...(typeof record.at === "string" && record.at ? { at: record.at } : {}),
+    });
   }
   return jobs;
 }
@@ -233,11 +317,37 @@ function spritePublicUrl(): string | null {
   }
 }
 
-async function scheduleMessage(botId: string, message: string, cron: string, timezone: string | undefined, requestKey: string): Promise<{ jobId: number } | { error: string }> {
+function publicSchedule(job: ScheduleRecord): {
+  jobId: number;
+  message: string;
+  cron: string;
+  timezone: string;
+  enabled: boolean;
+  once: boolean;
+  at?: string;
+} {
+  return {
+    jobId: job.jobId,
+    message: job.message,
+    cron: job.cron,
+    timezone: job.timezone,
+    enabled: job.enabled,
+    once: job.once,
+    ...(job.at ? { at: job.at } : {}),
+  };
+}
+
+function scheduleSummary(job: ScheduleRecord): string {
+  const state = job.enabled ? "on" : "paused";
+  const when = job.once && job.at ? `Once ${job.at}` : `${job.cron} ${job.timezone}`;
+  return `job ${job.jobId}: ${state}, ${when} — ${job.message}`;
+}
+
+async function scheduleMessage(botId: string, message: string, cron: string, timezone: string | undefined, requestKey: string, at?: string): Promise<{ jobId: number } | { error: string }> {
   if (!cronApiKey) return { error: "cron-job.org API key is not configured" };
   const base = spritePublicUrl();
   if (!base) return { error: "this server has no public URL" };
-  const read = readScheduleRequest({ message, cron, ...(timezone ? { timezone } : {}) });
+  const read = readScheduleRequest(at ? { message, at } : { message, cron, ...(timezone ? { timezone } : {}) });
   if ("error" in read) return { error: read.error };
   const bots = await loadBots();
   const bot = bots.find((item) => item.id === botId);
@@ -247,14 +357,43 @@ async function scheduleMessage(botId: string, message: string, cron: string, tim
   if (existing) return { jobId: existing.jobId };
   const created = await putCronJob(cronCall, cronApiKey, {
     url: webhookUrl(base, bot.hookToken),
-    title: scheduleTitle(bot.name),
+    title: read.once ? `${scheduleTitle(bot.name)} once` : scheduleTitle(bot.name),
     message: read.message,
     schedule: read.schedule,
   });
   if ("error" in created) return { error: created.error };
-  jobs.push({ botId: bot.id, jobId: created.jobId, requestKey });
+  jobs.push({
+    botId: bot.id,
+    jobId: created.jobId,
+    requestKey,
+    message: read.message,
+    cron: read.cron,
+    timezone: read.timezone,
+    enabled: true,
+    once: read.once,
+    ...(read.at ? { at: read.at } : {}),
+  });
   await saveSchedules(jobs);
   return { jobId: created.jobId };
+}
+
+async function setScheduleEnabled(botId: string, jobId: number, enabled: boolean): Promise<{ job: ReturnType<typeof publicSchedule> } | { error: string; status: number }> {
+  if (!cronApiKey) return { error: "cron-job.org API key is not configured", status: 400 };
+  const jobs = await loadSchedules();
+  const job = jobs.find((item) => item.botId === botId && item.jobId === jobId);
+  if (!job) return { error: "schedule not found", status: 404 };
+  const updated = await setCronJobEnabled(cronCall, cronApiKey, jobId, enabled);
+  if ("error" in updated) return updated;
+  job.enabled = enabled;
+  await saveSchedules(jobs);
+  return { job: publicSchedule(job) };
+}
+
+async function deleteOneSchedule(botId: string, jobId: number): Promise<{ ok: true } | { error: string; status: number }> {
+  const jobs = await loadSchedules();
+  const job = jobs.find((item) => item.botId === botId && item.jobId === jobId);
+  if (!job) return { error: "schedule not found", status: 404 };
+  return deleteScheduleRecords([job]);
 }
 
 async function deleteScheduleRecords(records: ScheduleRecord[]): Promise<{ ok: true } | { error: string; status: number }> {
@@ -272,13 +411,138 @@ async function deleteScheduleRecords(records: ScheduleRecord[]): Promise<{ ok: t
 
 let peerExtension: Extension | undefined;
 let scheduleExtension: Extension | undefined;
+let selfExtension: Extension | undefined;
+let presenceExtension: Extension | undefined;
+let rosterExtension: Extension | undefined;
+let memoryExtension: Extension | undefined;
+let secretsExtension: Extension | undefined;
+let coordinatorExtension: Extension | undefined;
 let peerQueue: Promise<unknown> = Promise.resolve();
+let featureQueue: Promise<unknown> = Promise.resolve();
 
 function botExtensions() {
   const extensions: Extension[] = [CodingTools];
+  if (presenceExtension) extensions.push(presenceExtension);
+  if (selfExtension) extensions.push(selfExtension);
   if (peerExtension) extensions.push(peerExtension);
   if (scheduleExtension) extensions.push(scheduleExtension);
+  if (rosterExtension) extensions.push(rosterExtension);
+  if (memoryExtension) extensions.push(memoryExtension);
+  if (secretsExtension) extensions.push(secretsExtension);
+  if (coordinatorExtension) extensions.push(coordinatorExtension);
   return extensions;
+}
+
+function enqueueFeatures<T>(work: () => Promise<T>): Promise<T> {
+  const run = featureQueue.then(work, work);
+  featureQueue = run.then(() => undefined, () => undefined);
+  return run;
+}
+
+type ActiveWork = { botId: string; taskId: string; text: string; tool?: string; startedAt: number };
+const activeWork = new Map<string, ActiveWork>();
+
+function rememberWork(botId: string, taskId: string, text: string, tool?: string): void {
+  activeWork.set(taskId, { botId, taskId, text, ...(tool ? { tool } : {}), startedAt: Date.now() });
+}
+
+function forgetWork(taskId: string): void {
+  activeWork.delete(taskId);
+}
+
+function statusForBots(busy: readonly string[]): { id: string; text: string }[] {
+  const latest = new Map<string, ActiveWork>();
+  for (const item of activeWork.values()) {
+    const prior = latest.get(item.botId);
+    if (!prior || item.startedAt >= prior.startedAt) latest.set(item.botId, item);
+  }
+  const status = [...latest.values()].map((item) => ({ id: item.botId, text: item.text }));
+  const seen = new Set(status.map((item) => item.id));
+  for (const id of busy) {
+    if (!seen.has(id)) status.push({ id, text: "working on your message" });
+  }
+  return status;
+}
+
+async function addNote(botId: string, text: string): Promise<void> {
+  const notes = await loadNotes(notesPath);
+  notes.push({ id: newId("n"), botId, text, createdAt: new Date().toISOString() });
+  await saveNotes(notesPath, notes);
+}
+
+async function sweepHangs(): Promise<void> {
+  const limit = hangLimit() + WATCH_GRACE_MS;
+  const now = Date.now();
+  for (const item of [...activeWork.values()]) {
+    if (!item.tool || !isHung(item.startedAt, now, limit)) continue;
+    activeWork.delete(item.taskId);
+    try {
+      const conversation = await conversationFor(item.botId);
+      await conversation.abort(context);
+    } catch {
+      // The run may already be idle.
+    }
+    await addNote(item.botId, hangNote(item.tool));
+  }
+}
+
+function uploadFile(relativePath: string): string | null {
+  if (!relativePath.startsWith("uploads/") || relativePath.includes("..")) return null;
+  const root = resolve(workdir);
+  const file = resolve(root, relativePath);
+  if (file !== root && !file.startsWith(root + sep)) return null;
+  return file;
+}
+
+async function editBot(id: string, fields: FieldPatch): Promise<BotRecord | { error: string; status: number }> {
+  const bots = await loadBots();
+  const index = bots.findIndex((item) => item.id === id || item.conversationId === id);
+  if (index < 0) return { error: "bot not found", status: 404 };
+  const current = bots[index];
+  if (!current) return { error: "bot not found", status: 404 };
+  const instruction = fields.instruction !== undefined ? fields.instruction : current.instruction;
+  if (instruction !== current.instruction) {
+    await applyInstruction(await conversationFor(current.id), instruction);
+  }
+  const bot: BotRecord = {
+    ...current,
+    ...(fields.name !== undefined ? { name: fields.name } : {}),
+    instruction,
+    ...(fields.look !== undefined ? { look: fields.look } : {}),
+  };
+  bots[index] = bot;
+  await saveBots(bots);
+  return bot;
+}
+
+async function createQuestion(botId: string, prompt: string, labels: readonly string[]): Promise<QuestionRecord | { error: string }> {
+  const bots = await loadBots();
+  const bot = bots.find((item) => item.id === botId || item.conversationId === botId);
+  if (!bot) return { error: "bot not found" };
+  const read = readQuestionInput({ prompt, options: [...labels] });
+  if ("error" in read) return read;
+  const question: QuestionRecord = {
+    id: newId("q"),
+    botId: bot.id,
+    prompt: read.prompt,
+    options: read.options.map((label) => ({ id: newId("o"), label })),
+    createdAt: new Date().toISOString(),
+  };
+  const questions = await loadQuestions(questionsPath);
+  questions.push(question);
+  await saveQuestions(questionsPath, questions);
+  return question;
+}
+
+function withNotes<T extends { createdAt?: string | null }>(messages: T[], notes: NoteRecord[]): (T | { id: string; kind: "pi.note"; text: string; createdAt: string })[] {
+  const lines: (T | { id: string; kind: "pi.note"; text: string; createdAt: string })[] = [...messages];
+  for (const note of notes) {
+    const row = { id: `note:${note.id}`, kind: "pi.note" as const, text: note.text, createdAt: note.createdAt };
+    const index = lines.findIndex((item) => String(item.createdAt ?? "") > note.createdAt);
+    if (index < 0) lines.push(row);
+    else lines.splice(index, 0, row);
+  }
+  return lines;
 }
 
 function enqueuePeers<T>(work: () => Promise<T>): Promise<T> {
@@ -463,7 +727,7 @@ async function transcript(conversation: Conversation, extra: readonly string[] =
   const messages: ExportMessage[] = [];
   for (const entry of collected.reverse()) {
     if (entry.kind !== "pi.user" && entry.kind !== "pi.assistant") continue;
-    const raw = textOf(entry);
+    const raw = takeFileMarker(textOf(entry)).text;
     if (raw.trim().length === 0) continue;
     messages.push({
       id: String(entry.id),
@@ -510,13 +774,448 @@ async function busyBotIds(): Promise<string[]> {
   return bots.filter((bot) => live.has(bot.id) || live.has(bot.conversationId)).map((bot) => bot.id);
 }
 
+async function loadJson(path: string): Promise<unknown> {
+  try {
+    return JSON.parse(await readFile(path, "utf8")) as unknown;
+  } catch {
+    return {};
+  }
+}
+
+async function saveJson(path: string, body: unknown): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, JSON.stringify(body, null, 2));
+}
+
+async function secretNeedles(extra: readonly string[] = []): Promise<string[]> {
+  const vault = normalizeVault(await loadJson(secretsPath));
+  return exportSecrets([...vaultValues(vault), ...extra]);
+}
+
+async function createNamedBot(fields: FieldPatch, createdBy?: string): Promise<{ status: number; body: Record<string, unknown> }> {
+  const bots = await loadBots();
+  const guard = createdBy ? guardSpawn(bots, createdBy) : guardRoster(bots.length);
+  if ("error" in guard) return { status: guard.error === "bot not found" ? 404 : 409, body: { error: guard.error } };
+  const look = fields.look ?? nextLook(bots.map((item) => item.look));
+  const instruction = fields.instruction ?? "";
+  const conversation = await harness.createConversation({
+    ownership: { kind: "ownerless" },
+    agent: {
+      model: sharedModel(),
+      cwd: workdir,
+      instructions: withPeerInstruction(instruction),
+    },
+  }, context);
+  await conversation.configure({ extensions: botExtensions(), cwd: workdir }, context);
+  const bot: BotRecord = {
+    id: String(conversation.id),
+    name: fields.name ?? "",
+    conversationId: String(conversation.id),
+    instruction,
+    look,
+    hookToken: newHookToken(),
+    ...(createdBy ? { createdBy } : {}),
+  };
+  conversations.set(bot.id, conversation);
+  bots.push(bot);
+  await saveBots(bots);
+  return { status: 201, body: publicBot(bot) };
+}
+
+async function searchableMessages(): Promise<SearchMessage[]> {
+  const bots = await loadBots();
+  const needles = await secretNeedles(bots.map((bot) => bot.hookToken));
+  const peers = await loadPeers();
+  const messages: SearchMessage[] = [];
+  for (const bot of bots) {
+    const lines = await transcript(await conversationFor(bot.id), needles);
+    for (const line of lines) {
+      if (line.text.includes("pi-orbs-peer-hop:")) continue;
+      messages.push({
+        botId: bot.id,
+        botName: bot.name,
+        look: bot.look,
+        messageId: line.id,
+        kind: line.kind,
+        text: line.text,
+        createdAt: line.createdAt,
+      });
+    }
+    for (const peer of peers.filter((item) => item.from === bot.id || item.to === bot.id)) {
+      messages.push({
+        botId: bot.id,
+        botName: bot.name,
+        look: bot.look,
+        messageId: `peer:${peer.id}`,
+        kind: "pi.peer",
+        text: redactSecrets(peer.content, needles),
+        createdAt: peer.createdAt,
+      });
+    }
+  }
+  return messages;
+}
+
+async function runCheckIn(force: boolean): Promise<{ status: number; body: Record<string, unknown> }> {
+  const bots = await loadBots();
+  const bot = mainBotId ? bots.find((item) => item.id === mainBotId) : undefined;
+  if (!bot) return { status: 409, body: { error: "no Main Bot" } };
+  if (!force && Date.now() < nextCheckInAt) return { status: 409, body: { error: "check-in is not due" } };
+  nextCheckInAt = Date.now() + CHECK_IN_MS;
+  await saveBots(bots);
+  try {
+    const conversation = await conversationFor(bot.id);
+    await conversation.submit({
+      type: "input",
+      content: CHECK_IN_PROMPT,
+      requestId: `check-in:${bot.id}:${Date.now()}`,
+    }, context);
+  } catch (error) {
+    if (error instanceof ConversationBusy) {
+      nextCheckInAt = Date.now() + 60_000;
+      await saveBots(bots);
+      return { status: 409, body: { error: "busy" } };
+    }
+    throw error;
+  }
+  return { status: 202, body: { ok: true, botId: bot.id } };
+}
+
+function mainBody(): { botId: string | null; nextCheckInAt: string | null } {
+  return {
+    botId: mainBotId,
+    nextCheckInAt: nextCheckInAt > 0 ? new Date(nextCheckInAt).toISOString() : null,
+  };
+}
+
+async function forgetBotFeatures(botId: string): Promise<void> {
+  const memories = dropBot(normalizeMemories(await loadJson(memoriesPath)), botId);
+  await saveJson(memoriesPath, { memories });
+  const vault = normalizeVault(await loadJson(secretsPath));
+  await saveJson(secretsPath, {
+    secrets: dropBot(vault.secrets, botId),
+    requests: dropBot(vault.requests, botId),
+  });
+  const approvals = normalizeApprovals(await loadJson(approvalsPath));
+  await saveJson(approvalsPath, {
+    cards: dropBot(approvals.cards, botId),
+    grants: dropBot(approvals.grants, botId),
+  });
+  if (mainBotId === botId) {
+    mainBotId = null;
+    nextCheckInAt = 0;
+  }
+}
+
+function featureTarget(pathname: string): { id: string; rest: string[] } | null {
+  const match = pathname.match(/^\/api\/bots\/([^/]+)(?:\/(.*))?$/);
+  if (!match || match[1] === undefined) return null;
+  let id = "";
+  try {
+    id = decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+  return { id, rest: (match[2] ?? "").split("/").filter(Boolean) };
+}
+
+async function noteApproval(botId: string, note: string): Promise<void> {
+  try {
+    const conversation = await conversationFor(botId);
+    await conversation.submit({ type: "input", content: note }, context);
+  } catch (error) {
+    if (error instanceof ConversationBusy) return;
+    throw error;
+  }
+}
+
+async function handleFeature(url: URL, req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+  if (url.pathname === "/api/search" && req.method === "GET") {
+    const bots = await loadBots();
+    const needles = await secretNeedles(bots.map((bot) => bot.hookToken));
+    const result = searchPalette(url.searchParams.get("q") ?? "", bots.map((bot) => ({
+      id: bot.id,
+      name: redactSecrets(bot.name, needles),
+      look: bot.look,
+      instruction: redactSecrets(bot.instruction, needles),
+      ...(bot.id === mainBotId ? { main: true } : {}),
+    })), await searchableMessages());
+    result.messages = result.messages.map((item) => ({ ...item, text: redactSecrets(item.text, needles), botName: redactSecrets(item.botName, needles) }));
+    send(res, 200, result);
+    return true;
+  }
+  if (url.pathname === "/api/main" && req.method === "GET") {
+    await loadBots();
+    send(res, 200, mainBody());
+    return true;
+  }
+  if (url.pathname === "/api/main/check-in" && req.method === "POST") {
+    const result = await runCheckIn(true);
+    send(res, result.status, result.body);
+    return true;
+  }
+  if (url.pathname === "/api/bots/import") {
+    if (req.method !== "POST") {
+      send(res, 404, { error: "not found" });
+      return true;
+    }
+    const read = readTemplate(await readBody(req));
+    if ("error" in read) {
+      send(res, 400, { error: read.error });
+      return true;
+    }
+    const bots = await loadBots();
+    const room = guardRoster(bots.length);
+    if ("error" in room) {
+      send(res, 409, { error: room.error });
+      return true;
+    }
+    const created = await createNamedBot({
+      name: copyName(read.name, bots.map((bot) => bot.name)),
+      instruction: read.instruction,
+      look: read.look,
+    });
+    send(res, created.status, created.body);
+    return true;
+  }
+  const target = featureTarget(url.pathname);
+  if (!target || target.rest.length === 0) return false;
+  const { id, rest } = target;
+  const bots = await loadBots();
+  const bot = bots.find((item) => item.id === id);
+  if (!bot) {
+    send(res, 404, { error: "bot not found" });
+    return true;
+  }
+  if (rest[0] === "template" && rest.length === 1 && req.method === "GET") {
+    send(res, 200, templateFrom(bot, await secretNeedles([bot.hookToken])));
+    return true;
+  }
+  if (rest[0] === "spawn" && rest.length === 1 && req.method === "POST") {
+    const fields = readFields(await readBody(req), "create");
+    if ("error" in fields) {
+      send(res, 400, { error: fields.error });
+      return true;
+    }
+    const created = await enqueueFeatures(() => createNamedBot(fields, bot.id));
+    send(res, created.status, created.body);
+    return true;
+  }
+  if (rest[0] === "main" && rest.length === 1 && req.method === "POST") {
+    const body = asRecord(await readBody(req));
+    if (typeof body.main !== "boolean") {
+      send(res, 400, { error: "main must be a boolean" });
+      return true;
+    }
+    if (body.main) {
+      mainBotId = bot.id;
+      nextCheckInAt = Date.now() + CHECK_IN_MS;
+    } else if (mainBotId === bot.id) {
+      mainBotId = null;
+      nextCheckInAt = 0;
+    }
+    await saveBots(bots);
+    send(res, 200, publicBot(bot));
+    return true;
+  }
+  if (rest[0] === "memories" && rest.length === 1 && req.method === "GET") {
+    send(res, 200, { memories: publicMemories(normalizeMemories(await loadJson(memoriesPath)), bot.id) });
+    return true;
+  }
+  if (rest[0] === "memories" && rest.length === 1 && req.method === "POST") {
+    const saved = await enqueueFeatures(async () => {
+      const memories = normalizeMemories(await loadJson(memoriesPath));
+      const next = saveMemory(memories, bot.id, asRecord(await readBody(req)).fact);
+      if ("error" in next) return next;
+      await saveJson(memoriesPath, { memories: next.memories });
+      return { memory: { id: next.memory.id, fact: next.memory.fact, createdAt: next.memory.createdAt } };
+    });
+    if ("error" in saved) {
+      send(res, 400, { error: saved.error });
+      return true;
+    }
+    send(res, 201, saved);
+    return true;
+  }
+  if (rest[0] === "memories" && rest.length === 2 && rest[1] && req.method === "DELETE") {
+    let memoryId = "";
+    try {
+      memoryId = decodeURIComponent(rest[1]);
+    } catch {
+      send(res, 404, { error: "memory not found" });
+      return true;
+    }
+    const forgotten = await enqueueFeatures(async () => {
+      const memories = normalizeMemories(await loadJson(memoriesPath));
+      const next = forgetMemory(memories, bot.id, { id: memoryId });
+      if ("error" in next) return next;
+      await saveJson(memoriesPath, { memories: next.memories });
+      return { ok: true as const };
+    });
+    if ("error" in forgotten) {
+      send(res, 404, { error: forgotten.error });
+      return true;
+    }
+    send(res, 200, forgotten);
+    return true;
+  }
+  if (rest[0] === "secrets" && rest.length === 1 && req.method === "GET") {
+    const vault = normalizeVault(await loadJson(secretsPath));
+    send(res, 200, publicVault(vault, bot.id, vaultValues(vault, bot.id)));
+    return true;
+  }
+  if (rest[0] === "secrets" && rest.length === 1 && req.method === "POST") {
+    const body = asRecord(await readBody(req));
+    const result = await enqueueFeatures(async () => {
+      const vault = normalizeVault(await loadJson(secretsPath));
+      if (body.dismiss === true) {
+        const requestId = typeof body.requestId === "string" ? body.requestId : "";
+        const dismissed = dismissSecret(vault, bot.id, requestId);
+        if ("error" in dismissed) return dismissed;
+        await saveJson(secretsPath, dismissed.vault);
+        return { dismissed: true as const };
+      }
+      if (body.request === true) {
+        const opened = requestSecret(vault, bot.id, body.name, body.reason);
+        if ("error" in opened) return opened;
+        await saveJson(secretsPath, opened.vault);
+        return {
+          request: {
+            id: opened.request.id,
+            name: opened.request.name,
+            reason: opened.request.reason,
+            createdAt: opened.request.createdAt,
+            status: opened.request.status,
+          },
+        };
+      }
+      const saved = fulfillSecret(vault, bot.id, body);
+      if ("error" in saved) return saved;
+      await saveJson(secretsPath, saved.vault);
+      return { name: saved.name, saved: true as const };
+    });
+    if ("error" in result) {
+      send(res, 400, { error: result.error });
+      return true;
+    }
+    send(res, "request" in result ? 201 : 200, result);
+    return true;
+  }
+  if (rest[0] === "secrets" && rest.length === 2 && rest[1] && req.method === "DELETE") {
+    let name = "";
+    try {
+      name = decodeURIComponent(rest[1]);
+    } catch {
+      send(res, 404, { error: "secret not found" });
+      return true;
+    }
+    const removed = await enqueueFeatures(async () => {
+      const vault = normalizeVault(await loadJson(secretsPath));
+      const next = deleteSecret(vault, bot.id, name);
+      if ("error" in next) return next;
+      await saveJson(secretsPath, next.vault);
+      return { ok: true as const };
+    });
+    if ("error" in removed) {
+      send(res, 404, { error: removed.error });
+      return true;
+    }
+    send(res, 200, removed);
+    return true;
+  }
+  if (rest[0] === "approvals" && rest.length === 1 && req.method === "GET") {
+    const listed = await enqueueFeatures(async () => {
+      const vault = normalizeVault(await loadJson(secretsPath));
+      const state = expireApprovals(normalizeApprovals(await loadJson(approvalsPath)));
+      await saveJson(approvalsPath, state);
+      return publicApprovals(state, bot.id, vaultValues(vault, bot.id));
+    });
+    send(res, 200, listed);
+    return true;
+  }
+  if (rest[0] === "approvals" && rest.length === 1 && req.method === "POST") {
+    const body = asRecord(await readBody(req));
+    const resolved = await enqueueFeatures(async () => {
+      const vault = normalizeVault(await loadJson(secretsPath));
+      const state = normalizeApprovals(await loadJson(approvalsPath));
+      const next = resolveApproval(state, {
+        botId: bot.id,
+        cardId: body.cardId,
+        decision: body.decision,
+        secrets: vaultValues(vault, bot.id),
+      });
+      if ("error" in next) return next;
+      await saveJson(approvalsPath, next.state);
+      return next;
+    });
+    if ("error" in resolved) {
+      send(res, 400, { error: resolved.error });
+      return true;
+    }
+    await noteApproval(bot.id, resolved.note);
+    send(res, 200, { card: resolved.card });
+    return true;
+  }
+  if (rest[0] === "approvals" && rest.length === 2 && rest[1] && req.method === "DELETE") {
+    let action = "";
+    try {
+      action = decodeURIComponent(rest[1]);
+    } catch {
+      send(res, 400, { error: "action is not recognized" });
+      return true;
+    }
+    const revoked = await enqueueFeatures(async () => {
+      const state = normalizeApprovals(await loadJson(approvalsPath));
+      const next = revokeAlways(state, bot.id, action);
+      if ("error" in next) return next;
+      await saveJson(approvalsPath, next.state);
+      return { ok: true as const };
+    });
+    if ("error" in revoked) {
+      send(res, 400, { error: revoked.error });
+      return true;
+    }
+    send(res, 200, revoked);
+    return true;
+  }
+  if (rest[0] === "actions" && rest.length === 1 && req.method === "POST") {
+    const body = asRecord(await readBody(req));
+    const reviewed = await enqueueFeatures(async () => {
+      const vault = normalizeVault(await loadJson(secretsPath));
+      const state = normalizeApprovals(await loadJson(approvalsPath));
+      const next = reviewAction(state, {
+        botId: bot.id,
+        command: body.command,
+        ...(body.action !== undefined ? { action: body.action } : {}),
+        secrets: vaultValues(vault, bot.id),
+      });
+      if ("error" in next) return next;
+      await saveJson(approvalsPath, next.state);
+      return next;
+    });
+    if ("error" in reviewed) {
+      send(res, 400, { error: reviewed.error });
+      return true;
+    }
+    send(res, reviewed.decision === "allow" ? 200 : 202, {
+      decision: reviewed.decision,
+      action: reviewed.action,
+      message: reviewed.message,
+      ran: false,
+      ...(reviewed.card ? { card: reviewed.card } : {}),
+    });
+    return true;
+  }
+  return false;
+}
+
 const http = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://localhost");
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
       "access-control-allow-origin": "*",
       "access-control-allow-headers": "authorization, content-type, x-api-key",
-      "access-control-allow-methods": "GET, POST, PATCH, OPTIONS",
+      "access-control-allow-methods": "GET, POST, PATCH, DELETE, OPTIONS",
     });
     res.end();
     return;
@@ -639,7 +1338,7 @@ const http = createServer(async (req, res) => {
     }
     if (url.pathname === "/api/export" && req.method === "GET") {
       const bots = await loadBots();
-      const tokens = bots.map((bot) => bot.hookToken);
+      const tokens = await secretNeedles(bots.map((bot) => bot.hookToken));
       const exported = [];
       for (const bot of bots) {
         exported.push({
@@ -660,34 +1359,13 @@ const http = createServer(async (req, res) => {
         send(res, 400, { error: fields.error });
         return;
       }
-      const bots = await loadBots();
-      const look = fields.look ?? nextLook(bots.map((item) => item.look));
-      const instruction = fields.instruction ?? "";
-      const conversation = await harness.createConversation({
-        ownership: { kind: "ownerless" },
-        agent: {
-          model: sharedModel(),
-          cwd: workdir,
-          instructions: withPeerInstruction(instruction),
-        },
-      }, context);
-      await conversation.configure({ extensions: botExtensions(), cwd: workdir }, context);
-      const bot: BotRecord = {
-        id: String(conversation.id),
-        name: fields.name ?? "",
-        conversationId: String(conversation.id),
-        instruction,
-        look,
-        hookToken: newHookToken(),
-      };
-      conversations.set(bot.id, conversation);
-      bots.push(bot);
-      await saveBots(bots);
-      send(res, 201, publicBot(bot));
+      const created = await createNamedBot(fields);
+      send(res, created.status, created.body);
       return;
     }
     if (url.pathname === "/api/bots/activity" && req.method === "GET") {
-      send(res, 200, { busy: await busyBotIds() });
+      const busy = await busyBotIds();
+      send(res, 200, { busy, status: statusForBots(busy) });
       return;
     }
     const messageRoute = url.pathname.match(/^\/api\/bots\/([^/]+)(\/messages)?$/);
@@ -703,12 +1381,32 @@ const http = createServer(async (req, res) => {
       const entries = await conversation.entries({}, 200, undefined, context);
       const chronological = [...entries.items].reverse();
       const hidden = hiddenThreadEntryIds(chronological.map((entry) => ({ id: String(entry.id), kind: entry.kind })), peerIds);
+      const storedFiles = (await loadFiles(filesPath)).filter((item) => item.botId === bot.id);
+      const needles = await secretNeedles(bots.map((item) => item.hookToken));
       const visible = chronological
         .filter((entry) => (entry.kind === "pi.user" || entry.kind === "pi.assistant") && !hidden.has(String(entry.id)))
-        .map((entry) => ({ id: String(entry.id), kind: entry.kind, text: textOf(entry), createdAt: createdAtOf(entry) }))
-        .filter((entry) => entry.text.trim().length > 0);
+        .map((entry) => {
+          const taken = takeFileMarker(textOf(entry));
+          const id = String(entry.id);
+          const attached = storedFiles.filter((item) => item.messageId === id || taken.fileIds.includes(item.id));
+          return {
+            id,
+            kind: entry.kind,
+            text: redactSecrets(taken.text, needles),
+            createdAt: createdAtOf(entry),
+            ...(attached.length > 0 ? { files: attached.map(publicFile) } : {}),
+          };
+        })
+        .filter((entry) => entry.text.trim().length > 0 || (entry.files?.length ?? 0) > 0);
       const peers = (await loadPeers()).filter((item) => item.from === bot.id || item.to === bot.id);
-      send(res, 200, { bot: publicBot(bot), messages: withPeerLines(visible, peers.map(publicPeer)) });
+      const notes = (await loadNotes(notesPath)).filter((item) => item.botId === bot.id).map((item) => ({ ...item, text: redactSecrets(item.text, needles) }));
+      const questions = (await loadQuestions(questionsPath)).filter((item) => item.botId === bot.id);
+      send(res, 200, {
+        bot: publicBot(bot),
+        messages: withNotes(withPeerLines(visible, peers.map((item) => publicPeer({ ...item, content: redactSecrets(item.content, needles) }))), notes),
+        questions: questions.map(publicQuestion),
+        files: storedFiles.map(publicFile),
+      });
       return;
     }
     if (messageRoute && req.method === "PATCH" && !messageRoute[2]) {
@@ -717,30 +1415,12 @@ const http = createServer(async (req, res) => {
         send(res, 400, { error: fields.error });
         return;
       }
-      const bots = await loadBots();
-      const index = bots.findIndex((item) => item.id === messageRoute[1]);
-      if (index < 0) {
-        send(res, 404, { error: "bot not found" });
+      const updated = await editBot(messageRoute[1] ?? "", fields);
+      if ("error" in updated) {
+        send(res, updated.status, { error: updated.error });
         return;
       }
-      const current = bots[index];
-      if (!current) {
-        send(res, 404, { error: "bot not found" });
-        return;
-      }
-      const instruction = fields.instruction !== undefined ? fields.instruction : current.instruction;
-      if (instruction !== current.instruction) {
-        await applyInstruction(await conversationFor(current.id), instruction);
-      }
-      const bot: BotRecord = {
-        ...current,
-        ...(fields.name !== undefined ? { name: fields.name } : {}),
-        instruction,
-        ...(fields.look !== undefined ? { look: fields.look } : {}),
-      };
-      bots[index] = bot;
-      await saveBots(bots);
-      send(res, 200, publicBot(bot));
+      send(res, 200, publicBot(updated));
       return;
     }
     if (messageRoute && req.method === "DELETE" && !messageRoute[2]) {
@@ -761,7 +1441,11 @@ const http = createServer(async (req, res) => {
         return;
       }
       bots.splice(index, 1);
+      await forgetBotFeatures(removed.id);
       await saveBots(bots);
+      await saveFiles(filesPath, (await loadFiles(filesPath)).filter((item) => item.botId !== removed.id));
+      await saveQuestions(questionsPath, (await loadQuestions(questionsPath)).filter((item) => item.botId !== removed.id));
+      await saveNotes(notesPath, (await loadNotes(notesPath)).filter((item) => item.botId !== removed.id));
       conversations.delete(removed.id);
       const peers = (await loadPeers()).filter((item) => item.from !== removed.id && item.to !== removed.id);
       await savePeers(peers);
@@ -791,21 +1475,190 @@ const http = createServer(async (req, res) => {
       return;
     }
     if (messageRoute && req.method === "POST" && messageRoute[2]) {
-      const body = await readBody(req) as { content?: string; whenBusy?: "followUp" | "steer" | "reject" };
-      const content = body.content?.trim();
-      if (!content) {
+      const body = asRecord(await readBody(req));
+      const fileIds = Array.isArray(body.fileIds) ? body.fileIds.filter((item): item is string => typeof item === "string") : [];
+      let content = typeof body.content === "string" ? body.content.trim() : "";
+      const whenBusy = body.whenBusy === "followUp" || body.whenBusy === "steer" || body.whenBusy === "reject" ? body.whenBusy : undefined;
+      const bots = await loadBots();
+      const bot = bots.find((item) => item.id === messageRoute[1]);
+      if (!bot) {
+        send(res, 404, { error: "bot not found" });
+        return;
+      }
+      const stored = await loadFiles(filesPath);
+      const chosen = stored.filter((item) => item.botId === bot.id && fileIds.includes(item.id) && !item.messageId);
+      if (chosen.length > 0) {
+        const lines = chosen.map((item) => `Attached: ${item.relativePath}`);
+        content = content ? `${content}\n\n${lines.join("\n")}` : lines.join("\n");
+        content = `${content}\n${fileMarker(chosen.map((item) => item.id))}`;
+      }
+      if (!content.trim()) {
         send(res, 400, { error: "content is required" });
         return;
       }
-      const conversation = await conversationFor(messageRoute[1]);
+      const conversation = await conversationFor(bot.id);
       const submission = await conversation.submit({
         type: "input",
         content,
-        ...(body.whenBusy ? { whenBusy: body.whenBusy } : {}),
+        ...(whenBusy ? { whenBusy } : {}),
       }, context);
+      const admitted = await submission.status(context);
+      const messageId = admitted.status === "placed" || admitted.status === "done" ? String(admitted.entry) : "";
+      if (messageId && chosen.length > 0) {
+        for (const item of stored) {
+          if (chosen.some((file) => file.id === item.id)) item.messageId = messageId;
+        }
+        await saveFiles(filesPath, stored);
+      }
       send(res, 202, { submissionId: submission.id });
       return;
     }
+    const extraRoute = url.pathname.match(/^\/api\/bots\/([^/]+)\/(schedules|questions|files)(?:\/([^/]+))?(?:\/(answer))?$/);
+    if (extraRoute) {
+      const botId = extraRoute[1] ?? "";
+      const kind = extraRoute[2];
+      const leaf = extraRoute[3] ? decodeURIComponent(extraRoute[3]) : "";
+      const answer = extraRoute[4] === "answer";
+      const bots = await loadBots();
+      const bot = bots.find((item) => item.id === botId);
+      if (!bot) {
+        send(res, 404, { error: "bot not found" });
+        return;
+      }
+      if (kind === "schedules" && !leaf && req.method === "GET") {
+        const jobs = (await loadSchedules()).filter((item) => item.botId === bot.id);
+        send(res, 200, { jobs: jobs.map(publicSchedule) });
+        return;
+      }
+      if (kind === "schedules" && leaf && req.method === "PATCH") {
+        const jobId = Number(leaf);
+        const body = asRecord(await readBody(req));
+        if (!Number.isInteger(jobId) || typeof body.enabled !== "boolean") {
+          send(res, 400, { error: "enabled is required" });
+          return;
+        }
+        const updated = await setScheduleEnabled(bot.id, jobId, body.enabled);
+        if ("error" in updated) {
+          send(res, updated.status, { error: updated.error });
+          return;
+        }
+        send(res, 200, updated.job);
+        return;
+      }
+      if (kind === "schedules" && leaf && req.method === "DELETE") {
+        const jobId = Number(leaf);
+        if (!Number.isInteger(jobId)) {
+          send(res, 400, { error: "schedule not found" });
+          return;
+        }
+        const removed = await deleteOneSchedule(bot.id, jobId);
+        if ("error" in removed) {
+          send(res, removed.status, { error: removed.error });
+          return;
+        }
+        send(res, 200, { ok: true });
+        return;
+      }
+      if (kind === "questions" && !leaf && req.method === "POST") {
+        const read = readQuestionInput(asRecord(await readBody(req)));
+        if ("error" in read) {
+          send(res, 400, { error: read.error });
+          return;
+        }
+        const created = await createQuestion(bot.id, read.prompt, read.options);
+        if ("error" in created) {
+          send(res, 404, { error: created.error });
+          return;
+        }
+        send(res, 201, publicQuestion(created));
+        return;
+      }
+      if (kind === "questions" && leaf && answer && req.method === "POST") {
+        const questions = await loadQuestions(questionsPath);
+        const question = questions.find((item) => item.id === leaf && item.botId === bot.id);
+        if (!question) {
+          send(res, 404, { error: "question not found" });
+          return;
+        }
+        if (question.answeredAt) {
+          send(res, 409, { error: "question is already answered" });
+          return;
+        }
+        const picked = readAnswerInput(asRecord(await readBody(req)).selected, question.options.map((option) => option.id));
+        if ("error" in picked) {
+          send(res, 400, { error: picked.error });
+          return;
+        }
+        question.selected = picked;
+        question.answeredAt = new Date().toISOString();
+        await saveQuestions(questionsPath, questions);
+        const conversation = await conversationFor(bot.id);
+        const submission = await conversation.submit({ type: "input", content: answerText(question.options, picked) }, context);
+        send(res, 202, { submissionId: submission.id, question: publicQuestion(question) });
+        return;
+      }
+      if (kind === "files" && !leaf && req.method === "POST") {
+        const raw = await readRaw(req, 12_000_000);
+        if (raw === undefined) {
+          send(res, 413, { error: "file is too large" });
+          return;
+        }
+        let parsed: unknown = {};
+        if (raw.length > 0) parsed = JSON.parse(raw);
+        const decoded = decodeUpload(asRecord(parsed));
+        if ("error" in decoded) {
+          send(res, 400, { error: decoded.error });
+          return;
+        }
+        const id = newId("f");
+        const relativePath = `uploads/${bot.id}/${id}-${decoded.name}`;
+        const target = uploadFile(relativePath);
+        if (!target) {
+          send(res, 400, { error: "file name is invalid" });
+          return;
+        }
+        await mkdir(dirname(target), { recursive: true });
+        await writeFile(target, decoded.bytes);
+        const record: FileRecord = {
+          id,
+          botId: bot.id,
+          name: decoded.name,
+          mime: decoded.mime,
+          size: decoded.bytes.length,
+          createdAt: new Date().toISOString(),
+          relativePath,
+        };
+        const files = await loadFiles(filesPath);
+        files.push(record);
+        await saveFiles(filesPath, files);
+        send(res, 201, publicFile(record));
+        return;
+      }
+      if (kind === "files" && leaf && req.method === "GET") {
+        const record = (await loadFiles(filesPath)).find((item) => item.id === leaf && item.botId === bot.id);
+        if (!record) {
+          send(res, 404, { error: "file not found" });
+          return;
+        }
+        const target = uploadFile(record.relativePath);
+        if (!target) {
+          send(res, 404, { error: "file not found" });
+          return;
+        }
+        const bytes = await readFile(target);
+        const filename = record.name.replace(/["\r\n]/g, "");
+        res.writeHead(200, {
+          "content-type": record.mime || "application/octet-stream",
+          "content-disposition": `attachment; filename="${filename}"`,
+          "content-length": String(bytes.length),
+          "cache-control": "no-store",
+          "access-control-allow-origin": "*",
+        });
+        res.end(bytes);
+        return;
+      }
+    }
+    if (await handleFeature(url, req, res)) return;
     send(res, 404, { error: "not found" });
   } catch (error) {
     if (error instanceof ConversationBusy) {
@@ -901,30 +1754,192 @@ peerExtension = defineExtension({
 });
 registry.install(peerExtension);
 
+const bashTool = (CodingTools.tools ?? []).find((tool) => tool.name === "bash") as ToolRegistration | undefined;
+presenceExtension = defineExtension({
+  name: "presence",
+  hooks: [
+    hook(ToolTask, {
+      beforeTool(call, api) {
+        const args = call.arguments && typeof call.arguments === "object" ? call.arguments as Record<string, unknown> : {};
+        rememberWork(String(api.conversationId), String(api.taskId), workingOn(call.name, args), call.name);
+        return undefined;
+      },
+      afterTool(_call, _result, api) {
+        forgetWork(String(api.taskId));
+        return undefined;
+      },
+    }),
+    hook(GenerationTask, {
+      beforeRequest(_request, api) {
+        rememberWork(String(api.conversationId), String(api.taskId), "working on a reply");
+        return undefined;
+      },
+      afterResponse(_message, api) {
+        forgetWork(String(api.taskId));
+      },
+    }),
+  ],
+  wraps: bashTool ? [
+    wrapTool(bashTool, (tool) => ({
+      ...tool,
+      async execute(args, api, toolContext) {
+        const command = args && typeof args === "object" && "command" in args ? (args as { command?: unknown }).command : "";
+        const reviewed = await enqueueFeatures(async () => {
+          const vault = normalizeVault(await loadJson(secretsPath));
+          const state = normalizeApprovals(await loadJson(approvalsPath));
+          const next = reviewAction(state, {
+            botId: String(api.conversationId),
+            command,
+            secrets: vaultValues(vault, String(api.conversationId)),
+          });
+          if ("error" in next) return next;
+          await saveJson(approvalsPath, next.state);
+          return next;
+        });
+        if ("error" in reviewed) return { content: [{ type: "text", text: reviewed.error }], isError: true };
+        if (reviewed.decision !== "allow") return { content: [{ type: "text", text: reviewed.message }], isError: true };
+        const record = args as { timeout?: unknown };
+        const timeout = bashTimeoutSeconds(record.timeout, hangLimit());
+        try {
+          return await tool.execute({ ...(args as object), timeout } as typeof args, api, toolContext);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "";
+          if (/timed out|timeout/i.test(message)) await addNote(String(api.conversationId), hangNote("bash"));
+          throw error;
+        }
+      },
+    })),
+  ] : [],
+  sections: [
+    section("review", async () => approvalPrompt()),
+  ],
+});
+registry.install(presenceExtension);
+
+selfExtension = defineExtension({
+  name: "self",
+  tools: [
+    defineTool({
+      name: "update_self",
+      description: "Change this bot's own name and face. name is the roster title, at most 80 characters. look is one of slate, silver, mist, tide, pine, amber, clay, plum. Omit a field to leave it unchanged.",
+      parameters: Type.Object({
+        name: Type.Optional(Type.String({ description: "New name" })),
+        look: Type.Optional(Type.String({ description: "Pastel face: slate, silver, mist, tide, pine, amber, clay, or plum" })),
+      }),
+      replay: "safe",
+      execute: async (args, api) => {
+        const body: Record<string, unknown> = {};
+        if (args.name !== undefined) body.name = args.name;
+        if (args.look !== undefined) body.look = args.look;
+        const fields = readFields(body, "edit");
+        if ("error" in fields) return { content: [{ type: "text", text: fields.error }], isError: true };
+        const updated = await editBot(String(api.conversationId), fields);
+        if ("error" in updated) return { content: [{ type: "text", text: updated.error }], isError: true };
+        return { content: [{ type: "text", text: `Name is ${updated.name}. Look is ${updated.look}.` }] };
+      },
+    }),
+    defineTool({
+      name: "ask_question",
+      description: "Ask the person a question with options they can multi-select and submit. Free text still works. Use this when you need a choice, not when a normal reply is enough.",
+      parameters: Type.Object({
+        prompt: Type.String({ description: "The question" }),
+        options: Type.Array(Type.String({ description: "One choice" }), { description: "Two to twelve choices" }),
+      }),
+      replay: "safe",
+      execute: async (args, api) => {
+        const created = await createQuestion(String(api.conversationId), args.prompt, args.options);
+        if ("error" in created) return { content: [{ type: "text", text: created.error }], isError: true };
+        const labels = created.options.map((option) => option.label).join(", ");
+        return { content: [{ type: "text", text: `Asked: ${created.prompt}\nOptions: ${labels}\nThe person can select more than one and submit.` }] };
+      },
+    }),
+  ],
+  sections: [
+    section("self", () => [
+      "When the person asks you to rename yourself or change your face, call update_self in this turn.",
+      "Looks are slate, silver, mist, tide, pine, amber, clay, and plum.",
+      "When you need the person to pick among choices, call ask_question. They can select more than one option. They can still type a normal message.",
+    ].join("\n")),
+  ],
+});
+registry.install(selfExtension);
+
 scheduleExtension = defineExtension({
   name: "schedules",
   tools: [
     defineTool({
       name: "schedule_message",
-      description: "Schedule a message that cron-job.org will deliver into this conversation. It arrives as a normal user message, not a steer. cron is five fields: minute hour day-of-month month day-of-week.",
+      description: "Schedule a message that cron-job.org will deliver into this conversation. It arrives as a normal user message, not a steer. Pass cron (five fields: minute hour day-of-month month day-of-week) or at (an ISO time) for a one-shot reminder.",
       parameters: Type.Object({
         message: Type.String({ description: "What to send into this conversation when the schedule fires" }),
-        cron: Type.String({ description: "Five cron fields, for example 0 9 * * 1-5" }),
+        cron: Type.Optional(Type.String({ description: "Five cron fields, for example 0 9 * * 1-5. Omit when at is set." })),
         timezone: Type.Optional(Type.String({ description: "IANA time zone. Defaults to UTC." })),
+        at: Type.Optional(Type.String({ description: "ISO time for a one-shot reminder, shown as Once." })),
       }),
       replay: "safe",
       execute: async (args, api) => {
         const scheduled = await scheduleMessage(
           String(api.conversationId),
           args.message,
-          args.cron,
+          args.cron ?? "",
           args.timezone,
           `schedule:${api.taskId}:${api.callId}`,
+          args.at,
         );
         if ("error" in scheduled) {
           return { content: [{ type: "text", text: scheduled.error }], isError: true };
         }
-        return { content: [{ type: "text", text: `Scheduled job ${scheduled.jobId}.` }] };
+        const jobs = await loadSchedules();
+        const job = jobs.find((item) => item.jobId === scheduled.jobId);
+        const detail = job?.once && job.at ? ` Once at ${job.at}.` : "";
+        return { content: [{ type: "text", text: `Scheduled job ${scheduled.jobId}.${detail}` }] };
+      },
+    }),
+    defineTool({
+      name: "list_schedules",
+      description: "List this bot's scheduled messages, including paused ones and one-shot Once reminders.",
+      parameters: Type.Object({}),
+      replay: "safe",
+      execute: async (_args, api) => {
+        const jobs = (await loadSchedules()).filter((item) => item.botId === String(api.conversationId));
+        if (jobs.length === 0) return { content: [{ type: "text", text: "No schedules." }] };
+        return { content: [{ type: "text", text: jobs.map(scheduleSummary).join("\n") }] };
+      },
+    }),
+    defineTool({
+      name: "pause_schedule",
+      description: "Pause a scheduled message so cron-job.org does not run it. The job stays and can be resumed.",
+      parameters: Type.Object({ jobId: Type.Number({ description: "Job id from list_schedules or schedule_message" }) }),
+      replay: "safe",
+      execute: async (args, api) => {
+        if (!Number.isInteger(args.jobId)) return { content: [{ type: "text", text: "schedule not found" }], isError: true };
+        const updated = await setScheduleEnabled(String(api.conversationId), args.jobId, false);
+        if ("error" in updated) return { content: [{ type: "text", text: updated.error }], isError: true };
+        return { content: [{ type: "text", text: `Paused job ${updated.job.jobId}.` }] };
+      },
+    }),
+    defineTool({
+      name: "resume_schedule",
+      description: "Resume a paused scheduled message.",
+      parameters: Type.Object({ jobId: Type.Number({ description: "Job id to resume" }) }),
+      replay: "safe",
+      execute: async (args, api) => {
+        if (!Number.isInteger(args.jobId)) return { content: [{ type: "text", text: "schedule not found" }], isError: true };
+        const updated = await setScheduleEnabled(String(api.conversationId), args.jobId, true);
+        if ("error" in updated) return { content: [{ type: "text", text: updated.error }], isError: true };
+        return { content: [{ type: "text", text: `Resumed job ${updated.job.jobId}.` }] };
+      },
+    }),
+    defineTool({
+      name: "delete_schedule",
+      description: "Delete a scheduled message so it does not run again.",
+      parameters: Type.Object({ jobId: Type.Number({ description: "Job id to delete" }) }),
+      replay: "safe",
+      execute: async (args, api) => {
+        if (!Number.isInteger(args.jobId)) return { content: [{ type: "text", text: "schedule not found" }], isError: true };
+        const removed = await deleteOneSchedule(String(api.conversationId), args.jobId);
+        if ("error" in removed) return { content: [{ type: "text", text: removed.error }], isError: true };
+        return { content: [{ type: "text", text: `Deleted job ${args.jobId}.` }] };
       },
     }),
   ],
@@ -934,14 +1949,171 @@ scheduleExtension = defineExtension({
       return [
         "You can schedule a later message into this conversation with schedule_message.",
         "Use a five-field cron expression: minute hour day-of-month month day-of-week.",
-        "When it fires, the text arrives as a normal user message. It is not a steer, and it does not continue a peer chain.",
+        "For a one-shot reminder, pass at as an ISO time and omit cron. It is shown as Once.",
+        "list_schedules, pause_schedule, resume_schedule, and delete_schedule manage those jobs.",
+        "When a job fires, the text arrives as a normal user message. It is not a steer, and it does not continue a peer chain.",
       ].join("\n");
     }),
   ],
 });
 registry.install(scheduleExtension);
 
+rosterExtension = defineExtension({
+  name: "roster",
+  tools: [
+    defineTool({
+      name: "create_bot",
+      description: "Create another bot in the roster. It shows up in the sidebar. Use it only when the human asks for a new bot. Name is required. Instruction is optional. Look is optional: slate, silver, mist, tide, pine, amber, clay, or plum. You can create at most 8 bots. The roster holds at most 24.",
+      parameters: Type.Object({
+        name: Type.String({ description: "Name of the new bot" }),
+        instruction: Type.Optional(Type.String({ description: "How the new bot should behave" })),
+        look: Type.Optional(Type.String({ description: "One of slate, silver, mist, tide, pine, amber, clay, plum" })),
+      }),
+      replay: "safe",
+      execute: async (args, api) => {
+        const body: Record<string, unknown> = { name: args.name, instruction: args.instruction ?? "" };
+        if (args.look !== undefined) body.look = args.look;
+        const fields = readFields(body, "create");
+        if ("error" in fields) return { content: [{ type: "text", text: fields.error }], isError: true };
+        const created = await enqueueFeatures(() => createNamedBot(fields, String(api.conversationId)));
+        if (created.status >= 400) {
+          const error = typeof created.body.error === "string" ? created.body.error : "could not create the bot";
+          return { content: [{ type: "text", text: error }], isError: true };
+        }
+        const name = typeof created.body.name === "string" ? created.body.name : fields.name;
+        const id = typeof created.body.id === "string" ? created.body.id : "";
+        return { content: [{ type: "text", text: `Created ${name} (id ${id}). It is in the roster.` }] };
+      },
+    }),
+  ],
+  sections: [
+    section("roster", async () => [
+      "You can create another bot with create_bot when the human asks for one. It appears in the roster.",
+      "Pass a short name, an optional instruction, and an optional look: slate, silver, mist, tide, pine, amber, clay, plum.",
+      "Do not create a bot they did not ask for. A roster holds at most 24 bots, and you can create at most 8.",
+    ].join("\n")),
+  ],
+});
+registry.install(rosterExtension);
+
+memoryExtension = defineExtension({
+  name: "memory",
+  tools: [
+    defineTool({
+      name: "save_memory",
+      description: "Save a fact in this bot's memory. It is added to later turns. Do not save secrets.",
+      parameters: Type.Object({
+        fact: Type.String({ description: "The fact to remember" }),
+      }),
+      replay: "safe",
+      execute: async (args, api) => {
+        const saved = await enqueueFeatures(async () => {
+          const memories = normalizeMemories(await loadJson(memoriesPath));
+          const next = saveMemory(memories, String(api.conversationId), args.fact);
+          if ("error" in next) return next;
+          await saveJson(memoriesPath, { memories: next.memories });
+          return { id: next.memory.id };
+        });
+        if ("error" in saved) return { content: [{ type: "text", text: saved.error }], isError: true };
+        return { content: [{ type: "text", text: `Saved memory ${saved.id}.` }] };
+      },
+    }),
+    defineTool({
+      name: "forget_memory",
+      description: "Forget a saved fact for this bot. Pass its id, or a query that matches one fact. Pass all true only when the human wants every match forgotten.",
+      parameters: Type.Object({
+        id: Type.Optional(Type.String({ description: "Memory id" })),
+        query: Type.Optional(Type.String({ description: "Text contained in the fact" })),
+        all: Type.Optional(Type.Boolean({ description: "Forget every fact that matches query" })),
+      }),
+      replay: "safe",
+      execute: async (args, api) => {
+        const forgotten = await enqueueFeatures(async () => {
+          const memories = normalizeMemories(await loadJson(memoriesPath));
+          const next = forgetMemory(memories, String(api.conversationId), args);
+          if ("error" in next) return next;
+          await saveJson(memoriesPath, { memories: next.memories });
+          return { count: next.forgotten.length };
+        });
+        if ("error" in forgotten) return { content: [{ type: "text", text: forgotten.error }], isError: true };
+        return { content: [{ type: "text", text: `Forgot ${forgotten.count}.` }] };
+      },
+    }),
+  ],
+  sections: [
+    section("memory", async (input) => memoryPrompt(normalizeMemories(await loadJson(memoriesPath)), String(input.conversationId))),
+  ],
+});
+registry.install(memoryExtension);
+
+secretsExtension = defineExtension({
+  name: "secrets",
+  tools: [
+    defineTool({
+      name: "request_secret",
+      description: "Ask the human for a secret on a card. The value is typed into the card and stored in this bot's vault. It never goes in the chat. Do not ask them to paste it in a message.",
+      parameters: Type.Object({
+        name: Type.String({ description: "Secret name, letters digits and underscores, such as GITHUB_TOKEN" }),
+        reason: Type.Optional(Type.String({ description: "Why this bot needs it" })),
+      }),
+      replay: "safe",
+      execute: async (args, api) => {
+        const opened = await enqueueFeatures(async () => {
+          const vault = normalizeVault(await loadJson(secretsPath));
+          const next = requestSecret(vault, String(api.conversationId), args.name, args.reason);
+          if ("error" in next) return next;
+          await saveJson(secretsPath, next.vault);
+          return { name: next.request.name };
+        });
+        if ("error" in opened) return { content: [{ type: "text", text: opened.error }], isError: true };
+        return { content: [{ type: "text", text: `A secret card is waiting for ${opened.name}. The value will not appear in the transcript. Do not ask the human to paste it in chat.` }] };
+      },
+    }),
+    defineTool({
+      name: "read_secret",
+      description: "Read a secret this bot already saved. The value is for your next tool call only. Never repeat it in the chat.",
+      parameters: Type.Object({
+        name: Type.String({ description: "Secret name" }),
+      }),
+      replay: "safe",
+      execute: async (args, api) => {
+        const vault = normalizeVault(await loadJson(secretsPath));
+        const read = readSecret(vault, String(api.conversationId), args.name);
+        if ("error" in read) return { content: [{ type: "text", text: read.error }], isError: true };
+        return { content: [{ type: "text", text: read.value }] };
+      },
+    }),
+  ],
+  sections: [
+    section("secrets", async (input) => secretsPrompt(normalizeVault(await loadJson(secretsPath)), String(input.conversationId))),
+  ],
+});
+registry.install(secretsExtension);
+
+coordinatorExtension = defineExtension({
+  name: "coordinator",
+  sections: [
+    section("coordinator", async (input) => {
+      const bots = await loadBots();
+      const self = String(input.conversationId);
+      if (mainBotId !== self) return undefined;
+      const others = bots.filter((item) => item.id !== self && item.conversationId !== self);
+      return coordinatorPrompt(others);
+    }),
+  ],
+});
+registry.install(coordinatorExtension);
+
 await loadCronKey();
+await loadBots();
+const hangTimer = setInterval(() => {
+  sweepHangs().catch(() => undefined);
+}, 5_000);
+hangTimer.unref?.();
+const checkTimer = setInterval(() => {
+  runCheckIn(false).catch(() => undefined);
+}, 30_000);
+checkTimer.unref?.();
 http.listen(port, () => {
   console.log(`pi-orbs server ${version} on ${port}`);
 });

@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Search. Ctrl/Cmd+K opens a palette of bots, settings, and actions, then matching messages. A quoted phrase matches that text in a thread.
+- A bot can create another bot. `create_bot` and `POST /api/bots/:id/spawn` add it to the roster. The human Add dialog still works. Name, instruction, and look use the same limits, a bot can create at most 8, and the roster holds at most 24.
+- Bot templates. Export saves a bot’s name, instruction, and look. Import creates a copy for this user. It is not a marketplace.
+- Per-bot memory. `save_memory` and `forget_memory` store facts on that bot and add them to its prompt. The edit dialog can save and forget them too.
+- Secrets. `request_secret` opens a card. The typed value is stored for that bot and is not written into the chat. `read_secret` is how the bot uses it later.
+- Action review. Shell, browser, network, and sprite commands wait on a card. Allow once runs the next match. Always allow covers that kind of command. An expired card can still be allowed, and a later try asks again.
+- Main Bot. One bot can be starred. It checks in and can steer the other bots. Check in runs that pass now.
+- Composer. Select text in the thread and press Cmd/Ctrl+L, or Add to prompt, to quote it into the next message. Enter continues a `-` or `1.` list; an empty marker line leaves the list. `:` opens an emoji picker. Misspellings are underlined, with suggestions and Add to Dictionary in this browser.
+- Message times. Hover a message to see when it was sent. Scroll to bottom appears when the thread is scrolled up.
+- Link chips. A URL in a message is a chip with a generic site icon. There is no GitHub connector and no pull-request state.
+- Working status. The open bot shows a short “working on…” line while a step is running. A tool or command that stays quiet past the hang limit (90 seconds, or `PI_ORBS_HANG_MS`) is stopped, and a note is left so the next message can continue.
+- `update_self`. A bot can change its own name and pastel face. The looks stay slate, silver, mist, tide, pine, amber, clay, and plum. People still edit those fields in the bot dialog.
+- Schedule lifecycle. A bot can list, pause, resume, and delete its cron-job.org jobs. The Library pane shows the same controls. An optional `at` time creates a one-shot Once reminder. The local simulator stubs cron-job.org the same way as before.
+- Questions. A bot can ask a question with two to twelve options. The person can select more than one and Submit. A normal typed message still works.
+- Attachments. The composer can add files. They are stored under that bot’s uploads path and shown on the message, with a download for each file and Download all when there are several. The local simulator keeps the bytes in memory.
+- Viewers. Images and videos open in the thread. CSV and TSV open as a simple sheet. HTML opens as a preview with Source. A small diagram (`A -> B` or `A-->B`) can be downloaded as PNG.
+- Library. Each bot has a Library pane of pages, files, and links from that thread, grouped Today, This week, and Older, plus its schedules.
+
 ### Changed
 
 - Homepage and README screenshots. Setup shows voice and the cron-job.org key. The roster, thread, steer, and reply shots use the pastel π faces. `docs/local-demo.gif` matches that page.

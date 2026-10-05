@@ -542,3 +542,148 @@ test("a signed MCP event webhook enters the bot conversation", async () => {
   });
   assert.equal(bad.status, 401);
 });
+
+test("search, spawn, templates, memory, secrets, approvals, and the main bot", async () => {
+  const headers = {
+    authorization: `Bearer ${secret}`,
+    "content-type": "application/json",
+  };
+  const auth = { authorization: `Bearer ${secret}` };
+  const created = await fetch(`${state.base}/api/bots`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Palette", instruction: "Keep the status page gray.", look: "mist" }),
+  });
+  assert.equal(created.status, 201);
+  const bot = await created.json();
+  assert.equal(bot.createdBy, undefined);
+  assert.equal(bot.main, undefined);
+
+  await fetch(`${state.base}/api/bots/${bot.id}/messages`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ content: "Paint the status page gray." }),
+  });
+  const search = await fetch(`${state.base}/api/search?q=${encodeURIComponent("\"status page\"")}`, { headers: auth });
+  assert.equal(search.status, 200);
+  const found = await search.json();
+  assert.deepEqual(Object.keys(found), ["query", "quoted", "bots", "settings", "actions", "messages"]);
+  assert.equal(found.quoted, true);
+  assert.equal(found.messages.some((item) => item.botId === bot.id && item.text.includes("status page")), true);
+  assert.equal(found.settings.length, 0);
+  const open = await fetch(`${state.base}/api/search`, { headers: auth });
+  const openBody = await open.json();
+  assert.equal(openBody.messages.length, 0);
+  assert.equal(openBody.settings[0].id, "voice");
+  assert.equal(openBody.actions[0].id, "add-bot");
+
+  const spawned = await fetch(`${state.base}/api/bots/${bot.id}/spawn`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Scribe", instruction: "Write commits.", look: "plum" }),
+  });
+  assert.equal(spawned.status, 201);
+  const child = await spawned.json();
+  assert.equal(child.createdBy, bot.id);
+  assert.equal((await (await fetch(`${state.base}/api/bots`, { headers: auth })).json()).bots.some((item) => item.id === child.id), true);
+  const badLook = await fetch(`${state.base}/api/bots/${bot.id}/spawn`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Nope", look: "rainbow" }),
+  });
+  assert.equal(badLook.status, 400);
+
+  const templateResponse = await fetch(`${state.base}/api/bots/${bot.id}/template`, { headers: auth });
+  const template = await templateResponse.json();
+  assert.equal(template.format, "pi-orbs-bot-template");
+  assert.equal(template.look, "mist");
+  assert.equal(template.id, undefined);
+  const imported = await fetch(`${state.base}/api/bots/import`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(template),
+  });
+  assert.equal(imported.status, 201);
+  assert.equal((await imported.json()).name, "Palette copy");
+
+  const remembered = await fetch(`${state.base}/api/bots/${bot.id}/memories`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ fact: "The page background is black." }),
+  });
+  assert.equal(remembered.status, 201);
+  const memory = (await remembered.json()).memory;
+  assert.equal((await (await fetch(`${state.base}/api/bots/${bot.id}/memories`, { headers: auth })).json()).memories.length, 1);
+  assert.equal((await (await fetch(`${state.base}/api/bots/${child.id}/memories`, { headers: auth })).json()).memories.length, 0);
+  assert.equal((await fetch(`${state.base}/api/bots/${bot.id}/memories/${memory.id}`, { method: "DELETE", headers: auth })).status, 200);
+
+  const vaultSecret = "server-vault-secret-value";
+  const card = await fetch(`${state.base}/api/bots/${bot.id}/secrets`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ request: true, name: "GITHUB_TOKEN", reason: "deploy" }),
+  });
+  const request = (await card.json()).request;
+  const saved = await fetch(`${state.base}/api/bots/${bot.id}/secrets`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ requestId: request.id, value: vaultSecret }),
+  });
+  const savedText = await saved.text();
+  assert.equal(saved.status, 200);
+  assert.equal(savedText.includes(vaultSecret), false);
+  const listed = await (await fetch(`${state.base}/api/bots/${bot.id}/secrets`, { headers: auth })).text();
+  assert.equal(listed.includes(vaultSecret), false);
+  assert.match(listed, /GITHUB_TOKEN/);
+  await fetch(`${state.base}/api/bots/${bot.id}/messages`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ content: `remember ${vaultSecret} please` }),
+  });
+  const thread = await (await fetch(`${state.base}/api/bots/${bot.id}`, { headers: auth })).text();
+  assert.equal(thread.includes(vaultSecret), false);
+  assert.match(thread, /remember \[redacted\] please/);
+
+  const pending = await fetch(`${state.base}/api/bots/${bot.id}/actions`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ command: "curl https://example.com" }),
+  });
+  assert.equal(pending.status, 202);
+  const pendingBody = await pending.json();
+  assert.equal(pendingBody.decision, "pending");
+  assert.equal(pendingBody.action, "network");
+  assert.equal(pendingBody.ran, false);
+  const allowed = await fetch(`${state.base}/api/bots/${bot.id}/approvals`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ cardId: pendingBody.card.id, decision: "once" }),
+  });
+  assert.equal(allowed.status, 200);
+  const ran = await fetch(`${state.base}/api/bots/${bot.id}/actions`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ command: "curl https://example.com" }),
+  });
+  assert.equal((await ran.json()).decision, "allow");
+
+  const starred = await fetch(`${state.base}/api/bots/${bot.id}/main`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ main: true }),
+  });
+  assert.equal((await starred.json()).main, true);
+  const main = await (await fetch(`${state.base}/api/main`, { headers: auth })).json();
+  assert.equal(main.botId, bot.id);
+  assert.equal(typeof main.nextCheckInAt, "string");
+  const check = await fetch(`${state.base}/api/main/check-in`, { method: "POST", headers: auth });
+  assert.equal(check.status, 202);
+  const after = await (await fetch(`${state.base}/api/bots/${bot.id}`, { headers: auth })).json();
+  assert.equal(after.messages.some((item) => item.kind === "pi.user" && item.text.includes("Main Bot check-in")), true);
+  const cleared = await fetch(`${state.base}/api/bots/${bot.id}/main`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ main: false }),
+  });
+  assert.equal((await cleared.json()).main, undefined);
+});

@@ -347,7 +347,104 @@
   }
   #add-bot, #settings-toggle { margin: 0 0 0 auto; }
   #add-bot:hover, #settings-toggle:hover { color: var(--text); background: var(--fill); }
-  #add-bot svg, #settings-toggle svg { display: block; }
+  #add-bot svg, #settings-toggle svg, #search-open svg { display: block; }
+  .side-actions { display: flex; margin-left: auto; }
+  .side-actions #add-bot, #search-open { margin: 0; }
+  #search-open {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+  }
+  #search-open:hover { color: var(--text); background: var(--fill); }
+  .main-star { margin-left: 6px; color: #fff; font-size: 12px; }
+  #main-toggle, #check-in {
+    border: 1px solid var(--line-strong);
+    background: transparent;
+    color: var(--text);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font: inherit;
+    font-size: 13px;
+  }
+  #main-toggle[aria-pressed="true"] { background: #fff; color: #0a0a0a; }
+  #cards { display: grid; gap: 8px; margin: 0 0 8px; }
+  #cards:empty { display: none; }
+  .ask-card {
+    border: 1px solid var(--line-strong);
+    border-radius: 16px;
+    padding: 12px 14px;
+    background: var(--fill);
+  }
+  .ask-card h3 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+  .ask-card p, .ask-card .hint { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
+  .ask-card pre {
+    margin: 0 0 8px;
+    white-space: pre-wrap;
+    font: 12px/1.4 ui-monospace, monospace;
+  }
+  .ask-card input, #memory-fact {
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0 0 8px;
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    padding: 8px 10px;
+  }
+  .ask-card .row-actions, #bot-memory .row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  #bot-memory { margin-top: 14px; }
+  #bot-memory h3 { margin: 0 0 8px; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  #memory-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+  #memory-list li { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
+  #palette {
+    width: min(560px, calc(100vw - 32px));
+    margin: 12vh auto auto;
+    padding: 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 16px;
+    background: #0a0a0a;
+    color: var(--text);
+  }
+  #palette::backdrop { background: rgba(0, 0, 0, 0.62); }
+  #palette input {
+    width: 100%;
+    box-sizing: border-box;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 16px;
+    padding: 8px;
+  }
+  #palette-results { max-height: min(50vh, 420px); overflow: auto; }
+  .palette-group {
+    margin: 8px 8px 4px;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .palette-item {
+    width: 100%;
+    text-align: left;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    padding: 8px 10px;
+    border-radius: 10px;
+    display: grid;
+  }
+  .palette-item small { color: var(--muted); }
+  .palette-item.on, .palette-item:hover { background: var(--fill-strong, rgba(255,255,255,0.08)); }
   #settings {
     width: min(1080px, calc(100vw - 48px));
     height: min(860px, calc(100vh - 48px));
@@ -588,7 +685,6 @@
     border-radius: 999px;
     padding: 6px 12px;
   }
-  #thread-avatar, #thread-name, #thread-sub { display: none; }
   .thread-id { min-width: 0; flex: 1; }
   .thread-name, .thread-sub {
     overflow: hidden;
@@ -694,6 +790,7 @@
   .thread-sub:empty, .thread-sub[hidden], #thread-avatar[hidden] { display: none; }
   #log {
     flex: 1;
+    min-width: 0;
     overflow: auto;
     display: flex;
     flex-direction: column;
@@ -871,8 +968,241 @@
   #bot-cancel { background: transparent; border: 1px solid var(--line-strong); color: var(--text); font-weight: 600; }
   #bot-cancel:hover { background: var(--fill); }
 
+  .work-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    max-width: 36ch;
+    color: var(--text);
+    font-size: 13px;
+  }
+  .work-status[hidden] { display: none; }
+  #work-status-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #library-toggle, #scroll-bottom, #add-to-prompt, .file-chip, .chip-link, .question button, .viewer-bar button, #attach {
+    border: 1px solid var(--line-strong);
+    background: #050505;
+    color: var(--text);
+    border-radius: 999px;
+  }
+  #library-toggle {
+    height: 28px;
+    padding: 0 12px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  #library-toggle[aria-pressed="true"], #library-toggle:hover, #scroll-bottom:hover, #add-to-prompt:hover { background: var(--fill); }
+  #scroll-bottom, #add-to-prompt {
+    position: absolute;
+    z-index: 3;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  }
+  #scroll-bottom { left: 50%; bottom: 88px; transform: translateX(-50%); }
+  #scroll-bottom[hidden], #add-to-prompt[hidden], #emoji-pop[hidden], #spell-pop[hidden], #library[hidden] { display: none; }
+  #add-to-prompt { position: fixed; }
+  .msg { position: relative; }
+  .msg-time {
+    position: absolute;
+    top: -16px;
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .msg.user .msg-time { right: 4px; }
+  .msg.bot .msg-time { left: 4px; }
+  .msg:hover .msg-time, .msg:focus-within .msg-time { opacity: 1; }
+  .note {
+    align-self: center;
+    margin: 4px 0 12px;
+    color: var(--muted);
+    font-size: 13px;
+    text-align: center;
+    max-width: min(520px, 100%);
+  }
+  .link-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    vertical-align: baseline;
+  }
+  .link-chip img { width: 14px; height: 14px; border-radius: 3px; flex: none; background: #fff; }
+  .link-chip img[hidden] { display: none; }
+  .fence { margin: 8px 0 0; }
+  .fence pre {
+    margin: 6px 0 0;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: #000;
+    border: 1px solid var(--line);
+    overflow: auto;
+    font-family: var(--mono);
+    font-size: 13px;
+    white-space: pre-wrap;
+  }
+  .fence-tools, .files, .question, .pending-files { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .fence-tools { margin-top: 6px; }
+  .file-chip, .fence-tools button, .question button, .viewer-bar button, .pending-files button {
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    background: transparent;
+  }
+  .files { margin-top: 8px; }
+  .files a { color: var(--muted); font-size: 12px; }
+  .question {
+    align-self: flex-start;
+    width: min(460px, 100%);
+    margin: 0 0 14px;
+    padding: 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.035);
+  }
+  .question p { margin: 0 0 8px; }
+  .question label { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0; }
+  .question button { background: #fff; color: #0a0a0a; border-color: #fff; }
+  .thread.with-library { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 300px); grid-template-rows: auto minmax(0, 1fr) auto; }
+  .thread.with-library .thread-bar { grid-column: 1 / -1; }
+  .thread.with-library #voice-dock { grid-column: 1; }
+  .thread.with-library #log, .thread.with-library #scroll-bottom { grid-column: 1; }
+  .thread.with-library .composer { grid-column: 1; }
+  #library {
+    grid-column: 2;
+    grid-row: 2 / span 2;
+    border-left: 1px solid var(--line);
+    overflow: auto;
+    padding: 16px 14px 24px;
+    background: #000;
+  }
+  #library h2 { margin: 0 0 12px; font-size: 18px; }
+  #library h3 {
+    margin: 16px 0 6px;
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .library-item, .routine {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+    color: inherit;
+    text-decoration: none;
+    background: transparent;
+    border-left: 0;
+    border-right: 0;
+    border-top: 0;
+    width: 100%;
+    text-align: left;
+    border-radius: 0;
+  }
+  .library-item strong, .routine strong { font-size: 14px; }
+  .library-item span, .routine span { color: var(--muted); font-size: 12px; }
+  .routine-actions { display: flex; gap: 6px; margin-top: 6px; }
+  .compose-field { position: relative; flex: 1; min-width: 0; }
+  #message-back, #message {
+    width: 100%;
+    min-height: 44px;
+    max-height: 160px;
+    margin: 0;
+    padding: 10px 0;
+    border: 0;
+    background: transparent;
+    font-family: var(--sans);
+    font-size: 17px;
+    font-weight: 400;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    overflow: auto;
+  }
+  #message-back {
+    position: absolute;
+    inset: 0;
+    color: transparent;
+    pointer-events: none;
+  }
+  #message-back .misspell { border-bottom: 1px solid #fff; }
+  #message { position: relative; resize: none; caret-color: #fff; }
+  #send textarea:focus { box-shadow: none; }
+  #emoji-pop, #spell-pop {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 8px);
+    z-index: 4;
+    min-width: 180px;
+    max-width: 280px;
+    padding: 6px;
+    border: 1px solid var(--line-strong);
+    border-radius: 14px;
+    background: #0a0a0a;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  }
+  #emoji-pop button, #spell-pop button {
+    display: flex;
+    width: 100%;
+    gap: 8px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    text-align: left;
+    padding: 6px 8px;
+  }
+  #emoji-pop button[aria-selected="true"], #emoji-pop button:hover, #spell-pop button:hover { background: var(--fill); }
+  .pending-files { margin: 0 0 8px; }
+  #viewer {
+    width: min(960px, calc(100vw - 32px));
+    height: min(760px, calc(100vh - 32px));
+    margin: auto;
+    padding: 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 18px;
+    background: #000;
+    color: var(--text);
+  }
+  #viewer::backdrop { background: rgba(0, 0, 0, 0.72); }
+  .viewer-bar { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 8px; }
+  #viewer-body { height: calc(100% - 44px); overflow: auto; }
+  #viewer-body img, #viewer-body video { max-width: 100%; max-height: 100%; display: block; margin: 0 auto; }
+  #viewer-body iframe { width: 100%; height: 100%; border: 0; background: #fff; }
+  #viewer-body table { border-collapse: collapse; font-size: 13px; }
+  #viewer-body td, #viewer-body th { border: 1px solid var(--line-strong); padding: 4px 8px; min-width: 28px; }
+  #viewer-body td.picked { outline: 2px solid #fff; outline-offset: -2px; }
+  #viewer-source-text { white-space: pre-wrap; font-family: var(--mono); font-size: 13px; }
+
   @media (max-width: 760px) {
-    main { grid-template-columns: 1fr; grid-template-rows: minmax(220px, 42vh) minmax(0, 1fr); }
+    main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(220px, 42vh) minmax(0, 1fr); }
+    .thread.with-library {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr) auto 168px;
+    }
+    .thread.with-library .thread-bar { grid-row: 1; }
+    .thread.with-library #log,
+    .thread.with-library #scroll-bottom { grid-row: 2; }
+    .thread.with-library .composer { grid-row: 3; }
+    #library {
+      grid-column: 1;
+      grid-row: 4;
+      border-left: 0;
+      border-top: 1px solid var(--line);
+    }
     aside { border-right: 0; border-bottom: 1px solid var(--line); }
     .thread-bar, .composer { padding-left: 16px; padding-right: 16px; }
     #log { padding-left: 16px; padding-right: 16px; }
@@ -963,11 +1293,19 @@
     </div>
     <div class="side-head">
       <div class="side-label">Bots</div>
+      <div class="side-actions">
+      <button id="search-open" type="button" aria-label="Search" aria-keyshortcuts="Control+K Meta+K">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <circle cx="11" cy="11" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M16 16.5 20 20.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
       <button id="add-bot" type="button" aria-label="Add">
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
           <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
       </button>
+      </div>
     </div>
     <div id="bots" aria-busy="true">
       <div class="row skeleton" aria-hidden="true"><span class="sk sk-face"></span><span class="sk-copy"><span class="sk sk-name"></span><span class="sk sk-sub"></span></span></div>
@@ -983,10 +1321,17 @@
         <div class="thread-sub" id="thread-sub" hidden></div>
       </div>
       <div class="thread-tools">
+        <p id="work-status" class="work-status" role="status" hidden>
+          <span class="peer-pulse" aria-hidden="true"></span>
+          <span id="work-status-text"></span>
+        </p>
         <p id="peer-activity" class="peer-activity" role="status" hidden>
           <span class="peer-pulse" aria-hidden="true"></span>
           <span id="peer-activity-text"></span>
         </p>
+        <button id="main-toggle" type="button" hidden aria-pressed="false">☆ Main</button>
+        <button id="check-in" type="button" hidden>Check in</button>
+        <button id="library-toggle" type="button" aria-pressed="false" aria-controls="library">Library</button>
       </div>
     </div>
     <div id="voice-dock" class="voice-dock" hidden>
@@ -1004,10 +1349,35 @@
         <button id="voice-stop" type="button">Stop</button>
       </div>
     <div id="log"></div>
+    <button id="scroll-bottom" type="button" hidden>Scroll to bottom</button>
+    <div id="cards"></div>
+    <aside id="library" hidden>
+      <h2>Library</h2>
+      <h3>Today</h3>
+      <div id="library-today"></div>
+      <h3>This week</h3>
+      <div id="library-week"></div>
+      <h3>Older</h3>
+      <div id="library-older"></div>
+      <h3>Routines</h3>
+      <div id="routines"></div>
+    </aside>
     <div class="composer">
+      <div id="pending-files" class="pending-files" hidden></div>
       <form id="send" novalidate>
         <label class="sr-only" for="message">Message</label>
-        <input id="message" name="content" placeholder="Message" autocomplete="off" required>
+        <div class="compose-field">
+          <div id="message-back" class="message-back" aria-hidden="true"></div>
+          <textarea id="message" name="content" placeholder="Message" rows="1" autocomplete="off" spellcheck="true"></textarea>
+          <div id="emoji-pop" hidden></div>
+          <div id="spell-pop" hidden role="menu"></div>
+        </div>
+        <input id="attach-input" type="file" multiple hidden>
+        <button class="send" id="attach" type="button" aria-label="Attach files">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path d="M8 12.5 14.2 6.3a3 3 0 0 1 4.2 4.2l-7.8 7.8a4.2 4.2 0 0 1-6-6L12 4.9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </button>
         <button class="send" id="send-button" type="submit" aria-label="Send">
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
             <path d="M12 19V6M12 6l-5.5 5.5M12 6l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -1044,8 +1414,19 @@
       <legend>Look <span id="look-name"></span></legend>
       <div id="looks"></div>
     </fieldset>
+    <div id="bot-memory" hidden>
+      <h3>Memory</h3>
+      <ul id="memory-list"></ul>
+      <div id="memory-form">
+        <label class="sr-only" for="memory-fact">Fact</label>
+        <input id="memory-fact" maxlength="500" placeholder="A fact this bot should remember" autocomplete="off">
+        <button id="memory-save" type="button">Save memory</button>
+      </div>
+    </div>
     <p id="bot-dialog-error" role="alert"></p>
     <div class="dialog-actions">
+      <button id="bot-export" type="button" hidden>Export template</button>
+      <button id="bot-import" type="button">Import template</button>
       <button id="bot-delete" type="button" hidden>Delete</button>
       <button id="bot-cancel" type="button">Cancel</button>
       <button id="bot-save" type="submit">Create</button>
@@ -1112,7 +1493,41 @@
     </section>
   </div>
 </dialog>
-<script>
+<button id="add-to-prompt" type="button" hidden>Add to prompt</button>
+<input id="bot-import-file" type="file" accept="application/json,.json" hidden>
+<dialog id="palette" aria-label="Search">
+  <form id="palette-form">
+    <label class="sr-only" for="palette-input">Search bots, settings, and messages</label>
+    <input id="palette-input" placeholder="Search bots, settings, and messages. Quote a phrase for messages." autocomplete="off">
+  </form>
+  <div id="palette-results" role="listbox"></div>
+</dialog>
+<dialog id="viewer" aria-labelledby="viewer-title">
+  <div class="viewer-bar">
+    <span id="viewer-title" class="sr-only">Preview</span>
+    <button id="viewer-source" type="button" hidden>Source</button>
+    <button id="viewer-png" type="button" hidden>Download PNG</button>
+    <button id="viewer-close" type="button">Close</button>
+  </div>
+  <div id="viewer-body"></div>
+</dialog>
+<script type="module">
+import {
+  quoteBlock,
+  continueList,
+  emojiQuery,
+  filterEmoji,
+  spellRanges,
+  segments,
+  faviconUrl,
+  parseSheet,
+  layoutDiagram,
+  viewerKind,
+  codeViewer,
+  libraryItems,
+  groupLibrary,
+  zipStore,
+} from "/thread-view.js";
 const LOOKS = [
   { id: "slate", label: "Slate" },
   { id: "silver", label: "Silver" },
@@ -1123,7 +1538,7 @@ const LOOKS = [
   { id: "clay", label: "Clay" },
   { id: "plum", label: "Plum" },
 ];
-const state = { sprite: null, bot: null, bots: [], busy: [], voiceConfigured: false, voiceSession: null };
+const state = { sprite: null, bot: null, bots: [], busy: [], status: [], voiceConfigured: false, voiceSession: null, pendingFiles: [], pendingSince: 0, pendingBot: null, threadBody: null };
 let voiceHangup = null;
 let voiceLines = [];
 let dialogOpener = null;
@@ -1337,7 +1752,8 @@ function setComposer(enabled, placeholder) {
   const input = document.querySelector("#message");
   input.disabled = !enabled;
   input.placeholder = placeholder;
-  document.querySelector("#send button").disabled = !enabled;
+  document.querySelector("#send-button").disabled = !enabled;
+  document.querySelector("#attach").disabled = !enabled;
 }
 function showEmpty(title, copy) {
   const empty = document.createElement("div");
@@ -1483,6 +1899,13 @@ async function refreshBots(sprite) {
     const name = document.createElement("div");
     name.className = "name";
     name.textContent = bot.name;
+    if (bot.main) {
+      const star = document.createElement("span");
+      star.className = "main-star";
+      star.textContent = "★";
+      star.setAttribute("aria-label", "Main Bot");
+      name.append(document.createTextNode(" "), star);
+    }
     const sub = document.createElement("div");
     sub.className = "sub";
     sub.textContent = bot.instruction ? bot.instruction : state.sprite;
@@ -1528,6 +1951,7 @@ function steerChip(message, expanded) {
   const otherName = incoming ? (message.fromName || message.from) : (message.toName || message.to);
   const row = document.createElement("div");
   row.className = "steer";
+  row.dataset.messageId = message.id;
   const button = document.createElement("button");
   button.type = "button";
   button.className = "steer-toggle";
@@ -1590,7 +2014,9 @@ function paintBusy() {
 async function refreshActivity() {
   if (!state.sprite) {
     state.busy = [];
+    state.status = [];
     paintBusy();
+    paintWork();
     return;
   }
   const requested = state.sprite;
@@ -1598,14 +2024,269 @@ async function refreshActivity() {
     const body = await api("/api/sprites/" + state.sprite + "/activity");
     if (state.sprite !== requested) return;
     state.busy = body.busy || [];
+    state.status = body.status || [];
   } catch {
     if (state.sprite !== requested) return;
     state.busy = [];
+    state.status = [];
   }
   paintBusy();
+  paintWork(state.threadBody && state.threadBody.messages);
 }
-function threadSignature(botId, messages) {
-  return botId + "\n" + messages.map((message) => [message.id, message.kind, message.text, message.from, message.to].join("\t")).join("\n");
+function threadSignature(botId, messages, questions) {
+  const files = messages.map((message) => (message.files || []).map((file) => file.id).join(",")).join("\t");
+  const asked = (questions || []).map((question) => [question.id, (question.selected || []).join("+")].join(":")).join("\n");
+  return botId + "\n" + messages.map((message) => [message.id, message.kind, message.text, message.from, message.to, message.createdAt].join("\t")).join("\n") + "\n" + files + "\n" + asked;
+}
+function formatSent(iso) {
+  const date = new Date(iso || "");
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+function fileHref(id) {
+  return "/api/sprites/" + encodeURIComponent(state.sprite) + "/bots/" + encodeURIComponent(state.bot) + "/files/" + encodeURIComponent(id);
+}
+function displayText(message) {
+  let text = message.text || "";
+  if (message.files && message.files.length) {
+    text = text.split("\n").filter((line) => !line.startsWith("Attached: ")).join("\n").trim();
+  }
+  return text;
+}
+function linkChip(segment) {
+  const link = document.createElement("a");
+  link.className = "link-chip";
+  link.href = segment.href;
+  link.target = "_blank";
+  link.rel = "noreferrer";
+  const icon = document.createElement("img");
+  icon.alt = "";
+  const src = faviconUrl(segment.href);
+  if (src) {
+    icon.src = src;
+    icon.addEventListener("error", () => { icon.hidden = true; });
+  } else {
+    icon.hidden = true;
+  }
+  const label = document.createElement("span");
+  label.textContent = segment.text;
+  link.append(icon, label);
+  return link;
+}
+function codeBlock(segment) {
+  const wrap = document.createElement("div");
+  wrap.className = "fence";
+  const pre = document.createElement("pre");
+  pre.textContent = segment.text;
+  wrap.append(pre);
+  const kind = codeViewer(segment.lang, segment.text);
+  if (!kind) return wrap;
+  const tools = document.createElement("div");
+  tools.className = "fence-tools";
+  if (kind === "diagram") {
+    const png = document.createElement("button");
+    png.type = "button";
+    png.textContent = "Download PNG";
+    png.onclick = () => downloadDiagram(segment.text);
+    tools.append(png);
+  } else {
+    const open = document.createElement("button");
+    open.type = "button";
+    open.textContent = kind === "html" ? "Preview" : "Spreadsheet";
+    open.onclick = () => openTextViewer(kind, segment.text, segment.lang);
+    tools.append(open);
+  }
+  wrap.append(tools);
+  return wrap;
+}
+function fillBubble(bubble, text) {
+  for (const segment of segments(text)) {
+    if (segment.type === "link") bubble.append(linkChip(segment));
+    else if (segment.type === "code") bubble.append(codeBlock(segment));
+    else bubble.append(document.createTextNode(segment.text));
+  }
+}
+function fileChips(message) {
+  const row = document.createElement("div");
+  row.className = "files";
+  for (const file of message.files) {
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "file-chip";
+    open.textContent = file.name;
+    open.onclick = () => openStoredFile(file);
+    const download = document.createElement("a");
+    download.href = fileHref(file.id);
+    download.download = file.name;
+    download.textContent = "Download";
+    row.append(open, download);
+  }
+  if (message.files.length > 1) {
+    const all = document.createElement("button");
+    all.type = "button";
+    all.className = "file-chip";
+    all.textContent = "Download all";
+    all.onclick = () => downloadAll(message.files);
+    row.append(all);
+  }
+  return row;
+}
+function questionCard(question) {
+  const form = document.createElement("form");
+  form.className = "question";
+  const prompt = document.createElement("p");
+  prompt.textContent = question.prompt;
+  form.append(prompt);
+  for (const option of question.options) {
+    const label = document.createElement("label");
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.name = "option";
+    input.value = option.id;
+    const text = document.createElement("span");
+    text.textContent = option.label;
+    label.append(input, text);
+    form.append(label);
+  }
+  const submit = document.createElement("button");
+  submit.type = "submit";
+  submit.textContent = "Submit";
+  form.append(submit);
+  form.onsubmit = async (event) => {
+    event.preventDefault();
+    const selected = [...form.querySelectorAll("input:checked")].map((input) => input.value);
+    if (!selected.length) return;
+    submit.disabled = true;
+    try {
+      await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/questions/" + question.id + "/answer", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ selected }),
+      });
+      stickToBottom = true;
+      threadView = "";
+      await refreshThread();
+    } catch (error) {
+      submit.disabled = false;
+      prompt.textContent = error.message;
+    }
+  };
+  return form;
+}
+function paintWork(messages) {
+  const line = document.querySelector("#work-status");
+  const text = document.querySelector("#work-status-text");
+  const remote = (state.status || []).find((item) => item.id === state.bot);
+  let local = "";
+  if (state.pendingSince && state.pendingBot === state.bot) {
+    const last = [...(messages || [])].reverse().find((item) => item.kind === "pi.assistant");
+    const answered = last && Date.parse(last.createdAt || "") >= state.pendingSince - 1500;
+    if (answered) state.pendingSince = 0;
+    else local = "working on your message";
+  }
+  const label = remote ? remote.text : local;
+  text.textContent = label;
+  line.hidden = !label;
+}
+function paintScroll() {
+  const log = document.querySelector("#log");
+  const button = document.querySelector("#scroll-bottom");
+  const distance = log.scrollHeight - log.scrollTop - log.clientHeight;
+  button.hidden = distance < 80 || log.childElementCount === 0;
+}
+function paintLibrary() {
+  const body = state.threadBody;
+  const box = document.querySelector("#library");
+  if (!body || box.hidden) return;
+  const items = libraryItems({ messages: body.messages || [], files: body.files || [] });
+  const groups = groupLibrary(items);
+  const fill = (id, list) => {
+    const node = document.querySelector(id);
+    node.replaceChildren();
+    if (!list.length) {
+      const empty = document.createElement("p");
+      empty.className = "library-item";
+      empty.textContent = "Nothing here";
+      node.append(empty);
+      return;
+    }
+    for (const item of list) {
+      const row = document.createElement(item.url ? "a" : "button");
+      row.className = "library-item";
+      if (item.url) {
+        row.href = item.url;
+        row.target = "_blank";
+        row.rel = "noreferrer";
+      } else if (item.fileId) {
+        row.type = "button";
+        row.onclick = () => openStoredFile((body.files || []).find((file) => file.id === item.fileId) || { id: item.fileId, name: item.title, mime: "" });
+      } else {
+        row.type = "button";
+      }
+      const title = document.createElement("strong");
+      title.textContent = item.title;
+      const meta = document.createElement("span");
+      meta.textContent = item.kind + (item.createdAt ? " · " + formatSent(item.createdAt) : "");
+      row.append(title, meta);
+      node.append(row);
+    }
+  };
+  fill("#library-today", groups.today);
+  fill("#library-week", groups.week);
+  fill("#library-older", groups.older);
+}
+async function paintRoutines() {
+  const node = document.querySelector("#routines");
+  if (!state.sprite || !state.bot || document.querySelector("#library").hidden) return;
+  let jobs = [];
+  try {
+    const body = await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/schedules");
+    jobs = body.jobs || [];
+  } catch {
+    jobs = [];
+  }
+  node.replaceChildren();
+  if (!jobs.length) {
+    const empty = document.createElement("p");
+    empty.className = "routine";
+    empty.textContent = "No schedules";
+    node.append(empty);
+    return;
+  }
+  for (const job of jobs) {
+    const row = document.createElement("div");
+    row.className = "routine";
+    const title = document.createElement("strong");
+    title.textContent = job.once ? "Once" : (job.cron || "Schedule");
+    const meta = document.createElement("span");
+    const when = job.once && job.at ? formatSent(job.at) : (job.timezone || "UTC");
+    meta.textContent = (job.enabled ? "On" : "Paused") + " · " + when + (job.message ? " · " + job.message : "");
+    const actions = document.createElement("div");
+    actions.className = "routine-actions";
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "file-chip";
+    toggle.textContent = job.enabled ? "Pause" : "Resume";
+    toggle.onclick = async () => {
+      await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/schedules/" + job.jobId, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ enabled: !job.enabled }),
+      });
+      paintRoutines();
+    };
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "file-chip";
+    remove.textContent = "Delete";
+    remove.onclick = async () => {
+      await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/schedules/" + job.jobId, { method: "DELETE" });
+      paintRoutines();
+    };
+    actions.append(toggle, remove);
+    row.append(title, meta, actions);
+    node.append(row);
+  }
 }
 async function refreshThread() {
   const log = document.querySelector("#log");
@@ -1614,16 +2295,27 @@ async function refreshThread() {
     log.innerHTML = "";
     setThreadHead("Choose a bot", "");
     setComposer(false, "Message");
+    paintMainButtons(null);
+    document.querySelector("#cards").replaceChildren();
     return;
   }
   const requested = state.bot;
   const body = await api("/api/sprites/" + state.sprite + "/bots/" + requested);
   if (state.bot !== requested) return;
   setThreadHead(body.bot.name, state.sprite, body.bot.look);
+  paintMainButtons(body.bot);
   setComposer(true, "Message " + body.bot.name);
+  state.threadBody = body;
   const messages = visibleThreadMessages(body.messages);
-  const signature = threadSignature(requested, messages);
-  if (signature === threadView && log.childElementCount > 0) return;
+  const questions = body.questions || [];
+  const signature = threadSignature(requested, messages, questions);
+  paintWork(messages);
+  paintLibrary();
+  refreshCards().catch(() => {});
+  if (signature === threadView && log.childElementCount > 0) {
+    paintScroll();
+    return;
+  }
   const followSend = stickToBottom;
   stickToBottom = false;
   const distance = log.scrollHeight - log.scrollTop - log.clientHeight;
@@ -1632,12 +2324,21 @@ async function refreshThread() {
   const openSteers = new Set([...log.querySelectorAll('.steer-toggle[aria-expanded="true"]')].map((button) => button.dataset.id));
   threadView = signature;
   log.innerHTML = "";
-  if (!messages.length) {
+  if (!messages.length && !questions.some((question) => !question.answeredAt)) {
     log.append(showEmpty(body.bot.name, "This thread is empty. Send a message to start it."));
+    paintScroll();
     return;
   }
   let previous = "";
   for (const message of messages) {
+    if (message.kind === "pi.note") {
+      const note = document.createElement("p");
+      note.className = "note";
+      note.textContent = message.text || "";
+      log.append(note);
+      previous = "note";
+      continue;
+    }
     if (message.kind === "pi.peer") {
       log.append(steerChip(message, openSteers.has(message.id)));
       previous = "peer";
@@ -1647,14 +2348,31 @@ async function refreshThread() {
     const kind = mine ? "user" : "bot";
     const block = document.createElement("div");
     block.className = "msg " + kind + (previous === kind ? " cont" : "");
+    block.dataset.messageId = message.id;
     previous = kind;
+    const sent = formatSent(message.createdAt);
+    if (sent) {
+      const time = document.createElement("span");
+      time.className = "msg-time";
+      time.textContent = sent;
+      time.dateTime = message.createdAt;
+      block.append(time);
+      block.title = sent;
+    }
     const bubble = document.createElement("div");
     bubble.className = "bubble";
-    bubble.textContent = message.text;
+    const shown = displayText(message);
+    if (shown) fillBubble(bubble, shown);
     block.append(bubble);
+    if (message.files && message.files.length) block.append(fileChips(message));
     log.append(block);
   }
+  for (const question of questions) {
+    if (!question.answeredAt) log.append(questionCard(question));
+  }
   log.scrollTop = pinned ? log.scrollHeight : kept;
+  paintScroll();
+  scrollToMessage();
 }
 document.querySelector("#create-sprite").onsubmit = async (event) => {
   event.preventDefault();
@@ -1754,6 +2472,10 @@ function openBotDialog(bot) {
     : "Name it, give it an instruction, and choose a glass orb. The instruction can be empty. A shared need-to-know rule is added after it.";
   document.querySelector("#bot-save").textContent = bot ? "Save" : "Create";
   document.querySelector("#bot-delete").hidden = !bot;
+  document.querySelector("#bot-export").hidden = !bot;
+  document.querySelector("#bot-import").hidden = Boolean(bot);
+  document.querySelector("#bot-memory").hidden = !bot;
+  if (bot) paintMemories(bot.id);
   botName.value = bot ? bot.name : "";
   botInstruction.value = bot && bot.instruction ? bot.instruction : "";
   botError.textContent = "";
@@ -1912,19 +2634,32 @@ document.querySelector("#destroy").onclick = async () => {
 document.querySelector("#send").onsubmit = async (event) => {
   event.preventDefault();
   if (!state.sprite || !state.bot) return;
-  const data = new FormData(event.target);
-  const content = String(data.get("content") || "").trim();
-  if (!content) return;
-  const button = event.target.querySelector("button");
+  const input = document.querySelector("#message");
+  const content = input.value.trim();
+  const fileIds = state.pendingFiles.map((file) => file.id);
+  if (!content && !fileIds.length) return;
+  const button = document.querySelector("#send-button");
   button.disabled = true;
   stickToBottom = true;
+  state.pendingSince = Date.now();
+  state.pendingBot = state.bot;
   try {
-    await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/messages", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ content }) });
-    event.target.reset();
+    await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content, fileIds }),
+    });
+    input.value = "";
+    state.pendingFiles = [];
+    paintPending();
+    paintSpell();
+    resizeComposer();
     paintVoiceButton();
+    paintWork();
     setTimeout(refreshThread, 1500);
   } catch (error) {
     stickToBottom = false;
+    state.pendingSince = 0;
     throw error;
   } finally {
     button.disabled = false;
@@ -1965,7 +2700,7 @@ function paintVoiceButton() {
   const send = document.querySelector("#send-button");
   const text = document.querySelector("#message").value.trim();
   const live = state.voiceSession && state.voiceSession.botId === state.bot;
-  const showVoice = !text && state.voiceConfigured && !!state.bot && !live;
+  const showVoice = !text && state.pendingFiles.length === 0 && state.voiceConfigured && !!state.bot && !live;
   voice.hidden = !showVoice;
   send.hidden = showVoice;
 }
@@ -2251,7 +2986,12 @@ async function startVoiceCall() {
     button.disabled = false;
   }
 }
-document.querySelector("#message").addEventListener("input", paintVoiceButton);
+document.querySelector("#message").addEventListener("input", () => {
+  paintVoiceButton();
+  paintSpell();
+  resizeComposer();
+  paintEmoji();
+});
 document.querySelector("#voice-start").onclick = () => { startVoiceCall(); };
 document.querySelector("#voice-stop").onclick = () => { stopVoiceCall(); };
 document.querySelector("#voice-say").onsubmit = async (event) => {
@@ -2371,10 +3111,842 @@ loadPresets().then(() => refreshHome()).catch((error) => {
   document.body.classList.remove("pending");
   document.querySelector("#status").textContent = error.message;
 });
+let emojiIndex = 0;
+let spellTarget = null;
+function extraWords() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("pi-orbs-dictionary") || "[]");
+    return Array.isArray(saved) ? saved.filter((word) => typeof word === "string") : [];
+  } catch {
+    return [];
+  }
+}
+function rememberWord(word) {
+  const next = extraWords();
+  const lower = word.toLowerCase();
+  if (!next.includes(lower)) next.push(lower);
+  localStorage.setItem("pi-orbs-dictionary", JSON.stringify(next));
+  paintSpell();
+  hideSpell();
+}
+function resizeComposer() {
+  const input = document.querySelector("#message");
+  input.style.height = "auto";
+  input.style.height = Math.min(160, input.scrollHeight) + "px";
+}
+function paintSpell() {
+  const input = document.querySelector("#message");
+  const back = document.querySelector("#message-back");
+  const text = input.value;
+  const ranges = spellRanges(text, extraWords());
+  back.replaceChildren();
+  let cursor = 0;
+  for (const range of ranges) {
+    if (range.start > cursor) back.append(document.createTextNode(text.slice(cursor, range.start)));
+    const span = document.createElement("span");
+    span.className = "misspell";
+    span.textContent = text.slice(range.start, range.end);
+    back.append(span);
+    cursor = range.end;
+  }
+  if (cursor < text.length) back.append(document.createTextNode(text.slice(cursor)));
+  back.scrollTop = input.scrollTop;
+}
+function hideSpell() {
+  spellTarget = null;
+  document.querySelector("#spell-pop").hidden = true;
+}
+function showSpell(range) {
+  spellTarget = range;
+  const pop = document.querySelector("#spell-pop");
+  pop.replaceChildren();
+  for (const suggestion of range.suggestions) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = suggestion;
+    button.onclick = () => replaceSpell(suggestion);
+    pop.append(button);
+  }
+  const add = document.createElement("button");
+  add.type = "button";
+  add.textContent = "Add to Dictionary";
+  add.onclick = () => rememberWord(range.word);
+  pop.append(add);
+  pop.hidden = false;
+}
+function spellRangeAt(caret) {
+  const input = document.querySelector("#message");
+  return spellRanges(input.value, extraWords()).find((range) => caret >= range.start && caret <= range.end) || null;
+}
+function replaceSpell(suggestion) {
+  if (!spellTarget) return;
+  const input = document.querySelector("#message");
+  const next = input.value.slice(0, spellTarget.start) + suggestion + input.value.slice(spellTarget.end);
+  input.value = next;
+  const caret = spellTarget.start + suggestion.length;
+  input.selectionStart = input.selectionEnd = caret;
+  hideSpell();
+  paintSpell();
+  paintVoiceButton();
+}
+function hideEmoji() {
+  document.querySelector("#emoji-pop").hidden = true;
+}
+function paintEmoji() {
+  const input = document.querySelector("#message");
+  const found = emojiQuery(input.value, input.selectionStart);
+  const pop = document.querySelector("#emoji-pop");
+  if (!found) {
+    hideEmoji();
+    return;
+  }
+  const matches = filterEmoji(found.query);
+  if (!matches.length) {
+    hideEmoji();
+    return;
+  }
+  if (emojiIndex >= matches.length) emojiIndex = 0;
+  pop.replaceChildren();
+  matches.forEach((item, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.setAttribute("aria-selected", index === emojiIndex ? "true" : "false");
+    button.textContent = item.emoji + "  :" + item.name + ":";
+    button.onclick = () => applyEmoji(item.emoji);
+    pop.append(button);
+  });
+  pop.hidden = false;
+}
+function applyEmoji(emoji) {
+  const input = document.querySelector("#message");
+  const found = emojiQuery(input.value, input.selectionStart);
+  if (!found) return;
+  const next = input.value.slice(0, found.start) + emoji + input.value.slice(input.selectionStart);
+  const caret = found.start + emoji.length;
+  input.value = next;
+  input.selectionStart = input.selectionEnd = caret;
+  hideEmoji();
+  paintSpell();
+  paintVoiceButton();
+  resizeComposer();
+  input.focus();
+}
+function paintPending() {
+  const box = document.querySelector("#pending-files");
+  box.replaceChildren();
+  box.hidden = state.pendingFiles.length === 0;
+  for (const file of state.pendingFiles) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.textContent = file.name + " ×";
+    chip.onclick = () => {
+      state.pendingFiles = state.pendingFiles.filter((item) => item.id !== file.id);
+      paintPending();
+      paintVoiceButton();
+    };
+    box.append(chip);
+  }
+}
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result || "");
+      const comma = text.indexOf(",");
+      resolve(comma >= 0 ? text.slice(comma + 1) : text);
+    };
+    reader.onerror = () => reject(reader.error || new Error("could not read file"));
+    reader.readAsDataURL(file);
+  });
+}
+async function uploadAttachment(file) {
+  const data = await fileToBase64(file);
+  return api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/files", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: file.name, mime: file.type || "application/octet-stream", data }),
+  });
+}
+function selectedThreadText() {
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed || !selection.rangeCount) return "";
+  const log = document.querySelector("#log");
+  const anchor = selection.anchorNode;
+  if (!anchor || !log.contains(anchor)) return "";
+  return selection.toString().trim();
+}
+function insertQuote(text) {
+  const quoted = quoteBlock(text);
+  if (!quoted) return;
+  const input = document.querySelector("#message");
+  const start = input.selectionStart ?? input.value.length;
+  const prefix = start > 0 && input.value.slice(0, start).endsWith("\n") ? "" : (start > 0 ? "\n" : "");
+  input.value = input.value.slice(0, start) + prefix + quoted + input.value.slice(start);
+  const caret = start + prefix.length + quoted.length;
+  input.selectionStart = input.selectionEnd = caret;
+  input.focus();
+  paintSpell();
+  resizeComposer();
+  paintVoiceButton();
+  document.querySelector("#add-to-prompt").hidden = true;
+}
+function paintQuote() {
+  const button = document.querySelector("#add-to-prompt");
+  const text = selectedThreadText();
+  if (!text) {
+    button.hidden = true;
+    return;
+  }
+  const selection = window.getSelection();
+  const rect = selection.getRangeAt(0).getBoundingClientRect();
+  button.hidden = false;
+  button.style.left = Math.max(8, rect.left) + "px";
+  button.style.top = Math.max(8, rect.top - 36) + "px";
+}
+function closeViewer() {
+  document.querySelector("#viewer").close();
+}
+function viewerButtons(source, png) {
+  document.querySelector("#viewer-source").hidden = !source;
+  document.querySelector("#viewer-png").hidden = !png;
+}
+function openTextViewer(kind, text, lang) {
+  const body = document.querySelector("#viewer-body");
+  body.replaceChildren();
+  const dialog = document.querySelector("#viewer");
+  dialog.dataset.source = text;
+  dialog.dataset.kind = kind;
+  if (kind === "html") {
+    const frame = document.createElement("iframe");
+    frame.sandbox = "";
+    frame.srcdoc = text;
+    frame.title = "HTML preview";
+    body.append(frame);
+    viewerButtons(true, false);
+    document.querySelector("#viewer-source").textContent = "Source";
+  } else {
+    renderSheet(body, lang === "tsv" ? text : text);
+    viewerButtons(false, false);
+  }
+  if (typeof dialog.showModal === "function") dialog.showModal();
+}
+function renderSheet(body, text) {
+  const parsed = parseSheet(text);
+  const table = document.createElement("table");
+  parsed.rows.forEach((row, rowIndex) => {
+    const tr = document.createElement("tr");
+    row.forEach((cell, column) => {
+      const td = document.createElement(rowIndex === 0 ? "th" : "td");
+      td.textContent = cell;
+      td.tabIndex = 0;
+      td.dataset.row = String(rowIndex);
+      td.dataset.col = String(column);
+      td.onclick = (event) => selectCells(table, rowIndex, column, event.shiftKey);
+      tr.append(td);
+    });
+    table.append(tr);
+  });
+  body.append(table);
+  if (parsed.truncated) {
+    const note = document.createElement("p");
+    note.className = "note";
+    note.textContent = "Showing the first 10000 rows.";
+    body.append(note);
+  }
+  table.dataset.anchor = "0,0";
+}
+function selectCells(table, row, column, extend) {
+  const anchor = extend && table.dataset.anchor ? table.dataset.anchor.split(",").map(Number) : [row, column];
+  table.dataset.anchor = anchor.join(",");
+  const rows = [anchor[0], row].sort((a, b) => a - b);
+  const cols = [anchor[1], column].sort((a, b) => a - b);
+  for (const cell of table.querySelectorAll("td, th")) {
+    const r = Number(cell.dataset.row);
+    const c = Number(cell.dataset.col);
+    cell.classList.toggle("picked", r >= rows[0] && r <= rows[1] && c >= cols[0] && c <= cols[1]);
+  }
+}
+function sheetCopy() {
+  const cells = [...document.querySelectorAll("#viewer-body td.picked, #viewer-body th.picked")];
+  if (!cells.length) return;
+  const rows = new Map();
+  for (const cell of cells) {
+    const row = Number(cell.dataset.row);
+    const list = rows.get(row) || [];
+    list.push(cell.textContent || "");
+    rows.set(row, list);
+  }
+  const text = [...rows.keys()].sort((a, b) => a - b).map((row) => rows.get(row).join("\t")).join("\n");
+  if (navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});
+}
+function drawDiagram(source) {
+  const layout = layoutDiagram(source);
+  if (!layout) return null;
+  const canvas = document.createElement("canvas");
+  const scale = 2;
+  canvas.width = layout.width * scale;
+  canvas.height = layout.height * scale;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, layout.width, layout.height);
+  ctx.strokeStyle = "#fff";
+  ctx.fillStyle = "#fff";
+  ctx.lineWidth = 1.4;
+  ctx.font = "14px Nunito, sans-serif";
+  const byId = new Map(layout.nodes.map((node) => [node.id, node]));
+  for (const edge of layout.edges) {
+    const from = byId.get(edge.from);
+    const to = byId.get(edge.to);
+    if (!from || !to) continue;
+    ctx.beginPath();
+    ctx.moveTo(from.x + from.w, from.y + from.h / 2);
+    ctx.lineTo(to.x, to.y + to.h / 2);
+    ctx.stroke();
+  }
+  for (const node of layout.nodes) {
+    ctx.strokeRect(node.x, node.y, node.w, node.h);
+    ctx.fillText(node.id, node.x + 10, node.y + 23);
+  }
+  return canvas;
+}
+function downloadDiagram(source) {
+  const canvas = drawDiagram(source);
+  if (!canvas) return;
+  canvas.toBlob((blob) => {
+    if (!blob) return;
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "diagram.png";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1500);
+  }, "image/png");
+}
+async function openStoredFile(file) {
+  const kind = viewerKind(file.name || "", file.mime || "");
+  if (kind === "image" || kind === "video") {
+    const body = document.querySelector("#viewer-body");
+    body.replaceChildren();
+    const node = document.createElement(kind === "video" ? "video" : "img");
+    node.src = fileHref(file.id);
+    node.alt = file.name || "";
+    if (kind === "video") node.controls = true;
+    body.append(node);
+    viewerButtons(false, false);
+    const dialog = document.querySelector("#viewer");
+    if (typeof dialog.showModal === "function") dialog.showModal();
+    return;
+  }
+  const response = await fetch(fileHref(file.id));
+  if (!response.ok) return;
+  if (kind === "sheet" || kind === "html") {
+    openTextViewer(kind === "html" ? "html" : "sheet", await response.text(), (file.name || "").endsWith(".tsv") ? "tsv" : "csv");
+    return;
+  }
+  const blob = await response.blob();
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = file.name || "file";
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+async function downloadAll(files) {
+  const packed = [];
+  for (const file of files) {
+    const response = await fetch(fileHref(file.id));
+    if (!response.ok) continue;
+    packed.push({ name: file.name || file.id, data: new Uint8Array(await response.arrayBuffer()) });
+  }
+  if (!packed.length) return;
+  if (packed.length === 1) {
+    const blob = new Blob([packed[0].data]);
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = packed[0].name;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    return;
+  }
+  const zip = zipStore(packed);
+  const blob = new Blob([zip], { type: "application/zip" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "attachments.zip";
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+document.querySelector("#message").addEventListener("keydown", (event) => {
+  const pop = document.querySelector("#emoji-pop");
+  if (!pop.hidden && event.key === "ArrowDown") {
+    event.preventDefault();
+    emojiIndex += 1;
+    paintEmoji();
+    return;
+  }
+  if (!pop.hidden && event.key === "ArrowUp") {
+    event.preventDefault();
+    emojiIndex = Math.max(0, emojiIndex - 1);
+    paintEmoji();
+    return;
+  }
+  if (!pop.hidden && (event.key === "Enter" || event.key === "Tab")) {
+    const picked = pop.querySelector('[aria-selected="true"]');
+    if (picked) {
+      event.preventDefault();
+      applyEmoji(picked.textContent.slice(0, picked.textContent.indexOf(" ")).trim() || picked.textContent.trim());
+      return;
+    }
+  }
+  if (event.key === "Escape") {
+    hideEmoji();
+    hideSpell();
+    return;
+  }
+  if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+    const input = event.target;
+    const next = continueList(input.value, input.selectionStart);
+    event.preventDefault();
+    if (next) {
+      input.value = next.value;
+      input.selectionStart = input.selectionEnd = next.caret;
+      paintSpell();
+      resizeComposer();
+      paintVoiceButton();
+      return;
+    }
+    input.form.requestSubmit();
+  }
+});
+document.querySelector("#message").addEventListener("click", () => {
+  const input = document.querySelector("#message");
+  const range = spellRangeAt(input.selectionStart);
+  if (range) showSpell(range);
+  else hideSpell();
+});
+document.querySelector("#message").addEventListener("contextmenu", (event) => {
+  const input = document.querySelector("#message");
+  const range = spellRangeAt(input.selectionStart);
+  if (!range) return;
+  event.preventDefault();
+  showSpell(range);
+});
+document.querySelector("#message").addEventListener("scroll", () => {
+  document.querySelector("#message-back").scrollTop = document.querySelector("#message").scrollTop;
+});
+document.querySelector("#attach").onclick = () => document.querySelector("#attach-input").click();
+document.querySelector("#attach-input").onchange = async (event) => {
+  const list = [...event.target.files];
+  event.target.value = "";
+  for (const file of list) {
+    try {
+      const saved = await uploadAttachment(file);
+      state.pendingFiles.push(saved);
+    } catch (error) {
+      document.querySelector("#work-status-text").textContent = error.message;
+      document.querySelector("#work-status").hidden = false;
+    }
+  }
+  paintPending();
+  paintVoiceButton();
+};
+document.querySelector("#log").addEventListener("scroll", paintScroll);
+document.querySelector("#scroll-bottom").onclick = () => {
+  const log = document.querySelector("#log");
+  log.scrollTop = log.scrollHeight;
+  paintScroll();
+};
+document.addEventListener("selectionchange", paintQuote);
+document.querySelector("#add-to-prompt").onclick = () => insertQuote(selectedThreadText());
+document.addEventListener("keydown", (event) => {
+  if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "l") return;
+  const text = selectedThreadText();
+  if (!text) return;
+  event.preventDefault();
+  insertQuote(text);
+});
+document.addEventListener("keydown", (event) => {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c" && document.querySelector("#viewer").open) sheetCopy();
+});
+document.querySelector("#library-toggle").onclick = () => {
+  const library = document.querySelector("#library");
+  const open = library.hidden;
+  library.hidden = !open;
+  document.querySelector(".thread").classList.toggle("with-library", open);
+  document.querySelector("#library-toggle").setAttribute("aria-pressed", open ? "true" : "false");
+  if (open) {
+    paintLibrary();
+    paintRoutines();
+  }
+};
+document.querySelector("#viewer-close").onclick = closeViewer;
+document.querySelector("#viewer-source").onclick = () => {
+  const dialog = document.querySelector("#viewer");
+  const body = document.querySelector("#viewer-body");
+  const showing = body.querySelector("#viewer-source-text");
+  if (showing) {
+    openTextViewer("html", dialog.dataset.source || "", "html");
+    return;
+  }
+  body.replaceChildren();
+  const pre = document.createElement("pre");
+  pre.id = "viewer-source-text";
+  pre.textContent = dialog.dataset.source || "";
+  body.append(pre);
+  document.querySelector("#viewer-source").textContent = "Preview";
+};
+document.querySelector("#viewer-png").onclick = () => downloadDiagram(document.querySelector("#viewer").dataset.source || "");
+document.querySelector("#viewer").addEventListener("click", (event) => {
+  if (event.target.id === "viewer") closeViewer();
+});
+let cardView = "";
+const secretDrafts = new Map();
+let paletteIndex = 0;
+let paletteRows = [];
+function paintMainButtons(bot) {
+  const main = document.querySelector("#main-toggle");
+  const check = document.querySelector("#check-in");
+  if (!bot) {
+    main.hidden = true;
+    check.hidden = true;
+    return;
+  }
+  main.hidden = false;
+  check.hidden = !bot.main;
+  main.setAttribute("aria-pressed", bot.main ? "true" : "false");
+  main.textContent = bot.main ? "★ Main" : "☆ Main";
+}
+async function setMain(on) {
+  if (!state.sprite || !state.bot) return;
+  await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/main", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ main: on }),
+  });
+  await refreshBots();
+}
+async function checkInNow() {
+  if (!state.sprite) return;
+  await api("/api/sprites/" + state.sprite + "/main/check-in", { method: "POST" });
+  await refreshThread();
+  refreshActivity();
+}
+function scrollToMessage() {
+  const id = state.scrollTo;
+  if (!id) return;
+  state.scrollTo = "";
+  const node = document.querySelector('[data-message-id="' + CSS.escape(id) + '"]');
+  if (node) node.scrollIntoView({ block: "center" });
+}
+function cardButton(label, onClick) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "file-chip";
+  button.textContent = label;
+  button.onclick = onClick;
+  return button;
+}
+async function refreshCards() {
+  const box = document.querySelector("#cards");
+  if (!state.sprite || !state.bot) {
+    box.replaceChildren();
+    cardView = "";
+    return;
+  }
+  const botId = state.bot;
+  const [secrets, approvals] = await Promise.all([
+    api("/api/sprites/" + state.sprite + "/bots/" + botId + "/secrets"),
+    api("/api/sprites/" + state.sprite + "/bots/" + botId + "/approvals"),
+  ]);
+  if (state.bot !== botId) return;
+  const signature = JSON.stringify({ botId, secrets, approvals });
+  if (signature === cardView) return;
+  cardView = signature;
+  box.replaceChildren();
+  for (const request of secrets.requests || []) {
+    const card = document.createElement("form");
+    card.className = "ask-card";
+    const title = document.createElement("h3");
+    title.textContent = "Secret · " + request.name;
+    const reason = document.createElement("p");
+    reason.textContent = request.reason || "Type the value. It stays out of the chat.";
+    const input = document.createElement("input");
+    input.type = "password";
+    input.autocomplete = "off";
+    input.placeholder = request.name;
+    input.value = secretDrafts.get(request.id) || "";
+    input.addEventListener("input", () => secretDrafts.set(request.id, input.value));
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    actions.append(
+      cardButton("Save", async (event) => {
+        event.preventDefault();
+        const value = input.value;
+        secretDrafts.set(request.id, value);
+        try {
+          await api("/api/sprites/" + state.sprite + "/bots/" + botId + "/secrets", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ requestId: request.id, value }),
+          });
+          secretDrafts.delete(request.id);
+          cardView = "";
+          refreshCards();
+        } catch {
+          input.value = secretDrafts.get(request.id) || value;
+        }
+      }),
+      cardButton("Dismiss", async (event) => {
+        event.preventDefault();
+        await api("/api/sprites/" + state.sprite + "/bots/" + botId + "/secrets", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ requestId: request.id, dismiss: true }),
+        });
+        secretDrafts.delete(request.id);
+        cardView = "";
+        refreshCards();
+      }),
+    );
+    card.append(title, reason, input, actions);
+    card.onsubmit = (event) => event.preventDefault();
+    box.append(card);
+  }
+  const labels = { shell: "Shell", browser: "Browser", network: "Network", sprite: "Sprite" };
+  for (const item of approvals.cards || []) {
+    const card = document.createElement("div");
+    card.className = "ask-card";
+    const title = document.createElement("h3");
+    title.textContent = "Review an action · " + (labels[item.action] || item.action);
+    if (item.status === "expired") {
+      const expired = document.createElement("p");
+      expired.textContent = "This card expired. Allow once or Always allow asks again.";
+      card.append(expired);
+    }
+    const command = document.createElement("pre");
+    command.textContent = item.command || "";
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    const decide = async (decision) => {
+      await api("/api/sprites/" + state.sprite + "/bots/" + botId + "/approvals", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ cardId: item.id, decision }),
+      });
+      cardView = "";
+      refreshCards();
+      refreshThread();
+    };
+    actions.append(
+      cardButton("Deny", () => decide("deny")),
+      cardButton("Allow once", () => decide("once")),
+      cardButton("Always allow", () => decide("always")),
+    );
+    card.append(title, command, actions);
+    box.append(card);
+  }
+}
+async function paintMemories(botId) {
+  const list = document.querySelector("#memory-list");
+  list.replaceChildren();
+  if (!state.sprite) return;
+  const body = await api("/api/sprites/" + state.sprite + "/bots/" + botId + "/memories");
+  for (const memory of body.memories || []) {
+    const item = document.createElement("li");
+    const text = document.createElement("span");
+    text.textContent = memory.fact;
+    item.append(text, cardButton("Forget", async () => {
+      await api("/api/sprites/" + state.sprite + "/bots/" + botId + "/memories/" + encodeURIComponent(memory.id), { method: "DELETE" });
+      paintMemories(botId);
+    }));
+    list.append(item);
+  }
+}
+async function exportTemplate() {
+  if (!state.sprite || !botDialog.dataset.id) return;
+  const template = await api("/api/sprites/" + state.sprite + "/bots/" + botDialog.dataset.id + "/template");
+  const blob = new Blob([JSON.stringify(template, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = (template.name || "bot") + ".pi-orbs.json";
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+async function importTemplate(file) {
+  if (!state.sprite || !file) return;
+  const text = await file.text();
+  const template = JSON.parse(text);
+  await api("/api/sprites/" + state.sprite + "/bots/import", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(template),
+  });
+  botDialog.close();
+  await refreshBots();
+}
+document.querySelector("#main-toggle").onclick = () => {
+  const on = document.querySelector("#main-toggle").getAttribute("aria-pressed") !== "true";
+  setMain(on).catch((error) => { document.querySelector("#thread-sub").textContent = error.message; });
+};
+document.querySelector("#check-in").onclick = () => {
+  checkInNow().catch((error) => { document.querySelector("#thread-sub").textContent = error.message; });
+};
+document.querySelector("#bot-export").onclick = () => { exportTemplate().catch((error) => { botError.textContent = error.message; }); };
+document.querySelector("#bot-import").onclick = () => document.querySelector("#bot-import-file").click();
+document.querySelector("#bot-import-file").onchange = (event) => {
+  const file = event.target.files && event.target.files[0];
+  event.target.value = "";
+  importTemplate(file).catch((error) => { botError.textContent = error.message; });
+};
+document.querySelector("#memory-save").onclick = async () => {
+  const fact = document.querySelector("#memory-fact").value;
+  if (!state.sprite || !botDialog.dataset.id || !fact.trim()) return;
+  try {
+    await api("/api/sprites/" + state.sprite + "/bots/" + botDialog.dataset.id + "/memories", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ fact }),
+    });
+    document.querySelector("#memory-fact").value = "";
+    await paintMemories(botDialog.dataset.id);
+  } catch (error) {
+    botError.textContent = error.message;
+  }
+};
+function paletteEntries(body) {
+  const rows = [];
+  for (const item of body.bots || []) rows.push({ group: "Bots", kind: "bot", item });
+  for (const item of body.settings || []) rows.push({ group: "Settings", kind: "setting", item });
+  for (const item of body.actions || []) rows.push({ group: "Actions", kind: "action", item });
+  for (const item of body.messages || []) rows.push({ group: "Messages", kind: "message", item });
+  return rows;
+}
+function paintPalette(body) {
+  const box = document.querySelector("#palette-results");
+  box.replaceChildren();
+  paletteRows = paletteEntries(body);
+  let last = "";
+  paletteRows.forEach((row, index) => {
+    if (row.group !== last) {
+      last = row.group;
+      const heading = document.createElement("div");
+      heading.className = "palette-group";
+      heading.textContent = row.group;
+      box.append(heading);
+    }
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "palette-item" + (index === paletteIndex ? " on" : "");
+    button.setAttribute("role", "option");
+    button.setAttribute("aria-selected", index === paletteIndex ? "true" : "false");
+    const label = document.createElement("span");
+    const item = row.item;
+    label.textContent = row.kind === "message" ? (item.text || "").slice(0, 120) : (item.label || item.name || "");
+    const hint = document.createElement("small");
+    hint.textContent = row.kind === "message" ? (item.botName || "") : (item.hint || item.instruction || "");
+    button.append(label, hint);
+    button.onclick = () => { paletteIndex = index; runPalette(row); };
+    box.append(button);
+  });
+  const current = box.querySelector(".palette-item.on");
+  if (current) current.scrollIntoView({ block: "nearest" });
+}
+async function loadPalette(query) {
+  if (!state.sprite) {
+    paletteRows = [];
+    return;
+  }
+  const body = await api("/api/sprites/" + state.sprite + "/search?q=" + encodeURIComponent(query || ""));
+  paletteIndex = 0;
+  paintPalette(body);
+}
+function openSettings() {
+  const settingsDialog = document.querySelector("#settings");
+  if (typeof settingsDialog.showModal === "function") settingsDialog.showModal();
+  document.querySelector("#settings-toggle").setAttribute("aria-expanded", "true");
+}
+function runPalette(row) {
+  if (!row) return;
+  const item = row.item;
+  document.querySelector("#palette").close();
+  if (row.kind === "bot") {
+    state.bot = item.id;
+    refreshBots();
+    return;
+  }
+  if (row.kind === "message") {
+    state.bot = item.botId;
+    state.scrollTo = item.messageId;
+    threadView = "";
+    refreshBots();
+    return;
+  }
+  if (row.kind === "setting") {
+    openSettings();
+    const map = { voice: "#voice-provider", schedules: "#cron-key", export: "#export", deploy: "#deploy", destroy: "#destroy" };
+    const target = document.querySelector(map[item.id] || "#settings");
+    if (target && target.focus) target.focus();
+    return;
+  }
+  if (item.id === "add-bot") openBotDialog(null);
+  else if (item.id === "import-template") document.querySelector("#bot-import-file").click();
+  else if (item.id === "export-template") {
+    const bot = state.bots.find((entry) => entry.id === state.bot);
+    if (bot) {
+      openBotDialog(bot);
+      exportTemplate();
+    }
+  } else if (item.id === "main-bot") setMain(true);
+  else if (item.id === "check-in") checkInNow();
+  else if (item.id === "voice-call") {
+    const start = document.querySelector("#voice-start");
+    if (start && !start.hidden) start.click();
+  }
+}
+function openPalette() {
+  const palette = document.querySelector("#palette");
+  palette.showModal();
+  const input = document.querySelector("#palette-input");
+  input.value = "";
+  input.focus();
+  loadPalette("").catch(() => {});
+}
+document.querySelector("#search-open").onclick = () => { openPalette(); };
+document.querySelector("#palette").addEventListener("close", () => { paletteRows = []; });
+document.querySelector("#palette-form").onsubmit = (event) => {
+  event.preventDefault();
+  runPalette(paletteRows[paletteIndex]);
+};
+document.querySelector("#palette-input").addEventListener("input", (event) => {
+  loadPalette(event.target.value).catch(() => {});
+});
+document.querySelector("#palette-input").addEventListener("keydown", (event) => {
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    paletteIndex = Math.min(paletteRows.length - 1, paletteIndex + 1);
+    const box = document.querySelector("#palette-results");
+    [...box.querySelectorAll(".palette-item")].forEach((button, index) => button.classList.toggle("on", index === paletteIndex));
+  } else if (event.key === "ArrowUp") {
+    event.preventDefault();
+    paletteIndex = Math.max(0, paletteIndex - 1);
+    const box = document.querySelector("#palette-results");
+    [...box.querySelectorAll(".palette-item")].forEach((button, index) => button.classList.toggle("on", index === paletteIndex));
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "k") return;
+  const palette = document.querySelector("#palette");
+  event.preventDefault();
+  if (palette.open) palette.close();
+  else openPalette();
+});
 setInterval(() => {
   if (!state.sprite || !state.bot) return;
   refreshThread();
   refreshActivity();
+  if (!document.querySelector("#library").hidden) paintRoutines();
 }, 3000);
 </script>
 </body>
