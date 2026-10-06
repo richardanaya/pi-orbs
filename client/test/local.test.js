@@ -9,9 +9,16 @@ import { after, before, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { conversationsArchive } from "../dist/archive.js";
-import { handleLocal } from "../dist/local.js";
+import { cannedReply, handleLocal } from "../dist/local.js";
 
 const exec = promisify(execFile);
+
+test("a canned reply keeps a fenced block on its own lines", () => {
+  assert.equal(cannedReply("Hello"), "“Hello” — noted. This is a canned reply from the local simulator. No model was called.");
+  const text = cannedReply("See\n\n```mermaid\nflowchart LR\n  A --> B\n```");
+  assert.match(text, /```mermaid\nflowchart LR\n {2}A --> B\n```\n” — noted/);
+  assert.match(cannedReply("```html\n<p>Hi</p>\n```"), /“\n```html\n<p>Hi<\/p>\n```\n” — noted/);
+});
 
 const clientRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = join(clientRoot, "..");
@@ -348,8 +355,8 @@ describe("local simulator API", { concurrency: 1 }, () => {
     const body = await response.json();
     assert.equal(body.bot.id, "ada");
     assert.equal(body.bot.name, "Ada");
-    assert.equal(body.messages.length, 6);
-    assert.deepEqual(body.messages.map((message) => message.kind), ["pi.user", "pi.assistant", "pi.user", "pi.assistant", "pi.peer", "pi.peer"]);
+    assert.equal(body.messages.length, 7);
+    assert.deepEqual(body.messages.map((message) => message.kind), ["pi.user", "pi.assistant", "pi.user", "pi.assistant", "pi.peer", "pi.peer", "pi.assistant"]);
     assert.match(body.messages[0].text, /status page/);
     assert.match(body.messages[3].text, /status\.html/);
   });
@@ -395,7 +402,7 @@ describe("local simulator API", { concurrency: 1 }, () => {
     assert.equal(ada.conversationId, "ada");
     assert.equal(ada.look, "tide");
     assert.match(ada.instruction, /status pages/);
-    assert.equal(ada.messages.length, 4);
+    assert.equal(ada.messages.length, 5);
     assert.equal(ada.messages[0].kind, "pi.user");
     assert.match(ada.messages[0].text, /status page/);
     assert.equal(ada.messages[0].createdAt, "2026-03-02T15:04:00.000Z");
@@ -511,7 +518,7 @@ describe("local simulator API", { concurrency: 1 }, () => {
     const thread = await fetch(`${session.base}/api/sprites/atlas/bots/ada`);
     assert.equal(thread.status, 200);
     const threadBody = await thread.json();
-    assert.equal(threadBody.messages.length, 4);
+    assert.equal(threadBody.messages.length, 5);
     assert.match(threadBody.messages[0].text, /status page/);
 
     const exported = await fetch(`${session.base}/api/sprites/atlas/conversations.zip`);
@@ -1381,8 +1388,38 @@ describe("local simulator API", { concurrency: 1 }, () => {
     assert.equal(attached.files[0].id, file.id);
     const downloaded = await fetch(`${session.base}/api/sprites/atlas/bots/ada/files/${file.id}`);
     assert.equal(downloaded.status, 200);
-    assert.match(downloaded.headers.get("content-disposition") ?? "", /status\.csv/);
+    assert.match(downloaded.headers.get("content-disposition") ?? "", /^attachment;.*status\.csv/);
+    assert.equal(downloaded.headers.get("x-content-type-options"), "nosniff");
+    assert.match(downloaded.headers.get("content-security-policy") ?? "", /sandbox/);
     assert.equal(await downloaded.text(), "name,status\nAda,ok\n");
+    const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const imageUp = await fetch(`${session.base}/api/sprites/atlas/bots/ada/files`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "dot.png", mime: "image/png", data: png }),
+    });
+    assert.equal(imageUp.status, 201);
+    const imageFile = await imageUp.json();
+    const imageGet = await fetch(`${session.base}/api/sprites/atlas/bots/ada/files/${imageFile.id}`);
+    assert.equal(imageGet.status, 200);
+    assert.match(imageGet.headers.get("content-disposition") ?? "", /^inline;.*dot\.png/);
+    assert.match(imageGet.headers.get("content-type") ?? "", /image\/png/);
+    assert.equal(imageGet.headers.get("x-content-type-options"), "nosniff");
+    assert.equal(imageGet.headers.get("content-security-policy"), "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox");
+    const svg = Buffer.from("<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>").toString("base64");
+    const svgUp = await fetch(`${session.base}/api/sprites/atlas/bots/ada/files`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "icon.svg", mime: "image/svg+xml", data: svg }),
+    });
+    assert.equal(svgUp.status, 201);
+    const svgFile = await svgUp.json();
+    const svgGet = await fetch(`${session.base}/api/sprites/atlas/bots/ada/files/${svgFile.id}`);
+    assert.equal(svgGet.status, 200);
+    assert.match(svgGet.headers.get("content-disposition") ?? "", /^attachment;/);
+    assert.match(svgGet.headers.get("content-disposition") ?? "", /icon\.svg/);
+    assert.equal(svgGet.headers.get("x-content-type-options"), "nosniff");
+    assert.match(svgGet.headers.get("content-security-policy") ?? "", /default-src 'none'/);
     const zip = await fetch(`${session.base}/api/sprites/atlas/conversations.zip`);
     const exported = await unzip(await zip.arrayBuffer());
     const ada = JSON.parse(exported["bots/ada.json"]);
@@ -1625,4 +1662,80 @@ test("the open thread does not treat peer traffic as user messages", async () =>
   assert.doesNotMatch(html, /querySelector\("#peers"\)\.showModal/);
   const main = await readFile(join(clientRoot, "src", "main.ts"), "utf8");
   assert.match(main, /\/api\/bots\/activity/);
+  const manage = html.slice(html.indexOf('id="bot-manage"'), html.indexOf('id="bot-dialog-error"'));
+  assert.match(manage, /id="mcp-events"/);
+  assert.match(manage, /into this bot/);
+  assert.match(html, /textContent = "Disconnect"/);
+  assert.match(html, /value\.includes\("whsec_"\)/);
+  assert.doesNotMatch(html, /hook\.secret|hook\.token/);
+  const settingsStart = html.indexOf('<dialog id="settings"');
+  const settings = html.slice(settingsStart, html.indexOf("</dialog>", settingsStart));
+  assert.doesNotMatch(settings, /mcp-events/);
+  assert.match(main, /mcp-events/);
+});
+
+test("the simulator lists and disconnects one bot's MCP event webhook", async () => {
+  const { createHmac } = await import("node:crypto");
+  const created = await fetch(`${session.base}/api/sprites`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "atlas", connectorType: "xai", apiKey: "local-simulator-test", model: "grok-4.7" }),
+  });
+  assert.equal(created.status, 201);
+  const minted = await fetch(`${session.base}/api/sprites/atlas/bots/ada/mcp-events`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ label: " docs " }),
+  });
+  assert.equal(minted.status, 201);
+  const hook = await minted.json();
+  assert.match(hook.url, /\/api\/mcp-events\/[a-f0-9]{48}$/);
+  assert.match(hook.secret, /^whsec_/);
+  const token = hook.url.split("/").at(-1);
+  const listed = await fetch(`${session.base}/api/sprites/atlas/bots/ada/mcp-events`);
+  assert.equal(listed.status, 200);
+  const listedBody = await listed.json();
+  const packed = JSON.stringify(listedBody);
+  if (packed.includes(hook.secret) || packed.includes(token) || packed.includes("whsec_")) {
+    throw new Error("mcp event list leaked a webhook secret or token");
+  }
+  assert.equal(listedBody.hooks.length, 1);
+  assert.equal(listedBody.hooks[0].label, "docs");
+  assert.equal(listedBody.hooks[0].id, hook.id);
+  const kepler = await fetch(`${session.base}/api/sprites/atlas/bots/kepler/mcp-events`);
+  assert.deepEqual(await kepler.json(), { hooks: [] });
+  const stolen = await fetch(`${session.base}/api/sprites/atlas/bots/kepler/mcp-events/${hook.id}`, { method: "DELETE" });
+  assert.equal(stolen.status, 404);
+
+  const secretKey = Buffer.from(hook.secret.slice("whsec_".length), "base64");
+  const stamp = String(Math.floor(Date.now() / 1000));
+  function postEvent(name, text) {
+    const body = JSON.stringify({ eventId: name, name, data: { text } });
+    const mac = createHmac("sha256", secretKey).update(`${name}.${stamp}.${body}`).digest("base64");
+    return fetch(hook.url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "webhook-id": name,
+        "webhook-timestamp": stamp,
+        "webhook-signature": `v1,${mac}`,
+      },
+      body,
+    });
+  }
+  const delivered = await postEvent("evt_sim_before", "simulator event before disconnect");
+  assert.equal(delivered.status, 200);
+  const thread = await fetch(`${session.base}/api/sprites/atlas/bots/ada`);
+  const threadBody = await thread.json();
+  assert.equal(threadBody.messages.some((item) => item.text && item.text.includes("simulator event before disconnect")), true);
+
+  const disconnected = await fetch(`${session.base}/api/sprites/atlas/bots/ada/mcp-events/${hook.id}`, { method: "DELETE" });
+  assert.equal(disconnected.status, 200);
+  const blocked = await postEvent("evt_sim_after", "simulator event after disconnect");
+  assert.equal(blocked.status, 404);
+  const after = await fetch(`${session.base}/api/sprites/atlas/bots/ada`);
+  const afterBody = await after.json();
+  assert.equal(afterBody.messages.some((item) => item.text && item.text.includes("simulator event after disconnect")), false);
+  const empty = await fetch(`${session.base}/api/sprites/atlas/bots/ada/mcp-events`);
+  assert.deepEqual(await empty.json(), { hooks: [] });
 });

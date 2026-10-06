@@ -1,5 +1,6 @@
 // Pure helpers for the thread page: composer, links, viewers, and the library.
 // No DOM and no Node APIs, so the built file can load in the browser.
+import { Marked } from "marked";
 import { WORD_LIST } from "./words.js";
 
 export type Segment =
@@ -237,6 +238,124 @@ function trimUrl(href: string): string {
   return href.replace(/[.,!?;:]+$/g, "");
 }
 
+const VIDEO_EXT = /\.(mp4|webm|mov|ogv)$/i;
+const IMAGE_EXT = /\.(png|jpe?g|gif|webp|avif|svg)$/i;
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function mediaPath(url: string): string {
+  const bare = url.split(/[?#]/, 1)[0] ?? url;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(bare)) {
+    try {
+      return new URL(bare).pathname;
+    } catch {
+      return bare;
+    }
+  }
+  return bare;
+}
+
+// Remote http(s) URLs and app-relative paths. Rejects javascript:, data:, and other schemes.
+export function safeChatUrl(raw: string): string | null {
+  const href = raw.trim();
+  if (!href || href.length > 2048) return null;
+  if (/[\u0000-\u001F\u007F]/.test(href)) return null;
+  if (href.startsWith("//") || href.startsWith("\\\\")) return null;
+  const lower = href.toLowerCase();
+  if (lower.startsWith("javascript:") || lower.startsWith("data:") || lower.startsWith("vbscript:") || lower.startsWith("file:") || lower.startsWith("blob:")) {
+    return null;
+  }
+  if (/^[a-z][a-z0-9+.-]*:/i.test(href)) {
+    try {
+      const url = new URL(href);
+      if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+      return url.href;
+    } catch {
+      return null;
+    }
+  }
+  if (/["'<>\s]/.test(href)) return null;
+  return href;
+}
+
+export function chatMediaKind(url: string): "image" | "video" | null {
+  const path = mediaPath(url);
+  if (VIDEO_EXT.test(path)) return "video";
+  if (IMAGE_EXT.test(path)) return "image";
+  return null;
+}
+
+function bareMediaLabel(label: string, href: string): boolean {
+  const plain = label.trim();
+  if (!plain) return true;
+  return plain === href || plain === href.replace(/^https?:\/\//, "");
+}
+
+function videoHtml(src: string, caption: string): string {
+  const video = `<video class="chat-video" controls playsinline preload="metadata" src="${escapeHtml(src)}"></video>`;
+  if (bareMediaLabel(caption, src)) return video;
+  return `<span class="chat-media">${video}<span class="media-caption">${escapeHtml(caption)}</span></span>`;
+}
+
+function imageHtml(src: string, alt: string, title?: string | null): string {
+  const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
+  return `<img class="chat-image" src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" loading="lazy" decoding="async" referrerpolicy="no-referrer"${titleAttr}>`;
+}
+
+export function fenceLang(lang: string | null | undefined): string {
+  return (lang ?? "").match(/^[A-Za-z0-9_+-]+/)?.[0]?.toLowerCase() ?? "";
+}
+
+const chatMarked = new Marked({ gfm: true, breaks: true });
+chatMarked.use({
+  renderer: {
+    html({ text }) {
+      return escapeHtml(text);
+    },
+    code({ text, lang, escaped }) {
+      const langName = fenceLang(lang);
+      const body = `${(escaped ? text : escapeHtml(text)).replace(/\n$/, "")}\n`;
+      const klass = langName ? ` class="language-${langName}"` : "";
+      const data = langName ? ` data-lang="${langName}"` : "";
+      return `<pre class="fence"${data}><code${klass}>${body}</code></pre>\n`;
+    },
+    link(token) {
+      const label = this.parser.parseInline(token.tokens);
+      const safe = safeChatUrl(token.href);
+      if (!safe) return label;
+      const kind = chatMediaKind(safe);
+      if (kind === "video") return videoHtml(safe, token.text);
+      if (kind === "image" && bareMediaLabel(token.text, token.href)) return imageHtml(safe, "");
+      const title = token.title ? ` title="${escapeHtml(token.title)}"` : "";
+      return `<a href="${escapeHtml(safe)}"${title}>${label}</a>`;
+    },
+    image(token) {
+      const alt = token.tokens ? this.parser.parseInline(token.tokens, this.parser.textRenderer) : token.text;
+      const safe = safeChatUrl(token.href);
+      if (!safe) return escapeHtml(alt || token.text || "");
+      if (chatMediaKind(safe) === "video") return videoHtml(safe, alt);
+      return imageHtml(safe, alt, token.title);
+    },
+  },
+  hooks: {
+    postprocess(html) {
+      return html.replaceAll("<table>", '<div class="table-scroll"><table>').replaceAll("</table>", "</table></div>");
+    },
+  },
+});
+
+export function renderChatMarkdown(text: string): string {
+  const html = chatMarked.parse(text, { async: false });
+  return html;
+}
+
 export function faviconUrl(href: string): string | null {
   try {
     const host = new URL(href).hostname;
@@ -404,13 +523,13 @@ export function viewerKind(name: string, mime: string): ViewerKind {
   return "file";
 }
 
-export function codeViewer(lang: string, source: string): "sheet" | "html" | "diagram" | null {
-  if (lang === "csv" || lang === "tsv") return "sheet";
-  if (lang === "html") return "html";
-  if (lang === "mermaid" || lang === "diagram" || lang === "graph") {
-    return layoutDiagram(source) ? "diagram" : null;
-  }
-  if (layoutDiagram(source) && (lang === "" || lang === "text")) return null;
+export function codeViewer(lang: string, source: string): "sheet" | "html" | "diagram" | "mermaid" | null {
+  const name = fenceLang(lang);
+  if (name === "csv" || name === "tsv") return "sheet";
+  if (name === "html" || name === "htm") return "html";
+  // Official Mermaid drawings. ```diagram and ```graph stay the small arrow sketch.
+  if (name === "mermaid") return "mermaid";
+  if (name === "diagram" || name === "graph") return layoutDiagram(source) ? "diagram" : null;
   return null;
 }
 

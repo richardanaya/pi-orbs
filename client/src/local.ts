@@ -38,6 +38,20 @@ import {
   webhookUrl,
   type CronCaller,
 } from "./schedule.js";
+import { fileResponseHeaders } from "./file-response.js";
+import {
+  acceptMcpWebhook,
+  buildMcpHook,
+  disconnectHook,
+  dropBotHooks,
+  hookLimitError,
+  hookPublicId,
+  hooksForBot,
+  publicMcpHook,
+  rememberSeen,
+  webhookUrl as mcpWebhookUrl,
+  type McpHook,
+} from "./mcp-hook.js";
 import { answerText, decodeBase64, fileMarker, readAnswerInput, readQuestionInput, safeFileName, takeFileMarker } from "./thread-view.js";
 import { hangLimit, hangNote, isHung, workingOn } from "./work.js";
 import { appFromCall, createMcpPeer, type PublicApp } from "./mcp-apps.js";
@@ -145,6 +159,7 @@ let sprite: Sprite | null = null;
 let bots: Bot[] = [];
 let peers: Peer[] = [];
 let schedules: ScheduledJob[] = [];
+let mcpHooks: McpHook[] = [];
 let cronJobs = memoryCron();
 let files: StoredFile[] = [];
 let questions: Question[] = [];
@@ -257,6 +272,39 @@ function threadMessages(bot: Bot) {
   return lines;
 }
 
+const SKETCH = [
+  "## Sketch",
+  "",
+  "A **black** page, *muted* gray type, and a ~~red~~ alert.",
+  "",
+  "- Background",
+  "- Title",
+  "  - Sprite name",
+  "- One status line",
+  "",
+  "1. Open the work directory",
+  "2. Read the page file",
+  "",
+  "> Same muted gray as the roster.",
+  "",
+  "See [notes](https://example.com/notes).",
+  "",
+  "| Piece | Tone |",
+  "| --- | --- |",
+  "| Title | White |",
+  "| Line | Gray |",
+  "",
+  "---",
+  "",
+  "![Pi orb](/logo.png)",
+  "",
+  "![Walkthrough](/orb-clip.mp4)",
+  "",
+  "```html",
+  "<p>Hi</p>",
+  "```",
+].join("\n");
+
 function seedBots(): Bot[] {
   nextMessage = 1;
   nextBot = 1;
@@ -274,6 +322,7 @@ function seedBots(): Bot[] {
         message("pi.assistant", "A single page is enough. The title is the sprite name, and one line under it says whether the server answered."),
         message("pi.user", "Keep that line in the same muted gray as the roster."),
         message("pi.assistant", "Done. status.html is in the work directory. Black page, large title, gray status line."),
+        message("pi.assistant", SKETCH, new Date(seedStart + 240_000).toISOString()),
       ],
     },
     {
@@ -379,6 +428,7 @@ function reset(name: string, connector: SpriteConnector = defaultConnector(), sa
   bots = seedBots();
   peers = sample ? samplePeers() : [];
   schedules = [];
+  mcpHooks = [];
   cronJobs = memoryCron();
   files = [];
   questions = [];
@@ -442,7 +492,11 @@ export function localMode(): boolean {
 }
 
 export function cannedReply(content: string): string {
-  const heard = content.length > 180 ? `${content.slice(0, 179)}…` : content;
+  const clipped = content.length > 180 ? `${content.slice(0, 179)}…` : content;
+  // A fence has to start and end on its own line. Gluing the quote onto ``` hides the close.
+  let heard = clipped;
+  if (heard.startsWith("```")) heard = `\n${heard}`;
+  if (/```[^\n]*$/.test(heard)) heard = `${heard}\n`;
   return `“${heard}” — noted. This is a canned reply from the local simulator. No model was called.`;
 }
 
@@ -682,6 +736,18 @@ function localSnapshot(): ExportSnapshot {
   };
 }
 
+async function readRawBody(req: IncomingMessage, limit: number): Promise<string | undefined> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += buffer.length;
+    if (size > limit) return undefined;
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 async function readJson(req: IncomingMessage, limit = 1_000_000): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
   let size = 0;
@@ -874,6 +940,32 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
     send(res, 202, submitHuman(bot, message.content));
     return;
   }
+  const mcpRoute = url.pathname.match(/^\/api\/mcp-events\/([A-Za-z0-9]+)$/);
+  if (mcpRoute && req.method === "POST") {
+    const raw = await readRawBody(req, 262_144);
+    if (raw === undefined) {
+      send(res, 413, { error: "body too large" });
+      return;
+    }
+    const token = mcpRoute[1] ?? "";
+    const received = acceptMcpWebhook(mcpHooks, token, raw, req.headers);
+    if (received.deliver) {
+      if (!mcpHooks.some((hook) => hook.token === token)) {
+        send(res, 410, { error: "webhook is disconnected" });
+        return;
+      }
+      const target = bots.find((item) => item.id === received.deliver?.botId || item.conversationId === received.deliver?.botId);
+      if (!target) {
+        send(res, 410, { error: "bot is gone" });
+        return;
+      }
+      submitHuman(target, received.deliver.content);
+      const remembered = rememberSeen(mcpHooks, token, received.deliver.webhookId);
+      mcpHooks = remembered.hooks;
+    }
+    send(res, received.status, received.body);
+    return;
+  }
 
   const parts = url.pathname.split("/").filter(Boolean);
   if (parts.length < 3 || parts[0] !== "api" || parts[1] !== "sprites") {
@@ -904,6 +996,7 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
     bots = [];
     peers = [];
     schedules = [];
+    mcpHooks = [];
     cronJobs = memoryCron();
     files = [];
     questions = [];
@@ -1195,6 +1288,44 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
       send(res, 200, { ok: true });
       return;
     }
+    if (rest.length === 3 && rest[2] === "mcp-events" && req.method === "GET") {
+      send(res, 200, { hooks: hooksForBot(mcpHooks, bot.id, bot.conversationId).map(publicMcpHook) });
+      return;
+    }
+    if (rest.length === 3 && rest[2] === "mcp-events" && req.method === "POST") {
+      const limited = hookLimitError(mcpHooks, bot.id, bot.conversationId);
+      if (limited) {
+        send(res, 400, { error: limited });
+        return;
+      }
+      const body = await readJson(req);
+      const label = typeof body.label === "string" ? body.label : "";
+      const hook = buildMcpHook(bot.id, label);
+      mcpHooks.push(hook);
+      send(res, 201, {
+        id: hookPublicId(hook.token),
+        url: mcpWebhookUrl(requestBase(req), hook.token),
+        secret: hook.secret,
+        label: hook.label,
+      });
+      return;
+    }
+    if (rest.length === 4 && rest[2] === "mcp-events" && rest[3] && req.method === "DELETE") {
+      let publicId = rest[3];
+      try {
+        publicId = decodeURIComponent(publicId);
+      } catch {
+        publicId = rest[3];
+      }
+      const next = disconnectHook(mcpHooks, bot.id, publicId, bot.conversationId);
+      if (!next.removed) {
+        send(res, 404, { error: "webhook not found" });
+        return;
+      }
+      mcpHooks = next.hooks;
+      send(res, 200, { ok: true });
+      return;
+    }
     if (rest.length === 3 && rest[2] === "questions" && req.method === "POST") {
       const read = readQuestionInput(await readJson(req));
       if ("error" in read) {
@@ -1271,10 +1402,10 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
         send(res, 404, { error: "file not found" });
         return;
       }
-      const filename = record.name.replace(/["\r\n]/g, "");
+      const mime = record.mime || "application/octet-stream";
       res.writeHead(200, {
-        "content-type": record.mime || "application/octet-stream",
-        "content-disposition": `attachment; filename="${filename}"`,
+        "content-type": mime,
+        ...fileResponseHeaders(mime, record.name),
         "content-length": String(record.bytes.length),
         "cache-control": "no-store",
       });
@@ -1308,6 +1439,7 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
       clearBotSessions(bot.id);
       files = files.filter((item) => item.botId !== bot.id);
       questions = questions.filter((item) => item.botId !== bot.id);
+      mcpHooks = dropBotHooks(mcpHooks, bot.id, bot.conversationId);
       work = work.filter((item) => item.botId !== bot.id);
       forgetLocalBot(bot.id);
       send(res, 200, { ok: true });

@@ -5,6 +5,7 @@ import { homedir } from "node:os";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { archiveHeaders, conversationsArchive, readExport } from "./archive.js";
+import { fileNameFromDisposition, fileResponseHeaders } from "./file-response.js";
 import { deleteConnector, ensureConnector, gatewayBaseUrl } from "./connector.js";
 import { connectionName, normalizeConnector, providerApi, publicConnectors, readDeployUpdate, readSetup, type SpriteConnector } from "./connectors.js";
 import { deploySprite, localVersion, newSecret, remoteVersion } from "./deploy.js";
@@ -132,7 +133,14 @@ async function relaySprite(saved: SavedSprite, path: string, req: IncomingMessag
   const disposition = response.headers.get("content-disposition") ?? "";
   const bytes = Buffer.from(await response.arrayBuffer());
   const headers: Record<string, string> = { "content-type": type, "cache-control": "no-store" };
-  if (disposition) headers["content-disposition"] = disposition;
+  const pathname = path.split("?")[0] ?? path;
+  const fileDownload = method === "GET" && response.status === 200 && /\/files\/[^/]+$/.test(pathname) && !type.toLowerCase().startsWith("application/json");
+  if (fileDownload) {
+    const mime = type.split(";", 1)[0]?.trim() || "application/octet-stream";
+    Object.assign(headers, fileResponseHeaders(mime, fileNameFromDisposition(disposition)));
+  } else if (disposition) {
+    headers["content-disposition"] = disposition;
+  }
   res.writeHead(response.status, headers);
   res.end(bytes);
 }
@@ -239,6 +247,10 @@ function contentType(file: string): string {
     case ".ico": return "image/x-icon";
     case ".webp": return "image/webp";
     case ".js": return "text/javascript; charset=utf-8";
+    case ".mp4": return "video/mp4";
+    case ".webm": return "video/webm";
+    case ".mov": return "video/quicktime";
+    case ".ogv": return "video/ogg";
     default: return "application/octet-stream";
   }
 }
@@ -445,7 +457,7 @@ const http = createServer(async (req, res) => {
       send(res, 200, { origin: sandboxOrigin, allow: policyFromEnv() });
       return;
     }
-    if (url.pathname === "/thread-view.js" || url.pathname === "/words.js" || url.pathname === "/mcp-apps.js") {
+    if (url.pathname === "/thread-view.js" || url.pathname === "/words.js" || url.pathname === "/mcp-apps.js" || url.pathname === "/mermaid-view.js") {
       const file = join(dirname(fileURLToPath(import.meta.url)), url.pathname.slice(1));
       try {
         const body = await readFile(file);
@@ -722,7 +734,7 @@ const http = createServer(async (req, res) => {
       await relaySprite(saved, `/api${tail}`, req, res);
       return;
     }
-    const botExtra = url.pathname.match(/^\/api\/sprites\/([^/]+)\/bots\/([^/]+)\/(schedules|questions|files|work|template|spawn|main|memories|secrets|approvals|actions)(?:\/([^/]+))?(?:\/([^/]+))?$/);
+    const botExtra = url.pathname.match(/^\/api\/sprites\/([^/]+)\/bots\/([^/]+)\/(schedules|questions|files|work|template|spawn|main|memories|secrets|approvals|actions|mcp-events)(?:\/([^/]+))?(?:\/([^/]+))?$/);
     if (botExtra) {
       const saved = state.sprites.find((item) => item.name === botExtra[1]);
       if (!saved) {

@@ -2,9 +2,9 @@
 
 MCP Apps is the chat host for extension `io.modelcontextprotocol/ui` (SEP-1865, stable 2026-01-26). It is not the MCP event webhook.
 
-Event webhooks stay as they are. `create_mcp_event_webhook`, `mcp-events.json`, `POST /api/mcp-events/:token`, and signed `events/subscribe` delivery are an inbound path: an MCP server pushes events into a bot conversation. Nothing in that path renders UI, reads `ui://` resources, or speaks the Apps `postMessage` bridge.
+Event webhooks stay as they are. `create_mcp_event_webhook`, `mcp-events.json`, `POST /api/mcp-events/:token`, the bot dialog's list and Disconnect (`GET` and `DELETE /api/bots/:id/mcp-events`), and signed `events/subscribe` delivery are an inbound path: an MCP server pushes events into a bot conversation. Nothing in that path renders UI, reads `ui://` resources, or speaks the Apps `postMessage` bridge.
 
-Apps is the other direction. A tool declares a UI resource. The host fetches it and renders it in the thread.
+Apps is the other direction. A tool declares a UI resource. The host fetches it and renders it in the thread. Mermaid fences are a separate drawing path in the same bubble. They are not Apps.
 
 Sources followed for the host behavior:
 

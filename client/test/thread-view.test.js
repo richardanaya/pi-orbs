@@ -17,6 +17,10 @@ import {
   quoteBlock,
   readAnswerInput,
   readQuestionInput,
+  chatMediaKind,
+  fenceLang,
+  renderChatMarkdown,
+  safeChatUrl,
   segments,
   spellRanges,
   takeFileMarker,
@@ -66,7 +70,100 @@ test("links use a generic favicon and fences split from prose", () => {
   const fenced = segments("Before\n```html\n<p>Hi</p>\n```\nAfter");
   assert.equal(fenced.some((part) => part.type === "code" && part.lang === "html" && part.text === "<p>Hi</p>"), true);
   assert.equal(codeViewer("html", "<p>Hi</p>"), "html");
+  assert.equal(codeViewer("HTML", "<p>Hi</p>"), "html");
   assert.equal(codeViewer("csv", "a,b"), "sheet");
+  assert.equal(fenceLang("Mermaid title"), "mermaid");
+});
+
+test("chat markdown renders structure, media, and safe links", () => {
+  const html = renderChatMarkdown([
+    "## Sketch",
+    "",
+    "A **black** page, *muted* gray type, and a ~~red~~ alert.",
+    "",
+    "- Background",
+    "- Title",
+    "  - Sprite name",
+    "- One status line",
+    "",
+    "1. Open the work directory",
+    "2. Read the `page` file",
+    "",
+    "> Same muted gray as the roster.",
+    "",
+    "See [notes](https://example.com/notes).",
+    "",
+    "Hello",
+    "world",
+    "",
+    "| Piece | Tone |",
+    "| --- | --- |",
+    "| Title | White |",
+    "| Line | Gray |",
+    "",
+    "---",
+    "",
+    "![Pi orb](/logo.png)",
+    "",
+    "![Walkthrough](/orb-clip.mp4)",
+    "",
+    "https://cdn.example/clip.webm",
+    "",
+    "[watch](https://cdn.example/tour.mov)",
+    "",
+    "![sheet](/api/sprites/atlas/bots/ada/files/f1)",
+    "",
+    "```html",
+    "<p>Hi</p>",
+    "```",
+    "",
+    "<script>alert(1)</script>",
+    "",
+    "[click](javascript:alert(1))",
+    "",
+    "![x](javascript:alert(1))",
+    "",
+    "[data](data:text/html,hi)",
+  ].join("\n"));
+
+  assert.match(html, /<h2>Sketch<\/h2>/);
+  assert.match(html, /<strong>black<\/strong>/);
+  assert.match(html, /<em>muted<\/em>/);
+  assert.match(html, /<del>red<\/del>/);
+  assert.match(html, /<ul>/);
+  assert.match(html, /<ol>/);
+  assert.match(html, /<li>Sprite name<\/li>/);
+  assert.match(html, /<code>page<\/code>/);
+  assert.match(html, /<blockquote>/);
+  assert.match(html, /<br>/);
+  assert.match(html, /<div class="table-scroll"><table>/);
+  assert.match(html, /<th>Piece<\/th>/);
+  assert.match(html, /<td>White<\/td>/);
+  assert.match(html, /<hr>/);
+  assert.match(html, /<a href="https:\/\/example\.com\/notes">notes<\/a>/);
+  assert.match(html, /<img class="chat-image" src="\/logo\.png" alt="Pi orb"/);
+  assert.match(html, /loading="lazy"/);
+  assert.match(html, /<video class="chat-video" controls playsinline preload="metadata" src="\/orb-clip\.mp4"><\/video>/);
+  assert.match(html, /media-caption">Walkthrough</);
+  assert.match(html, /src="https:\/\/cdn\.example\/clip\.webm"/);
+  assert.match(html, /src="https:\/\/cdn\.example\/tour\.mov"/);
+  assert.match(html, /src="\/api\/sprites\/atlas\/bots\/ada\/files\/f1"/);
+  assert.match(html, /<code class="language-html">/);
+  assert.match(renderChatMarkdown("```Mermaid\nflowchart TD\nA-->B\n```"), /data-lang="mermaid"/);
+  assert.match(renderChatMarkdown("```Mermaid\nflowchart TD\nX[\"<img src=x onerror=alert(1)>\"]\n```"), /&lt;img/);
+  assert.match(html, /&lt;p&gt;Hi&lt;\/p&gt;/);
+  assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.equal(html.includes("<script"), false);
+  assert.equal(html.includes("javascript:"), false);
+  assert.equal(html.includes("data:text/html"), false);
+  assert.equal(html.includes("onerror="), false);
+  assert.equal(safeChatUrl("javascript:alert(1)"), null);
+  assert.equal(safeChatUrl("data:text/html,hi"), null);
+  assert.equal(safeChatUrl("https://example.com/notes"), "https://example.com/notes");
+  assert.equal(safeChatUrl("/logo.png"), "/logo.png");
+  assert.equal(chatMediaKind("https://cdn.example/clip.mp4?token=1"), "video");
+  assert.equal(chatMediaKind("/logo.png"), "image");
+  assert.equal(chatMediaKind("/api/sprites/atlas/bots/ada/files/f1"), null);
 });
 
 test("sheets, diagrams, viewers, and the library group by age", () => {
@@ -80,7 +177,10 @@ test("sheets, diagrams, viewers, and the library group by age", () => {
   assert.equal(mermaid.edges[0].from, "A");
   assert.equal(mermaid.edges[0].to, "B");
   assert.equal(mermaid.edges[0].label, "yes");
-  assert.equal(codeViewer("mermaid", "A-->B"), "diagram");
+  assert.equal(codeViewer("mermaid", "A-->B"), "mermaid");
+  assert.equal(codeViewer("Mermaid", "sequenceDiagram\nAlice->>Bob: hi"), "mermaid");
+  assert.equal(codeViewer("diagram", "Ada -> Kepler"), "diagram");
+  assert.equal(codeViewer("graph", "not a graph"), null);
   assert.equal(viewerKind("shot.png", "application/octet-stream"), "image");
   assert.equal(viewerKind("clip.mp4", ""), "video");
   assert.equal(viewerKind("rows.csv", "text/plain"), "sheet");

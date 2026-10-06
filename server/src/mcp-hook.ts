@@ -1,0 +1,1 @@
+../../client/src/mcp-hook.ts
