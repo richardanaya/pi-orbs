@@ -1581,6 +1581,9 @@
       </div>
       <h3>Routines</h3>
       <div id="routines"></div>
+      <h3>MCP events</h3>
+      <p class="dialog-copy">Webhooks that deliver MCP events into this bot. Disconnect one to stop events from hitting it.</p>
+      <div id="mcp-events"></div>
     </div>
     <p id="bot-dialog-error" role="alert"></p>
     <div class="dialog-actions">
@@ -2508,6 +2511,60 @@ async function paintRoutines() {
     node.append(row);
   }
 }
+async function paintMcpEvents() {
+  const node = document.querySelector("#mcp-events");
+  const id = botDialog.open ? botDialog.dataset.id : "";
+  if (!state.sprite || !id || !node) return;
+  let hooks = [];
+  try {
+    const body = await api("/api/sprites/" + state.sprite + "/bots/" + id + "/mcp-events");
+    hooks = body.hooks || [];
+  } catch {
+    hooks = [];
+  }
+  if (!botDialog.open || botDialog.dataset.id !== id) return;
+  node.replaceChildren();
+  if (!hooks.length) {
+    const empty = document.createElement("p");
+    empty.className = "routine";
+    empty.textContent = "No MCP event webhooks";
+    node.append(empty);
+    return;
+  }
+  for (const hook of hooks) {
+    const row = document.createElement("div");
+    row.className = "routine";
+    const title = document.createElement("strong");
+    title.textContent = hook.label || "Webhook";
+    const meta = document.createElement("span");
+    const endpoint = safeMcpEndpoint(hook.endpoint);
+    const when = hook.createdAt ? formatSent(hook.createdAt) : "";
+    meta.textContent = [endpoint, when].filter(Boolean).join(" · ");
+    const actions = document.createElement("div");
+    actions.className = "routine-actions";
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "file-chip";
+    remove.textContent = "Disconnect";
+    remove.onclick = async () => {
+      remove.disabled = true;
+      try {
+        await api("/api/sprites/" + state.sprite + "/bots/" + id + "/mcp-events/" + encodeURIComponent(hook.id), { method: "DELETE" });
+        paintMcpEvents();
+      } catch {
+        remove.disabled = false;
+      }
+    };
+    actions.append(remove);
+    row.append(title, meta, actions);
+    node.append(row);
+  }
+}
+function safeMcpEndpoint(value) {
+  if (typeof value !== "string" || value.includes("whsec_")) return "";
+  if (/[A-Za-z0-9]{24,}/.test(value)) return "";
+  return value;
+}
 async function refreshThread() {
   const log = document.querySelector("#log");
   if (!state.sprite || !state.bot) {
@@ -2700,6 +2757,7 @@ function openBotDialog(bot) {
     paintMemories(bot.id);
     paintLibrary();
     paintRoutines();
+    paintMcpEvents();
   }
   botName.value = bot ? bot.name : "";
   botInstruction.value = bot && bot.instruction ? bot.instruction : "";
@@ -4310,7 +4368,10 @@ setInterval(() => {
   refreshThread();
   refreshActivity();
   refreshRosterIfChanged();
-  if (botDialog.open && botDialog.dataset.id) paintRoutines();
+  if (botDialog.open && botDialog.dataset.id) {
+    paintRoutines();
+    paintMcpEvents();
+  }
 }, 3000);
 </script>
 </body>
