@@ -1646,10 +1646,12 @@ const http = createServer(async (req, res) => {
           return;
         }
         const bytes = await readFile(target);
+        const mime = record.mime || "application/octet-stream";
         const filename = record.name.replace(/["\r\n]/g, "");
+        const inline = mime.toLowerCase().startsWith("image/") || mime.toLowerCase().startsWith("video/");
         res.writeHead(200, {
-          "content-type": record.mime || "application/octet-stream",
-          "content-disposition": `attachment; filename="${filename}"`,
+          "content-type": mime,
+          "content-disposition": `${inline ? "inline" : "attachment"}; filename="${filename}"`,
           "content-length": String(bytes.length),
           "cache-control": "no-store",
           "access-control-allow-origin": "*",

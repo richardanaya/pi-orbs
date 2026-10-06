@@ -348,8 +348,8 @@ describe("local simulator API", { concurrency: 1 }, () => {
     const body = await response.json();
     assert.equal(body.bot.id, "ada");
     assert.equal(body.bot.name, "Ada");
-    assert.equal(body.messages.length, 6);
-    assert.deepEqual(body.messages.map((message) => message.kind), ["pi.user", "pi.assistant", "pi.user", "pi.assistant", "pi.peer", "pi.peer"]);
+    assert.equal(body.messages.length, 7);
+    assert.deepEqual(body.messages.map((message) => message.kind), ["pi.user", "pi.assistant", "pi.user", "pi.assistant", "pi.peer", "pi.peer", "pi.assistant"]);
     assert.match(body.messages[0].text, /status page/);
     assert.match(body.messages[3].text, /status\.html/);
   });
@@ -395,7 +395,7 @@ describe("local simulator API", { concurrency: 1 }, () => {
     assert.equal(ada.conversationId, "ada");
     assert.equal(ada.look, "tide");
     assert.match(ada.instruction, /status pages/);
-    assert.equal(ada.messages.length, 4);
+    assert.equal(ada.messages.length, 5);
     assert.equal(ada.messages[0].kind, "pi.user");
     assert.match(ada.messages[0].text, /status page/);
     assert.equal(ada.messages[0].createdAt, "2026-03-02T15:04:00.000Z");
@@ -511,7 +511,7 @@ describe("local simulator API", { concurrency: 1 }, () => {
     const thread = await fetch(`${session.base}/api/sprites/atlas/bots/ada`);
     assert.equal(thread.status, 200);
     const threadBody = await thread.json();
-    assert.equal(threadBody.messages.length, 4);
+    assert.equal(threadBody.messages.length, 5);
     assert.match(threadBody.messages[0].text, /status page/);
 
     const exported = await fetch(`${session.base}/api/sprites/atlas/conversations.zip`);
@@ -1381,8 +1381,20 @@ describe("local simulator API", { concurrency: 1 }, () => {
     assert.equal(attached.files[0].id, file.id);
     const downloaded = await fetch(`${session.base}/api/sprites/atlas/bots/ada/files/${file.id}`);
     assert.equal(downloaded.status, 200);
-    assert.match(downloaded.headers.get("content-disposition") ?? "", /status\.csv/);
+    assert.match(downloaded.headers.get("content-disposition") ?? "", /^attachment;.*status\.csv/);
     assert.equal(await downloaded.text(), "name,status\nAda,ok\n");
+    const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const imageUp = await fetch(`${session.base}/api/sprites/atlas/bots/ada/files`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "dot.png", mime: "image/png", data: png }),
+    });
+    assert.equal(imageUp.status, 201);
+    const imageFile = await imageUp.json();
+    const imageGet = await fetch(`${session.base}/api/sprites/atlas/bots/ada/files/${imageFile.id}`);
+    assert.equal(imageGet.status, 200);
+    assert.match(imageGet.headers.get("content-disposition") ?? "", /^inline;.*dot\.png/);
+    assert.match(imageGet.headers.get("content-type") ?? "", /image\/png/);
     const zip = await fetch(`${session.base}/api/sprites/atlas/conversations.zip`);
     const exported = await unzip(await zip.arrayBuffer());
     const ada = JSON.parse(exported["bots/ada.json"]);

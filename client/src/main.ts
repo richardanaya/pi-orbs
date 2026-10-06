@@ -238,6 +238,10 @@ function contentType(file: string): string {
     case ".ico": return "image/x-icon";
     case ".webp": return "image/webp";
     case ".js": return "text/javascript; charset=utf-8";
+    case ".mp4": return "video/mp4";
+    case ".webm": return "video/webm";
+    case ".mov": return "video/quicktime";
+    case ".ogv": return "video/ogg";
     default: return "application/octet-stream";
   }
 }

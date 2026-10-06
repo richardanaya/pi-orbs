@@ -38,7 +38,7 @@ import {
   webhookUrl,
   type CronCaller,
 } from "./schedule.js";
-import { answerText, decodeBase64, fileMarker, readAnswerInput, readQuestionInput, safeFileName, takeFileMarker } from "./thread-view.js";
+import { answerText, decodeBase64, fileDisposition, fileMarker, readAnswerInput, readQuestionInput, safeFileName, takeFileMarker } from "./thread-view.js";
 import { hangLimit, hangNote, isHung, workingOn } from "./work.js";
 import {
   CHECK_IN_MS,
@@ -252,6 +252,39 @@ function threadMessages(bot: Bot) {
   return lines;
 }
 
+const SKETCH = [
+  "## Sketch",
+  "",
+  "A **black** page, *muted* gray type, and a ~~red~~ alert.",
+  "",
+  "- Background",
+  "- Title",
+  "  - Sprite name",
+  "- One status line",
+  "",
+  "1. Open the work directory",
+  "2. Read the page file",
+  "",
+  "> Same muted gray as the roster.",
+  "",
+  "See [notes](https://example.com/notes).",
+  "",
+  "| Piece | Tone |",
+  "| --- | --- |",
+  "| Title | White |",
+  "| Line | Gray |",
+  "",
+  "---",
+  "",
+  "![Pi orb](/logo.png)",
+  "",
+  "![Walkthrough](/orb-clip.mp4)",
+  "",
+  "```html",
+  "<p>Hi</p>",
+  "```",
+].join("\n");
+
 function seedBots(): Bot[] {
   nextMessage = 1;
   nextBot = 1;
@@ -269,6 +302,7 @@ function seedBots(): Bot[] {
         message("pi.assistant", "A single page is enough. The title is the sprite name, and one line under it says whether the server answered."),
         message("pi.user", "Keep that line in the same muted gray as the roster."),
         message("pi.assistant", "Done. status.html is in the work directory. Black page, large title, gray status line."),
+        message("pi.assistant", SKETCH, new Date(seedStart + 240_000).toISOString()),
       ],
     },
     {
@@ -1162,10 +1196,9 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
         send(res, 404, { error: "file not found" });
         return;
       }
-      const filename = record.name.replace(/["\r\n]/g, "");
       res.writeHead(200, {
         "content-type": record.mime || "application/octet-stream",
-        "content-disposition": `attachment; filename="${filename}"`,
+        "content-disposition": fileDisposition(record.mime || "application/octet-stream", record.name),
         "content-length": String(record.bytes.length),
         "cache-control": "no-store",
       });
