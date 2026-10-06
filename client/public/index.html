@@ -219,13 +219,10 @@
     gap: 12px;
     padding: 18px 16px 14px;
   }
-  .brand strong {
+  .brand-wordmark {
     display: block;
-    font-family: var(--display);
-    font-size: 22px;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-    line-height: 1.1;
+    height: 22px;
+    width: auto;
   }
   .side-head {
     display: flex;
@@ -1317,7 +1314,7 @@
 <main>
   <aside aria-label="Roster">
     <div class="brand">
-      <strong>Pi Orbs</strong>
+      <img class="brand-wordmark" src="/wordmark/pi-orbs-wordmark.svg" alt="Pi Orbs" width="97" height="22">
       <div class="brand-actions">
       <button id="update-push" type="button" hidden><span class="update-dot" aria-hidden="true"></span><span class="update-label">Update</span></button>
       <button id="settings-toggle" type="button" aria-label="Settings" aria-expanded="false" aria-controls="settings">
