@@ -100,13 +100,15 @@ code {
   align-items: center;
   gap: 10px;
   min-height: 44px;
-  font-family: var(--display);
-  font-weight: 600;
-  font-size: 20px;
-  letter-spacing: -0.02em;
   text-decoration: none;
   flex: 0 0 auto;
   white-space: nowrap;
+}
+
+.wordmark {
+  display: block;
+  height: 22px;
+  width: auto;
 }
 
 .glow-foot {
@@ -573,10 +575,11 @@ footer {
 
   .word {
     gap: 8px;
-    font-size: 18px;
     flex: 0 0 auto;
     white-space: nowrap;
   }
+
+  .wordmark { height: 20px; }
 
   /* Menu is in the bar even when the js class never lands (inline script
      blocked, or a browser that drops html.js rules). GitHub stays in that
