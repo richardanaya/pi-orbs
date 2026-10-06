@@ -154,7 +154,7 @@ test("simulator threads attach an app without adding a tool trace", async () => 
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/sprites/atlas/bots/ada`);
     const body = await response.json();
-    assert.equal(body.messages.length, 6);
+    assert.equal(body.messages.length, 7);
     assert.equal(body.messages.some((item) => item.kind === "pi.tool" || item.tool), false);
     assert.equal(body.apps.length, 1);
     assert.equal(body.apps[0].resourceUri, "ui://pi-orbs/orb-status");
