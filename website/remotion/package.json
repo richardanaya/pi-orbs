@@ -8,7 +8,7 @@
     "dev": "remotion studio --public-dir ..",
     "preview": "remotion studio --public-dir ..",
     "render": "remotion render PiOrbs030 out/pi-orbs-0.3-release.mp4 --public-dir .. --codec h264",
-    "render:peek": "remotion render PiOrbsPeek out/pi-orbs-peek.mp4 --codec h264",
+    "render:peek": "remotion render PiOrbsPeek out/pi-orbs-peek.mp4 --codec h264 --image-format=png",
     "still": "remotion still PiOrbs030 out/launch-poster.jpg --public-dir .. --frame 90",
     "check": "tsc"
   },
