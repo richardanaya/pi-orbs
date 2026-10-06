@@ -1382,6 +1382,8 @@ describe("local simulator API", { concurrency: 1 }, () => {
     const downloaded = await fetch(`${session.base}/api/sprites/atlas/bots/ada/files/${file.id}`);
     assert.equal(downloaded.status, 200);
     assert.match(downloaded.headers.get("content-disposition") ?? "", /^attachment;.*status\.csv/);
+    assert.equal(downloaded.headers.get("x-content-type-options"), "nosniff");
+    assert.match(downloaded.headers.get("content-security-policy") ?? "", /sandbox/);
     assert.equal(await downloaded.text(), "name,status\nAda,ok\n");
     const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
     const imageUp = await fetch(`${session.base}/api/sprites/atlas/bots/ada/files`, {
@@ -1395,6 +1397,22 @@ describe("local simulator API", { concurrency: 1 }, () => {
     assert.equal(imageGet.status, 200);
     assert.match(imageGet.headers.get("content-disposition") ?? "", /^inline;.*dot\.png/);
     assert.match(imageGet.headers.get("content-type") ?? "", /image\/png/);
+    assert.equal(imageGet.headers.get("x-content-type-options"), "nosniff");
+    assert.equal(imageGet.headers.get("content-security-policy"), "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox");
+    const svg = Buffer.from("<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>").toString("base64");
+    const svgUp = await fetch(`${session.base}/api/sprites/atlas/bots/ada/files`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "icon.svg", mime: "image/svg+xml", data: svg }),
+    });
+    assert.equal(svgUp.status, 201);
+    const svgFile = await svgUp.json();
+    const svgGet = await fetch(`${session.base}/api/sprites/atlas/bots/ada/files/${svgFile.id}`);
+    assert.equal(svgGet.status, 200);
+    assert.match(svgGet.headers.get("content-disposition") ?? "", /^attachment;/);
+    assert.match(svgGet.headers.get("content-disposition") ?? "", /icon\.svg/);
+    assert.equal(svgGet.headers.get("x-content-type-options"), "nosniff");
+    assert.match(svgGet.headers.get("content-security-policy") ?? "", /default-src 'none'/);
     const zip = await fetch(`${session.base}/api/sprites/atlas/conversations.zip`);
     const exported = await unzip(await zip.arrayBuffer());
     const ada = JSON.parse(exported["bots/ada.json"]);

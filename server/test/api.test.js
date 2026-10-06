@@ -687,3 +687,48 @@ test("search, spawn, templates, memory, secrets, approvals, and the main bot", a
   });
   assert.equal((await cleared.json()).main, undefined);
 });
+
+test("svg downloads as an attachment and raster files stay inline", async () => {
+  const headers = {
+    authorization: `Bearer ${secret}`,
+    "content-type": "application/json",
+  };
+  const created = await fetch(`${state.base}/api/bots`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Files" }),
+  });
+  assert.equal(created.status, 201);
+  const bot = await created.json();
+  const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  const svg = Buffer.from("<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>").toString("base64");
+  const imageUp = await fetch(`${state.base}/api/bots/${bot.id}/files`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "dot.png", mime: "image/png", data: png }),
+  });
+  assert.equal(imageUp.status, 201);
+  const image = await imageUp.json();
+  const svgUp = await fetch(`${state.base}/api/bots/${bot.id}/files`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "icon.svg", mime: "image/svg+xml", data: svg }),
+  });
+  assert.equal(svgUp.status, 201);
+  const picture = await svgUp.json();
+  const imageGet = await fetch(`${state.base}/api/bots/${bot.id}/files/${image.id}`, {
+    headers: { authorization: `Bearer ${secret}` },
+  });
+  assert.equal(imageGet.status, 200);
+  assert.match(imageGet.headers.get("content-disposition") ?? "", /^inline;.*dot\.png/);
+  assert.equal(imageGet.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(imageGet.headers.get("content-security-policy"), "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox");
+  const svgGet = await fetch(`${state.base}/api/bots/${bot.id}/files/${picture.id}`, {
+    headers: { authorization: `Bearer ${secret}` },
+  });
+  assert.equal(svgGet.status, 200);
+  assert.match(svgGet.headers.get("content-disposition") ?? "", /^attachment;.*icon\.svg/);
+  assert.equal(svgGet.headers.get("x-content-type-options"), "nosniff");
+  assert.match(svgGet.headers.get("content-security-policy") ?? "", /sandbox/);
+  assert.equal(svgGet.headers.get("access-control-allow-origin"), "*");
+});

@@ -38,7 +38,8 @@ import {
   webhookUrl,
   type CronCaller,
 } from "./schedule.js";
-import { answerText, decodeBase64, fileDisposition, fileMarker, readAnswerInput, readQuestionInput, safeFileName, takeFileMarker } from "./thread-view.js";
+import { fileResponseHeaders } from "./file-response.js";
+import { answerText, decodeBase64, fileMarker, readAnswerInput, readQuestionInput, safeFileName, takeFileMarker } from "./thread-view.js";
 import { hangLimit, hangNote, isHung, workingOn } from "./work.js";
 import {
   CHECK_IN_MS,
@@ -1196,9 +1197,10 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
         send(res, 404, { error: "file not found" });
         return;
       }
+      const mime = record.mime || "application/octet-stream";
       res.writeHead(200, {
-        "content-type": record.mime || "application/octet-stream",
-        "content-disposition": fileDisposition(record.mime || "application/octet-stream", record.name),
+        "content-type": mime,
+        ...fileResponseHeaders(mime, record.name),
         "content-length": String(record.bytes.length),
         "cache-control": "no-store",
       });

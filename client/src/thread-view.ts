@@ -509,13 +509,6 @@ export function layoutDiagram(source: string): Diagram | null {
   return { width: Math.max(120, x - gapX + 16), height, nodes, edges };
 }
 
-export function fileDisposition(mime: string, name: string): string {
-  const filename = name.replace(/["\r\n]/g, "");
-  const type = mime.toLowerCase();
-  const inline = type.startsWith("image/") || type.startsWith("video/");
-  return `${inline ? "inline" : "attachment"}; filename="${filename}"`;
-}
-
 export function viewerKind(name: string, mime: string): ViewerKind {
   const lower = name.toLowerCase();
   const type = mime.toLowerCase();
