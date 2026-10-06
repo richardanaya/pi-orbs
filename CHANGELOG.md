@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Header wordmark. The site nav and the app roster brand use the ultra-heavy pillow "Pi Orbs" mark instead of text.
+- Header wordmark. The site nav and the app roster brand use a traced ultra-heavy pillow "Pi Orbs" drawing instead of text or a typeface.
 - Homepage and README screenshots. Setup shows voice and the cron-job.org key. The roster, thread, steer, and reply shots use the pastel π faces. `docs/local-demo.gif` matches that page.
 
 ### Added
