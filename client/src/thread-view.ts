@@ -309,6 +309,10 @@ function imageHtml(src: string, alt: string, title?: string | null): string {
   return `<img class="chat-image" src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" loading="lazy" decoding="async" referrerpolicy="no-referrer"${titleAttr}>`;
 }
 
+export function fenceLang(lang: string | null | undefined): string {
+  return (lang ?? "").match(/^[A-Za-z0-9_+-]+/)?.[0]?.toLowerCase() ?? "";
+}
+
 const chatMarked = new Marked({ gfm: true, breaks: true });
 chatMarked.use({
   renderer: {
@@ -316,7 +320,7 @@ chatMarked.use({
       return escapeHtml(text);
     },
     code({ text, lang, escaped }) {
-      const langName = (lang ?? "").match(/^[A-Za-z0-9_+-]+/)?.[0] ?? "";
+      const langName = fenceLang(lang);
       const body = `${(escaped ? text : escapeHtml(text)).replace(/\n$/, "")}\n`;
       const klass = langName ? ` class="language-${langName}"` : "";
       const data = langName ? ` data-lang="${langName}"` : "";
@@ -519,13 +523,13 @@ export function viewerKind(name: string, mime: string): ViewerKind {
   return "file";
 }
 
-export function codeViewer(lang: string, source: string): "sheet" | "html" | "diagram" | null {
-  if (lang === "csv" || lang === "tsv") return "sheet";
-  if (lang === "html") return "html";
-  if (lang === "mermaid" || lang === "diagram" || lang === "graph") {
-    return layoutDiagram(source) ? "diagram" : null;
-  }
-  if (layoutDiagram(source) && (lang === "" || lang === "text")) return null;
+export function codeViewer(lang: string, source: string): "sheet" | "html" | "diagram" | "mermaid" | null {
+  const name = fenceLang(lang);
+  if (name === "csv" || name === "tsv") return "sheet";
+  if (name === "html" || name === "htm") return "html";
+  // Official Mermaid drawings. ```diagram and ```graph stay the small arrow sketch.
+  if (name === "mermaid") return "mermaid";
+  if (name === "diagram" || name === "graph") return layoutDiagram(source) ? "diagram" : null;
   return null;
 }
 

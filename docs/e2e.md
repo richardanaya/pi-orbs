@@ -52,6 +52,8 @@ Focused files under `tests/`:
 | `onboarding.e2e.ts` | Destroy the sprite, connector presets, create the simulator, seeded roster, setup key stays off the page |
 | `bots.e2e.ts` | Add, edit, delete; a steer into Kepler; settings zip download; one agent step that opens Ada's edit dialog |
 | `chat.e2e.ts` | Seeded thread and a canned reply after Send |
+| `markdown.e2e.ts` | Markdown, images, video, unsafe links, and phone-width tables |
+| `mermaid.e2e.ts` | Mermaid diagram, hostile fence, parse fallback, and phone width |
 | `tools.e2e.ts` | Working line for a read, and a question card |
 | `approvals.e2e.ts` | Allow once, always allow, deny |
 | `memory.e2e.ts` | Save and forget a fact |

@@ -4,14 +4,16 @@
   "type": "module",
   "version": "0.3.0",
   "scripts": {
-    "build": "tsc && esbuild src/thread-view.ts --bundle --format=esm --outfile=dist/thread-view.js --external:./words.js --platform=neutral",
+    "build": "tsc && esbuild src/thread-view.ts --bundle --format=esm --outfile=dist/thread-view.js --external:./words.js --platform=neutral && esbuild src/mermaid-view.ts --bundle --format=esm --minify --legal-comments=none --outfile=dist/mermaid-view.js --platform=browser",
     "start": "node ../bin/pi-orbs.js",
     "test": "npm run build && node --test test/local.test.js test/voice.test.js test/thread-view.test.js test/file-response.test.js"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "dompurify": "^3.4.16",
     "esbuild": "^0.25.10",
     "marked": "^15.0.12",
+    "mermaid": "^12.1.0",
     "typescript": "^5.9.0"
   }
 }

@@ -18,6 +18,7 @@ import {
   readAnswerInput,
   readQuestionInput,
   chatMediaKind,
+  fenceLang,
   renderChatMarkdown,
   safeChatUrl,
   segments,
@@ -69,7 +70,9 @@ test("links use a generic favicon and fences split from prose", () => {
   const fenced = segments("Before\n```html\n<p>Hi</p>\n```\nAfter");
   assert.equal(fenced.some((part) => part.type === "code" && part.lang === "html" && part.text === "<p>Hi</p>"), true);
   assert.equal(codeViewer("html", "<p>Hi</p>"), "html");
+  assert.equal(codeViewer("HTML", "<p>Hi</p>"), "html");
   assert.equal(codeViewer("csv", "a,b"), "sheet");
+  assert.equal(fenceLang("Mermaid title"), "mermaid");
 });
 
 test("chat markdown renders structure, media, and safe links", () => {
@@ -146,6 +149,8 @@ test("chat markdown renders structure, media, and safe links", () => {
   assert.match(html, /src="https:\/\/cdn\.example\/tour\.mov"/);
   assert.match(html, /src="\/api\/sprites\/atlas\/bots\/ada\/files\/f1"/);
   assert.match(html, /<code class="language-html">/);
+  assert.match(renderChatMarkdown("```Mermaid\nflowchart TD\nA-->B\n```"), /data-lang="mermaid"/);
+  assert.match(renderChatMarkdown("```Mermaid\nflowchart TD\nX[\"<img src=x onerror=alert(1)>\"]\n```"), /&lt;img/);
   assert.match(html, /&lt;p&gt;Hi&lt;\/p&gt;/);
   assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   assert.equal(html.includes("<script"), false);
@@ -172,7 +177,10 @@ test("sheets, diagrams, viewers, and the library group by age", () => {
   assert.equal(mermaid.edges[0].from, "A");
   assert.equal(mermaid.edges[0].to, "B");
   assert.equal(mermaid.edges[0].label, "yes");
-  assert.equal(codeViewer("mermaid", "A-->B"), "diagram");
+  assert.equal(codeViewer("mermaid", "A-->B"), "mermaid");
+  assert.equal(codeViewer("Mermaid", "sequenceDiagram\nAlice->>Bob: hi"), "mermaid");
+  assert.equal(codeViewer("diagram", "Ada -> Kepler"), "diagram");
+  assert.equal(codeViewer("graph", "not a graph"), null);
   assert.equal(viewerKind("shot.png", "application/octet-stream"), "image");
   assert.equal(viewerKind("clip.mp4", ""), "video");
   assert.equal(viewerKind("rows.csv", "text/plain"), "sheet");
