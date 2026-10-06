@@ -798,8 +798,9 @@
     letter-spacing: 0;
     line-height: 1.5;
     text-align: center;
-    white-space: pre-wrap;
     overflow-wrap: anywhere;
+    min-width: 0;
+    max-width: 100%;
   }
   .steer-body[hidden] { display: none; }
   .thread-sub { color: var(--muted); font-size: 13px; line-height: 1.3; }
@@ -820,6 +821,7 @@
     align-items: flex-end;
     width: fit-content;
     max-width: min(620px, 100%);
+    min-width: 0;
     margin: 0 0 14px;
   }
   .msg.cont { margin-top: -6px; }
@@ -830,8 +832,9 @@
     font-weight: 400;
     letter-spacing: 0;
     line-height: 1.5;
-    white-space: pre-wrap;
-    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
+    min-width: 0;
+    max-width: 100%;
   }
   .msg.bot .bubble {
     background: rgba(255, 255, 255, 0.035);
@@ -1095,18 +1098,124 @@
   }
   .link-chip img { width: 14px; height: 14px; border-radius: 3px; flex: none; background: #fff; }
   .link-chip img[hidden] { display: none; }
-  .fence { margin: 8px 0 0; }
-  .fence pre {
+  .rich > :first-child { margin-top: 0; }
+  .rich > :last-child { margin-bottom: 0; }
+  .rich p { margin: 0.45em 0; }
+  .rich h1, .rich h2, .rich h3, .rich h4, .rich h5, .rich h6 {
+    margin: 0.7em 0 0.28em;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+  }
+  .rich h1 { font-size: 1.28em; }
+  .rich h2 { font-size: 1.14em; }
+  .rich h3, .rich h4, .rich h5, .rich h6 { font-size: 1.05em; }
+  .rich ul, .rich ol { margin: 0.35em 0; padding-left: 1.3em; }
+  .rich li { margin: 0.12em 0; }
+  .rich li > ul, .rich li > ol { margin: 0.12em 0; }
+  .rich blockquote {
+    margin: 0.5em 0;
+    padding: 0.05em 0 0.05em 0.85em;
+    border-left: 2px solid rgba(255, 255, 255, 0.28);
+    color: var(--muted);
+  }
+  .rich hr {
+    border: 0;
+    border-top: 1px solid var(--line-strong);
+    margin: 0.75em 0;
+  }
+  .rich a { overflow-wrap: anywhere; }
+  .rich code {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 0.08em 0.35em;
+    border-radius: 6px;
+  }
+  .rich input[type="checkbox"] { accent-color: #fff; margin-right: 0.35em; }
+  .table-scroll {
+    overflow-x: auto;
+    max-width: 100%;
+    margin: 0.5em 0;
+    -webkit-overflow-scrolling: touch;
+  }
+  .rich table {
+    border-collapse: collapse;
+    width: max-content;
+    min-width: 100%;
+    font-size: 14px;
+  }
+  .rich th, .rich td {
+    border: 1px solid var(--line-strong);
+    padding: 6px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .rich th { background: rgba(255, 255, 255, 0.05); font-weight: 700; }
+  .fence { margin: 8px 0 0; max-width: 100%; min-width: 0; }
+  .fence pre, .rich pre.fence {
     margin: 6px 0 0;
     padding: 10px 12px;
     border-radius: 12px;
     background: #000;
     border: 1px solid var(--line);
-    overflow: auto;
+    overflow-x: auto;
+    max-width: 100%;
     font-family: var(--mono);
     font-size: 13px;
-    white-space: pre-wrap;
+    line-height: 1.45;
+    white-space: pre;
+    -webkit-overflow-scrolling: touch;
   }
+  .rich pre.fence code, .fence pre code {
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    font-size: inherit;
+  }
+  .rich pre.fence[data-lang] { padding-top: 28px; }
+  .rich pre.fence[data-lang]::before {
+    content: attr(data-lang);
+    position: absolute;
+    top: 8px;
+    left: 12px;
+    color: var(--muted);
+    font-family: var(--sans);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: lowercase;
+  }
+  .rich pre.fence { position: relative; }
+  .rich .chat-image, .rich .chat-video {
+    display: block;
+    max-width: min(520px, 100%);
+    max-height: min(280px, 46vh);
+    height: auto;
+    margin: 0.55em 0;
+    border-radius: 12px;
+    background: #050505;
+    object-fit: contain;
+  }
+  .rich .chat-video {
+    width: min(520px, 100%);
+  }
+  .rich .chat-media { display: block; margin: 0.55em 0; max-width: 100%; }
+  .rich .media-caption {
+    display: block;
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .rich .media-fallback {
+    display: inline-block;
+    margin: 0.4em 0;
+    padding: 6px 10px;
+    border: 1px dashed var(--line-strong);
+    border-radius: 10px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .steer-body .table-scroll, .steer-body pre, .steer-body .chat-media { text-align: left; }
   .fence-tools, .files, .question, .pending-files { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .fence-tools { margin-top: 6px; }
   .file-chip, .fence-tools button, .question button, .viewer-bar button, .pending-files button {
@@ -1237,6 +1346,8 @@
     aside { border-right: 0; border-bottom: 1px solid var(--line); }
     .thread-bar, .composer { padding-left: 16px; padding-right: 16px; }
     #log { padding-left: 16px; padding-right: 16px; }
+    .rich .chat-image, .rich .chat-video { max-width: 100%; }
+    .rich .chat-video { width: 100%; }
   }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
@@ -1568,7 +1679,7 @@ import {
   filterMentions,
   mentionQuery,
   spellRanges,
-  segments,
+  renderChatMarkdown,
   faviconUrl,
   parseSheet,
   layoutDiagram,
@@ -2022,10 +2133,10 @@ function steerChip(message, expanded) {
   name.textContent = otherName || "bot";
   label.append(face, name);
   button.append(label);
-  const body = document.createElement("p");
+  const body = document.createElement("div");
   body.className = "steer-body";
   body.hidden = !expanded;
-  body.textContent = message.text || "";
+  if (message.text) paintRich(body, message.text);
   button.onclick = () => {
     const open = button.getAttribute("aria-expanded") === "true";
     button.setAttribute("aria-expanded", open ? "false" : "true");
@@ -2106,57 +2217,103 @@ function displayText(message) {
   }
   return text;
 }
-function linkChip(segment) {
-  const link = document.createElement("a");
-  link.className = "link-chip";
-  link.href = segment.href;
-  link.target = "_blank";
-  link.rel = "noreferrer";
-  const icon = document.createElement("img");
-  icon.alt = "";
-  const src = faviconUrl(segment.href);
-  if (src) {
-    icon.src = src;
-    icon.addEventListener("error", () => { icon.hidden = true; });
-  } else {
-    icon.hidden = true;
-  }
-  const label = document.createElement("span");
-  label.textContent = segment.text;
-  link.append(icon, label);
-  return link;
+function bindBrokenImage(img) {
+  img.addEventListener("error", () => {
+    const fallback = document.createElement("span");
+    fallback.className = "media-fallback";
+    fallback.textContent = img.alt ? "Image unavailable: " + img.alt : "Image unavailable";
+    img.replaceWith(fallback);
+  });
 }
-function codeBlock(segment) {
-  const wrap = document.createElement("div");
-  wrap.className = "fence";
-  const pre = document.createElement("pre");
-  pre.textContent = segment.text;
-  wrap.append(pre);
-  const kind = codeViewer(segment.lang, segment.text);
-  if (!kind) return wrap;
-  const tools = document.createElement("div");
-  tools.className = "fence-tools";
-  if (kind === "diagram") {
-    const png = document.createElement("button");
-    png.type = "button";
-    png.textContent = "Download PNG";
-    png.onclick = () => downloadDiagram(segment.text);
-    tools.append(png);
-  } else {
-    const open = document.createElement("button");
-    open.type = "button";
-    open.textContent = kind === "html" ? "Preview" : "Spreadsheet";
-    open.onclick = () => openTextViewer(kind, segment.text, segment.lang);
-    tools.append(open);
-  }
-  wrap.append(tools);
-  return wrap;
+function bindVideo(video) {
+  video.controls = true;
+  video.playsInline = true;
+  if (!video.preload) video.preload = "metadata";
+  video.autoplay = false;
+  video.addEventListener("error", () => {
+    const fallback = document.createElement("span");
+    fallback.className = "media-fallback";
+    fallback.textContent = "Video unavailable";
+    video.replaceWith(fallback);
+  });
 }
-function fillBubble(bubble, text) {
-  for (const segment of segments(text)) {
-    if (segment.type === "link") bubble.append(linkChip(segment));
-    else if (segment.type === "code") bubble.append(codeBlock(segment));
-    else bubble.append(document.createTextNode(segment.text));
+function paintRich(node, text) {
+  node.classList.add("rich");
+  node.innerHTML = renderChatMarkdown(text || "");
+  for (const link of node.querySelectorAll("a[href]")) {
+    const href = link.getAttribute("href") || "";
+    if (!/^https?:\/\//i.test(href) && !href.startsWith("/")) {
+      link.replaceWith(document.createTextNode(link.textContent || ""));
+      continue;
+    }
+    link.classList.add("link-chip");
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    const icon = document.createElement("img");
+    icon.alt = "";
+    const src = faviconUrl(link.href);
+    if (src) {
+      icon.src = src;
+      icon.addEventListener("error", () => { icon.hidden = true; });
+    } else {
+      icon.hidden = true;
+    }
+    link.prepend(icon);
+  }
+  for (const pre of [...node.querySelectorAll("pre.fence")]) {
+    const code = pre.querySelector("code");
+    const lang = pre.dataset.lang || "";
+    const source = (code ? code.textContent : pre.textContent || "").replace(/\n$/, "");
+    const kind = codeViewer(lang, source);
+    const wrap = document.createElement("div");
+    wrap.className = "fence";
+    pre.replaceWith(wrap);
+    wrap.append(pre);
+    if (!kind) continue;
+    const tools = document.createElement("div");
+    tools.className = "fence-tools";
+    if (kind === "diagram") {
+      const png = document.createElement("button");
+      png.type = "button";
+      png.textContent = "Download PNG";
+      png.onclick = () => downloadDiagram(source);
+      tools.append(png);
+    } else {
+      const open = document.createElement("button");
+      open.type = "button";
+      open.textContent = kind === "html" ? "Preview" : "Spreadsheet";
+      open.onclick = () => openTextViewer(kind, source, lang);
+      tools.append(open);
+    }
+    wrap.append(tools);
+  }
+  for (const img of node.querySelectorAll("img.chat-image")) bindBrokenImage(img);
+  for (const video of node.querySelectorAll("video.chat-video")) bindVideo(video);
+}
+function appendFileMedia(bubble, files) {
+  if (!files || !files.length) return;
+  for (const file of files) {
+    const kind = viewerKind(file.name || "", file.mime || "");
+    if (kind !== "image" && kind !== "video") continue;
+    const src = fileHref(file.id);
+    const existing = [...bubble.querySelectorAll("img.chat-image, video.chat-video")].some((node) => node.getAttribute("src") === src);
+    if (existing) continue;
+    if (kind === "video") {
+      const video = document.createElement("video");
+      video.className = "chat-video";
+      video.src = src;
+      bindVideo(video);
+      bubble.append(video);
+    } else {
+      const img = document.createElement("img");
+      img.className = "chat-image";
+      img.src = src;
+      img.alt = file.name || "";
+      img.loading = "lazy";
+      img.decoding = "async";
+      bindBrokenImage(img);
+      bubble.append(img);
+    }
   }
 }
 function fileChips(message) {
@@ -2422,9 +2579,10 @@ async function refreshThread() {
       block.title = sent;
     }
     const bubble = document.createElement("div");
-    bubble.className = "bubble";
+    bubble.className = "bubble rich";
     const shown = displayText(message);
-    if (shown) fillBubble(bubble, shown);
+    if (shown) paintRich(bubble, shown);
+    appendFileMedia(bubble, message.files);
     block.append(bubble);
     if (message.files && message.files.length) block.append(fileChips(message));
     log.append(block);
@@ -3576,7 +3734,11 @@ async function openStoredFile(file) {
     const node = document.createElement(kind === "video" ? "video" : "img");
     node.src = fileHref(file.id);
     node.alt = file.name || "";
-    if (kind === "video") node.controls = true;
+    if (kind === "video") {
+      node.controls = true;
+      node.playsInline = true;
+      node.preload = "metadata";
+    }
     body.append(node);
     viewerButtons(false, false);
     const dialog = document.querySelector("#viewer");
