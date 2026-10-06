@@ -60,6 +60,7 @@ Focused files under `tests/`:
 | `templates.e2e.ts` | Export and import a template; spawn a bot |
 | `main-bot.e2e.ts` | Make Ada primary and check in |
 | `schedules.e2e.ts` | Cron key, pause, delete, webhook post, bad token |
+| `mcp-events.e2e.ts` | List an MCP event webhook, disconnect it, and refuse the next post |
 | `voice.e2e.ts` | Local typed voice line |
 | `mobile.e2e.ts` | Phone viewport stacks the roster above the thread |
 | `website.e2e.ts` | Homepage headings, copy button, phone nav |

@@ -1655,4 +1655,80 @@ test("the open thread does not treat peer traffic as user messages", async () =>
   assert.doesNotMatch(html, /querySelector\("#peers"\)\.showModal/);
   const main = await readFile(join(clientRoot, "src", "main.ts"), "utf8");
   assert.match(main, /\/api\/bots\/activity/);
+  const manage = html.slice(html.indexOf('id="bot-manage"'), html.indexOf('id="bot-dialog-error"'));
+  assert.match(manage, /id="mcp-events"/);
+  assert.match(manage, /into this bot/);
+  assert.match(html, /textContent = "Disconnect"/);
+  assert.match(html, /value\.includes\("whsec_"\)/);
+  assert.doesNotMatch(html, /hook\.secret|hook\.token/);
+  const settingsStart = html.indexOf('<dialog id="settings"');
+  const settings = html.slice(settingsStart, html.indexOf("</dialog>", settingsStart));
+  assert.doesNotMatch(settings, /mcp-events/);
+  assert.match(main, /mcp-events/);
+});
+
+test("the simulator lists and disconnects one bot's MCP event webhook", async () => {
+  const { createHmac } = await import("node:crypto");
+  const created = await fetch(`${session.base}/api/sprites`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "atlas", connectorType: "xai", apiKey: "local-simulator-test", model: "grok-4.7" }),
+  });
+  assert.equal(created.status, 201);
+  const minted = await fetch(`${session.base}/api/sprites/atlas/bots/ada/mcp-events`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ label: " docs " }),
+  });
+  assert.equal(minted.status, 201);
+  const hook = await minted.json();
+  assert.match(hook.url, /\/api\/mcp-events\/[a-f0-9]{48}$/);
+  assert.match(hook.secret, /^whsec_/);
+  const token = hook.url.split("/").at(-1);
+  const listed = await fetch(`${session.base}/api/sprites/atlas/bots/ada/mcp-events`);
+  assert.equal(listed.status, 200);
+  const listedBody = await listed.json();
+  const packed = JSON.stringify(listedBody);
+  if (packed.includes(hook.secret) || packed.includes(token) || packed.includes("whsec_")) {
+    throw new Error("mcp event list leaked a webhook secret or token");
+  }
+  assert.equal(listedBody.hooks.length, 1);
+  assert.equal(listedBody.hooks[0].label, "docs");
+  assert.equal(listedBody.hooks[0].id, hook.id);
+  const kepler = await fetch(`${session.base}/api/sprites/atlas/bots/kepler/mcp-events`);
+  assert.deepEqual(await kepler.json(), { hooks: [] });
+  const stolen = await fetch(`${session.base}/api/sprites/atlas/bots/kepler/mcp-events/${hook.id}`, { method: "DELETE" });
+  assert.equal(stolen.status, 404);
+
+  const secretKey = Buffer.from(hook.secret.slice("whsec_".length), "base64");
+  const stamp = String(Math.floor(Date.now() / 1000));
+  function postEvent(name, text) {
+    const body = JSON.stringify({ eventId: name, name, data: { text } });
+    const mac = createHmac("sha256", secretKey).update(`${name}.${stamp}.${body}`).digest("base64");
+    return fetch(hook.url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "webhook-id": name,
+        "webhook-timestamp": stamp,
+        "webhook-signature": `v1,${mac}`,
+      },
+      body,
+    });
+  }
+  const delivered = await postEvent("evt_sim_before", "simulator event before disconnect");
+  assert.equal(delivered.status, 200);
+  const thread = await fetch(`${session.base}/api/sprites/atlas/bots/ada`);
+  const threadBody = await thread.json();
+  assert.equal(threadBody.messages.some((item) => item.text && item.text.includes("simulator event before disconnect")), true);
+
+  const disconnected = await fetch(`${session.base}/api/sprites/atlas/bots/ada/mcp-events/${hook.id}`, { method: "DELETE" });
+  assert.equal(disconnected.status, 200);
+  const blocked = await postEvent("evt_sim_after", "simulator event after disconnect");
+  assert.equal(blocked.status, 404);
+  const after = await fetch(`${session.base}/api/sprites/atlas/bots/ada`);
+  const afterBody = await after.json();
+  assert.equal(afterBody.messages.some((item) => item.text && item.text.includes("simulator event after disconnect")), false);
+  const empty = await fetch(`${session.base}/api/sprites/atlas/bots/ada/mcp-events`);
+  assert.deepEqual(await empty.json(), { hooks: [] });
 });

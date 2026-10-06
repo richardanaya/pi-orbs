@@ -703,7 +703,7 @@ const http = createServer(async (req, res) => {
       await relaySprite(saved, `/api${tail}`, req, res);
       return;
     }
-    const botExtra = url.pathname.match(/^\/api\/sprites\/([^/]+)\/bots\/([^/]+)\/(schedules|questions|files|work|template|spawn|main|memories|secrets|approvals|actions)(?:\/([^/]+))?(?:\/([^/]+))?$/);
+    const botExtra = url.pathname.match(/^\/api\/sprites\/([^/]+)\/bots\/([^/]+)\/(schedules|questions|files|work|template|spawn|main|memories|secrets|approvals|actions|mcp-events)(?:\/([^/]+))?(?:\/([^/]+))?$/);
     if (botExtra) {
       const saved = state.sprites.find((item) => item.name === botExtra[1]);
       if (!saved) {

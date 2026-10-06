@@ -543,6 +543,113 @@ test("a signed MCP event webhook enters the bot conversation", async () => {
   assert.equal(bad.status, 401);
 });
 
+test("an operator can list and disconnect an MCP event webhook without seeing the secret", async () => {
+  const { createHmac } = await import("node:crypto");
+  const headers = { authorization: `Bearer ${secret}`, "content-type": "application/json" };
+  const created = await fetch(`${state.base}/api/bots`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Events" }),
+  });
+  assert.equal(created.status, 201);
+  const bot = await created.json();
+  const other = await fetch(`${state.base}/api/bots`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Other events" }),
+  });
+  assert.equal(other.status, 201);
+  const otherBot = await other.json();
+  const token = "a".repeat(48);
+  const otherToken = "b".repeat(48);
+  const secretKey = Buffer.alloc(32, 9);
+  const whsec = `whsec_${secretKey.toString("base64")}`;
+  const otherSecret = `whsec_${Buffer.alloc(32, 3).toString("base64")}`;
+  await writeFile(join(state.dir, "mcp-events.json"), JSON.stringify({
+    hooks: [
+      { token, botId: bot.conversationId, secret: whsec, label: "docs", createdAt: "2026-10-04T00:00:00.000Z" },
+      { token: otherToken, botId: otherBot.id, secret: otherSecret, label: "other", createdAt: "2026-10-04T00:00:00.000Z", seen: [] },
+    ],
+  }));
+  const anonymous = await fetch(`${state.base}/api/bots/${bot.id}/mcp-events`);
+  assert.equal(anonymous.status, 401);
+  const listed = await fetch(`${state.base}/api/bots/${bot.id}/mcp-events`, { headers });
+  assert.equal(listed.status, 200);
+  const body = await listed.json();
+  const packed = JSON.stringify(body);
+  if (packed.includes(whsec) || packed.includes(token) || packed.includes(otherSecret) || packed.includes(otherToken) || packed.includes("whsec_")) {
+    throw new Error("mcp event list leaked a webhook secret or token");
+  }
+  assert.equal(body.hooks.length, 1);
+  assert.equal(body.hooks[0].label, "docs");
+  assert.match(body.hooks[0].endpoint, /^\/api\/mcp-events\/aaaa…aaaa$/);
+  assert.equal(body.hooks[0].id.length, 16);
+  assert.equal(body.hooks[0].id === token, false);
+
+  const eventBody = JSON.stringify({ eventId: "evt_keep", name: "comment.created", data: { text: "before disconnect" } });
+  const stamp = String(Math.floor(Date.now() / 1000));
+  const mac = createHmac("sha256", secretKey).update(`evt_keep.${stamp}.${eventBody}`).digest("base64");
+  const delivered = await fetch(`${state.base}/api/mcp-events/${token}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "webhook-id": "evt_keep",
+      "webhook-timestamp": stamp,
+      "webhook-signature": `v1,${mac}`,
+    },
+    body: eventBody,
+  });
+  assert.equal(delivered.status, 200);
+
+  const wrongBot = await fetch(`${state.base}/api/bots/${otherBot.id}/mcp-events/${body.hooks[0].id}`, {
+    method: "DELETE",
+    headers,
+  });
+  assert.equal(wrongBot.status, 404);
+  const disconnected = await fetch(`${state.base}/api/bots/${bot.id}/mcp-events/${body.hooks[0].id}`, {
+    method: "DELETE",
+    headers,
+  });
+  assert.equal(disconnected.status, 200);
+  const againBody = JSON.stringify({ eventId: "evt_after", name: "comment.created", data: { text: "after disconnect" } });
+  const againMac = createHmac("sha256", secretKey).update(`evt_after.${stamp}.${againBody}`).digest("base64");
+  const blocked = await fetch(`${state.base}/api/mcp-events/${token}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "webhook-id": "evt_after",
+      "webhook-timestamp": stamp,
+      "webhook-signature": `v1,${againMac}`,
+    },
+    body: againBody,
+  });
+  assert.equal(blocked.status, 404);
+  const thread = await fetch(`${state.base}/api/bots/${bot.id}`, { headers });
+  const threadBody = await thread.json();
+  assert.equal(threadBody.messages.some((item) => item.text && item.text.includes("before disconnect")), true);
+  assert.equal(threadBody.messages.some((item) => item.text && item.text.includes("after disconnect")), false);
+  const remaining = await fetch(`${state.base}/api/bots/${otherBot.id}/mcp-events`, { headers });
+  const remainingBody = await remaining.json();
+  assert.equal(remainingBody.hooks.length, 1);
+  assert.equal(remainingBody.hooks[0].label, "other");
+  const removedBot = await fetch(`${state.base}/api/bots/${otherBot.id}`, { method: "DELETE", headers });
+  assert.equal(removedBot.status, 200);
+  const otherKey = Buffer.alloc(32, 3);
+  const otherBody = JSON.stringify({ eventId: "evt_other", name: "comment.created", data: { text: "other bot" } });
+  const otherMac = createHmac("sha256", otherKey).update(`evt_other.${stamp}.${otherBody}`).digest("base64");
+  const otherHit = await fetch(`${state.base}/api/mcp-events/${otherToken}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "webhook-id": "evt_other",
+      "webhook-timestamp": stamp,
+      "webhook-signature": `v1,${otherMac}`,
+    },
+    body: otherBody,
+  });
+  assert.equal(otherHit.status, 404);
+});
+
 test("search, spawn, templates, memory, secrets, approvals, and the main bot", async () => {
   const headers = {
     authorization: `Bearer ${secret}`,

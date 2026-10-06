@@ -11,7 +11,7 @@ import { ConversationBusy, createRegistry, defineExtension, defineTool, Generati
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
-import { createMcpHook, publicBase, receiveMcpWebhook, rememberWebhook } from "./mcp-events.js";
+import { createMcpHook, disconnectBotMcpHooks, disconnectMcpHook, listMcpHooks, mcpHookActive, publicBase, receiveMcpWebhook, rememberWebhook } from "./mcp-events.js";
 import { installSharedModel, sharedModel } from "./model.js";
 import { hiddenThreadEntryIds, normalizePeers, outgoingHop, PEER_CONTENT_MAX, PEER_LEDGER_MAX, PEER_REQUEST_PREFIX, peerChainUsed, peerPrompt, peerTurn, publicPeer, readSteer, resolvePeerTarget, withPeerInstruction, withPeerLines, type PeerRecord, type PublicPeer } from "./peers.js";
 import { CRON_API_DEFAULT, CRON_KEY_MAX, deleteCronJob, fetchCron, newHookToken, putCronJob, readHookBody, readScheduleRequest, scheduleTitle, setCronJobEnabled, tokensEqual, validHookToken, webhookUrl } from "./schedule.js";
@@ -1270,6 +1270,10 @@ const http = createServer(async (req, res) => {
     }
     const received = await receiveMcpWebhook(hooksPath, mcpRoute[1], raw, req.headers);
     if (received.deliver) {
+      if (!(await mcpHookActive(hooksPath, mcpRoute[1]))) {
+        send(res, 410, { error: "webhook is disconnected" });
+        return;
+      }
       try {
         const bots = await loadBots();
         const bot = bots.find((item) => item.id === received.deliver?.botId || item.conversationId === received.deliver?.botId);
@@ -1441,6 +1445,7 @@ const http = createServer(async (req, res) => {
         send(res, cleared.status, { error: cleared.error });
         return;
       }
+      await disconnectBotMcpHooks(hooksPath, removed.id, removed.conversationId);
       bots.splice(index, 1);
       await forgetBotFeatures(removed.id);
       await saveBots(bots);
@@ -1514,7 +1519,7 @@ const http = createServer(async (req, res) => {
       send(res, 202, { submissionId: submission.id });
       return;
     }
-    const extraRoute = url.pathname.match(/^\/api\/bots\/([^/]+)\/(schedules|questions|files)(?:\/([^/]+))?(?:\/(answer))?$/);
+    const extraRoute = url.pathname.match(/^\/api\/bots\/([^/]+)\/(schedules|questions|files|mcp-events)(?:\/([^/]+))?(?:\/(answer))?$/);
     if (extraRoute) {
       const botId = extraRoute[1] ?? "";
       const kind = extraRoute[2];
@@ -1555,6 +1560,19 @@ const http = createServer(async (req, res) => {
         const removed = await deleteOneSchedule(bot.id, jobId);
         if ("error" in removed) {
           send(res, removed.status, { error: removed.error });
+          return;
+        }
+        send(res, 200, { ok: true });
+        return;
+      }
+      if (kind === "mcp-events" && !leaf && req.method === "GET") {
+        send(res, 200, { hooks: await listMcpHooks(hooksPath, bot.id, bot.conversationId) });
+        return;
+      }
+      if (kind === "mcp-events" && leaf && req.method === "DELETE") {
+        const removed = await disconnectMcpHook(hooksPath, bot.id, leaf, bot.conversationId);
+        if ("error" in removed) {
+          send(res, 404, { error: removed.error });
           return;
         }
         send(res, 200, { ok: true });
@@ -1748,6 +1766,7 @@ peerExtension = defineExtension({
         "When one of them asks you for something, steer the result back once. That is the one forward the server allows.",
         "Do not steer acknowledgements or a second follow-up. The server then closes the chain.",
         "When an MCP server should push events into this conversation, call create_mcp_event_webhook and pass the URL and whsec_ secret as the webhook delivery on events/subscribe.",
+        "The human disconnects a webhook from the bot dialog. After that, the URL stops accepting events.",
         ...lines,
       ].join("\n");
     }),
