@@ -89,7 +89,8 @@ test("a mermaid fence draws in the bubble and a bad fence keeps its source", asy
     const bubble = [...document.querySelectorAll("#log .msg.user")].find((node) => (node.textContent ?? "").includes("Hostile diagram."));
     return bubble?.querySelector(".mermaid-slot svg") != null;
   }), { timeout: POLL }).toBe(true);
-  await expect(screen.getByRole("image", "Diagram")).toHaveCount(2);
+  // The message and the simulator's quoted echo each draw the flow and the hostile fence.
+  await expect(screen.getByRole("image", "Diagram")).toHaveCount(4);
 
   const hostile = await browser.evaluate(() => {
     const bubble = [...document.querySelectorAll("#log .msg.user")].find((node) => (node.textContent ?? "").includes("Hostile diagram."));
