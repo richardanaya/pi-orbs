@@ -1,0 +1,65 @@
+{
+  "schemaVersion": "trace-1",
+  "createdAt": "2026-10-06T01:40:00.227Z",
+  "payload": {
+    "actions": [
+      {
+        "name": "tap",
+        "summary": "tap button \"Edit Ada\"",
+        "target": {
+          "role": "button",
+          "name": "Edit Ada"
+        }
+      }
+    ],
+    "executor": {
+      "name": "e2e-default-agent",
+      "version": "2"
+    },
+    "recordedFor": {
+      "testId": "tests/bots.e2e.ts::the%20agent%20opens%20Ada%27s%20edit%20dialog",
+      "targetId": "chromium",
+      "instructionDigest": "2729caaeb71bda024716834eee0366bc81bd04641421b74702d5e74efe6f5334",
+      "paramsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "callIndex": 0,
+      "agent": "default"
+    },
+    "summary": "Opened the Edit bot dialog for Ada via Edit Ada. Name is Ada and the instruction field shows “Sketch status pages on a black background.”",
+    "startPath": "/",
+    "endPath": "/",
+    "endAnchors": [
+      {
+        "role": "heading",
+        "name": "Edit bot"
+      },
+      {
+        "text": "Update the name, instruction, or glass orb. Leave the instruction empty to clear it. A shared need-to-know rule is added after it."
+      },
+      {
+        "text": "Name"
+      },
+      {
+        "role": "textbox",
+        "name": "Name",
+        "value": "Ada"
+      },
+      {
+        "text": "Instruction"
+      },
+      {
+        "role": "textbox",
+        "name": "Instruction",
+        "placeholder": "Optional. How this bot should behave.",
+        "value": "Sketch status pages on a black background."
+      },
+      {
+        "text": "· Tide"
+      },
+      {
+        "role": "radio",
+        "name": "Slate"
+      }
+    ],
+    "endWaitMs": 12475
+  }
+}

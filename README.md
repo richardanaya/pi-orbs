@@ -92,6 +92,8 @@ npm test
 
 That runs the client simulator tests, then builds the server and runs its smoke tests: `/version` is public, requests without the API secret get 401, a Bearer token can create a bot and list it, and `GET /api/export` returns those transcripts without the API secret. The simulator tests also unpack a zip of the seeded conversations. The full run needs Node 22. The server process needs `node:sqlite`, which Node 20 does not include. The simulator tests alone run on Node 20 with `npm test --prefix client`.
 
+Browser coverage of the same UI, plus a live model chat when an xAI key is present, is in [docs/e2e.md](docs/e2e.md). `npm run test:e2e` drives the local simulator and does not need that key.
+
 ## Site
 
 The project homepage is [https://piorbs.com/](https://piorbs.com/). It is static. Nothing has to be built to view it.
