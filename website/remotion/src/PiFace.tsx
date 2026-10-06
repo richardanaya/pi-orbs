@@ -19,6 +19,15 @@ type PiFaceProps = {
   seed?: number;
   hopAt?: number;
   style?: React.CSSProperties;
+  /**
+   * Scripted glance in viewBox units. Omit for the ambient look-slide
+   * from website/pi-face.js. The π mark, eyes, and blush stay the locked paths.
+   */
+  glanceX?: number;
+  /** Eye scaleY. Omit for the ambient blink. 1 is open, 0.12 is the product shut. */
+  eyesScale?: number;
+  /** Blush opacity. Omit for the ambient pulse. */
+  blushAmount?: number;
 };
 
 /**
@@ -32,15 +41,26 @@ export const PiFace: React.FC<PiFaceProps> = ({
   seed = 1,
   hopAt,
   style,
+  glanceX,
+  eyesScale,
+  blushAmount,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const motion = faceMotion(seed);
   const elapsed = Math.max(0, frame / fps - motion.begin);
   const progress = (elapsed % motion.dur) / motion.dur;
-  const slide = lookSlide(progress, motion.first, motion.second);
-  const eyes = blinkScale(frame, fps, motion.blink, motion.blinkDelay);
-  const blush = blushOpacity(frame, fps, motion.blush, motion.blushDelay);
+  const ambient = lookSlide(progress, motion.first, motion.second);
+  const slide =
+    glanceX === undefined
+      ? ambient
+      : {
+          x: glanceX,
+          y: -Math.min(1.15, (glanceX * glanceX) / 28),
+          scale: 1 - Math.min(0.12, Math.abs(glanceX) / 55),
+        };
+  const eyes = eyesScale ?? blinkScale(frame, fps, motion.blink, motion.blinkDelay);
+  const blush = blushAmount ?? blushOpacity(frame, fps, motion.blush, motion.blushDelay);
   const hop = hopY(frame, hopAt, fps);
   const orb = orbColor(look, tone);
 
