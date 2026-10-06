@@ -40,6 +40,7 @@ import {
 } from "./schedule.js";
 import { answerText, decodeBase64, fileMarker, readAnswerInput, readQuestionInput, safeFileName, takeFileMarker } from "./thread-view.js";
 import { hangLimit, hangNote, isHung, workingOn } from "./work.js";
+import { appFromCall, createMcpPeer, type PublicApp } from "./mcp-apps.js";
 import {
   CHECK_IN_MS,
   CHECK_IN_PROMPT,
@@ -116,6 +117,7 @@ type Bot = {
   messages: Message[];
   busyUntil?: number;
   createdBy?: string;
+  modelContext?: string;
 };
 type ScheduledJob = {
   botId: string;
@@ -146,6 +148,9 @@ let schedules: ScheduledJob[] = [];
 let cronJobs = memoryCron();
 let files: StoredFile[] = [];
 let questions: Question[] = [];
+let apps: (PublicApp & { botId: string })[] = [];
+let nextApp = 1;
+const mcpPeer = createMcpPeer();
 let work: WorkItem[] = [];
 let memories: MemoryRecord[] = [];
 let vault: VaultState = { secrets: [], requests: [] };
@@ -323,6 +328,51 @@ function samplePeers(): Peer[] {
   ];
 }
 
+function seedApps(): (PublicApp & { botId: string })[] {
+  const ada = bots.find((bot) => bot.id === "ada");
+  const last = [...(ada?.messages ?? [])].reverse().find((item) => item.kind === "pi.assistant");
+  const call = mcpPeer.callTool("show_orb_status", { sprite: "atlas" }, false);
+  if (!call.ok) return [];
+  const app = appFromCall("app-seed-status", last?.id ?? null, call, { sprite: "atlas" });
+  return "error" in app ? [] : [{ ...app, botId: ada?.id ?? "ada" }];
+}
+
+function redactArgs(value: Record<string, unknown>): Record<string, unknown> {
+  const needles = secretValues();
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) out[key] = typeof item === "string" ? redactText(item, needles) : item;
+  return out;
+}
+
+function publishApp(app: PublicApp & { botId?: string }): PublicApp {
+  const needles = secretValues();
+  return {
+    id: app.id,
+    messageId: app.messageId,
+    serverId: app.serverId,
+    tool: app.tool,
+    description: redactText(app.description, needles),
+    inputSchema: app.inputSchema,
+    resourceUri: app.resourceUri,
+    arguments: redactArgs(app.arguments),
+    text: redactText(app.text, needles),
+    ...(app.structuredContent ? { structuredContent: app.structuredContent } : {}),
+  };
+}
+
+function rememberApp(bot: Bot, tool: string, args: Record<string, unknown>): { status: number; body: Record<string, unknown> } {
+  if (apps.filter((item) => item.botId === bot.id).length >= 8) return { status: 409, body: { error: "too many apps" } };
+  const call = mcpPeer.callTool(tool, args, false);
+  if (!call.ok) return { status: 400, body: { error: call.error } };
+  const draft = appFromCall("pending", null, call, args);
+  if ("error" in draft) return { status: 400, body: { error: draft.error } };
+  const line = message("pi.assistant", draft.text || "Done.");
+  bot.messages.push(line);
+  const app = { ...draft, id: `app-${nextApp++}`, messageId: line.id, botId: bot.id };
+  apps.push(app);
+  return { status: 201, body: { app: publishApp(app) } };
+}
+
 function reset(name: string, connector: SpriteConnector = defaultConnector(), sample = false, voice: VoiceConfig | null = null, cronApiKey: string | null = null): void {
   clearSessions();
   sprite = { name, url: localUrl, ...connector, voice, cronApiKey };
@@ -332,6 +382,7 @@ function reset(name: string, connector: SpriteConnector = defaultConnector(), sa
   cronJobs = memoryCron();
   files = [];
   questions = [];
+  apps = seedApps();
   work = [];
   memories = [];
   vault = { secrets: [], requests: [] };
@@ -342,12 +393,17 @@ function reset(name: string, connector: SpriteConnector = defaultConnector(), sa
   nextQuestion = 1;
   nextOption = 1;
   nextPeer = 1;
+  nextApp = 1;
 }
 
 function submitHuman(bot: Bot, content: string, fileIds: readonly string[] = []): { submissionId: string } {
   const at = new Date();
   const chosen = files.filter((item) => item.botId === bot.id && fileIds.includes(item.id) && !item.messageId);
   let text = content;
+  if (bot.modelContext) {
+    text = `App context:\n${bot.modelContext}\n\n${text}`;
+    bot.modelContext = undefined;
+  }
   if (chosen.length > 0) {
     const lines = chosen.map((item) => `Attached: ${item.path}`);
     text = text ? `${text}\n\n${lines.join("\n")}` : lines.join("\n");
@@ -851,6 +907,7 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
     cronJobs = memoryCron();
     files = [];
     questions = [];
+    apps = [];
     work = [];
     memories = [];
     vault = { secrets: [], requests: [] };
@@ -976,12 +1033,64 @@ export async function handleLocal(url: URL, req: IncomingMessage, res: ServerRes
       send(res, 404, { error: "bot not found" });
       return;
     }
+    if (rest[2] === "mcp-apps") {
+      const leaf = rest[3] ?? "";
+      if (!leaf && req.method === "POST") {
+        const body = await readJson(req);
+        const tool = typeof body.tool === "string" ? body.tool.trim() : "";
+        const args = body.arguments && typeof body.arguments === "object" && !Array.isArray(body.arguments)
+          ? body.arguments as Record<string, unknown>
+          : {};
+        const created = rememberApp(bot, tool, args);
+        send(res, created.status, created.body);
+        return;
+      }
+      if (leaf === "call" && req.method === "POST") {
+        const body = await readJson(req);
+        const name = typeof body.name === "string" ? body.name.trim() : "";
+        const args = body.arguments && typeof body.arguments === "object" && !Array.isArray(body.arguments)
+          ? body.arguments as Record<string, unknown>
+          : {};
+        const call = mcpPeer.callTool(name, args, true);
+        if (!call.ok) {
+          send(res, 403, { error: call.error });
+          return;
+        }
+        send(res, 200, call.result);
+        return;
+      }
+      if (leaf === "read" && req.method === "POST") {
+        const body = await readJson(req);
+        const uri = typeof body.uri === "string" ? body.uri : "";
+        const read = mcpPeer.readResource(uri);
+        if (!read.ok) {
+          send(res, 404, { error: read.error });
+          return;
+        }
+        send(res, 200, read.result);
+        return;
+      }
+      if (leaf === "context" && req.method === "POST") {
+        const body = await readJson(req);
+        const text = typeof body.text === "string" ? body.text.trim() : "";
+        if (!text || text.length > 4_000) {
+          send(res, 400, { error: "context is required" });
+          return;
+        }
+        bot.modelContext = text;
+        send(res, 200, { ok: true });
+        return;
+      }
+      send(res, 404, { error: "not found" });
+      return;
+    }
     if (rest.length === 2 && req.method === "GET") {
       sweepWork();
       send(res, 200, {
         bot: publicBot(bot),
         messages: threadMessages(bot),
         questions: questions.filter((item) => item.botId === bot.id).map(publicQuestion),
+        apps: apps.filter((item) => item.botId === bot.id).map(publishApp),
         files: files.filter((item) => item.botId === bot.id).map((item) => ({
           id: item.id,
           name: item.name,
