@@ -18,7 +18,6 @@ import {
   readAnswerInput,
   readQuestionInput,
   chatMediaKind,
-  fileDisposition,
   renderChatMarkdown,
   safeChatUrl,
   segments,
@@ -160,9 +159,6 @@ test("chat markdown renders structure, media, and safe links", () => {
   assert.equal(chatMediaKind("https://cdn.example/clip.mp4?token=1"), "video");
   assert.equal(chatMediaKind("/logo.png"), "image");
   assert.equal(chatMediaKind("/api/sprites/atlas/bots/ada/files/f1"), null);
-  assert.match(fileDisposition("image/png", "dot.png"), /^inline;/);
-  assert.match(fileDisposition("video/mp4", 'clip".mp4'), /^inline; filename="clip\.mp4"$/);
-  assert.match(fileDisposition("text/csv", "status.csv"), /^attachment;/);
 });
 
 test("sheets, diagrams, viewers, and the library group by age", () => {

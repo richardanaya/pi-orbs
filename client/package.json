@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc && esbuild src/thread-view.ts --bundle --format=esm --outfile=dist/thread-view.js --external:./words.js --platform=neutral",
     "start": "node ../bin/pi-orbs.js",
-    "test": "npm run build && node --test test/local.test.js test/voice.test.js test/thread-view.test.js"
+    "test": "npm run build && node --test test/local.test.js test/voice.test.js test/thread-view.test.js test/file-response.test.js"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

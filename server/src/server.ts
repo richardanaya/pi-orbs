@@ -15,6 +15,7 @@ import { createMcpHook, publicBase, receiveMcpWebhook, rememberWebhook } from ".
 import { installSharedModel, sharedModel } from "./model.js";
 import { hiddenThreadEntryIds, normalizePeers, outgoingHop, PEER_CONTENT_MAX, PEER_LEDGER_MAX, PEER_REQUEST_PREFIX, peerChainUsed, peerPrompt, peerTurn, publicPeer, readSteer, resolvePeerTarget, withPeerInstruction, withPeerLines, type PeerRecord, type PublicPeer } from "./peers.js";
 import { CRON_API_DEFAULT, CRON_KEY_MAX, deleteCronJob, fetchCron, newHookToken, putCronJob, readHookBody, readScheduleRequest, scheduleTitle, setCronJobEnabled, tokensEqual, validHookToken, webhookUrl } from "./schedule.js";
+import { fileResponseHeaders } from "./file-response.js";
 import { answerText, decodeUpload, fileMarker, loadFiles, loadNotes, loadQuestions, newId, publicFile, publicQuestion, readAnswerInput, readQuestionInput, saveFiles, saveNotes, saveQuestions, takeFileMarker, type FileRecord, type NoteRecord, type QuestionRecord } from "./share.js";
 import { bashTimeoutSeconds, hangLimit, hangNote, isHung, WATCH_GRACE_MS, workingOn } from "./work.js";
 import {
@@ -1647,11 +1648,9 @@ const http = createServer(async (req, res) => {
         }
         const bytes = await readFile(target);
         const mime = record.mime || "application/octet-stream";
-        const filename = record.name.replace(/["\r\n]/g, "");
-        const inline = mime.toLowerCase().startsWith("image/") || mime.toLowerCase().startsWith("video/");
         res.writeHead(200, {
           "content-type": mime,
-          "content-disposition": `${inline ? "inline" : "attachment"}; filename="${filename}"`,
+          ...fileResponseHeaders(mime, record.name),
           "content-length": String(bytes.length),
           "cache-control": "no-store",
           "access-control-allow-origin": "*",
