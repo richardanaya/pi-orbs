@@ -33,6 +33,7 @@ import {
   type VoiceConfig,
 } from "./voice.js";
 import { cronFromSetup, isCronFailure, publicCron, readCronSettings } from "./schedule.js";
+import { cspFromSandboxQuery, permissionsPolicyHeader, policyFromEnv, sandboxDocumentCsp, sandboxPage } from "./mcp-apps.js";
 
 type SavedSprite = {
   name: string;
@@ -423,10 +424,40 @@ async function pushCronKey(saved: SavedSprite): Promise<void> {
   throw new Error(error);
 }
 
+const sandboxHttp = createServer((req, res) => {
+  const url = new URL(req.url ?? "/", "http://127.0.0.1");
+  if ((req.method !== "GET" && req.method !== "HEAD") || (url.pathname !== "/" && url.pathname !== "/sandbox")) {
+    res.writeHead(404, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" });
+    res.end("not found");
+    return;
+  }
+  const policy = sandboxDocumentCsp(cspFromSandboxQuery(url.searchParams));
+  res.writeHead(200, {
+    "content-type": "text/html; charset=utf-8",
+    "content-security-policy": policy,
+    "permissions-policy": permissionsPolicyHeader(url.searchParams),
+    "referrer-policy": "no-referrer",
+    "x-content-type-options": "nosniff",
+    "cache-control": "no-store",
+  });
+  if (req.method !== "HEAD") res.end(sandboxPage());
+  else res.end();
+});
+
+let sandboxOrigin = "";
+sandboxHttp.listen(0, "127.0.0.1", () => {
+  const address = sandboxHttp.address();
+  if (address && typeof address === "object") sandboxOrigin = `http://127.0.0.1:${address.port}`;
+});
+
 const http = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://localhost");
   try {
-    if (url.pathname === "/thread-view.js" || url.pathname === "/words.js" || url.pathname === "/mermaid-view.js") {
+    if (url.pathname === "/api/mcp-apps/sandbox" && req.method === "GET") {
+      send(res, 200, { origin: sandboxOrigin, allow: policyFromEnv() });
+      return;
+    }
+    if (url.pathname === "/thread-view.js" || url.pathname === "/words.js" || url.pathname === "/mcp-apps.js" || url.pathname === "/mermaid-view.js") {
       const file = join(dirname(fileURLToPath(import.meta.url)), url.pathname.slice(1));
       try {
         const body = await readFile(file);

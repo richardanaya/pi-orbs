@@ -1273,6 +1273,34 @@
   .question p { margin: 0 0 8px; }
   .question label { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0; }
   .question button { background: #fff; color: #0a0a0a; border-color: #fff; }
+  .mcp-app {
+    align-self: flex-start;
+    flex-shrink: 0;
+    width: min(560px, 100%);
+    margin: 0 0 14px;
+    border-radius: 18px;
+    overflow: hidden;
+    background: #111;
+    color: var(--text);
+  }
+  .mcp-app.bordered { border: 1px solid var(--line-strong); }
+  .mcp-app header { display: flex; gap: 8px; align-items: baseline; padding: 10px 12px 0; }
+  .mcp-app header span { color: var(--muted); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .mcp-app header strong { font-size: 14px; font-weight: 600; }
+  .mcp-app-fallback, .mcp-app-confirm { margin: 0; padding: 8px 12px 10px; color: var(--muted); font-size: 13px; }
+  .mcp-app-confirm { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .mcp-app-confirm p { flex: 1 1 100%; margin: 0; color: var(--text); }
+  .mcp-app-confirm button, .mcp-app iframe { font: inherit; }
+  .mcp-app-confirm button {
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    background: #fff;
+    color: #0a0a0a;
+  }
+  .mcp-app iframe { display: block; width: 100%; border: 0; background: #111; }
   #library h3 {
     margin: 16px 0 6px;
     color: var(--muted);
@@ -1725,6 +1753,14 @@ import {
   groupLibrary,
   zipStore,
 } from "/thread-view.js";
+import {
+  AppBridge,
+  allowAttribute,
+  declaredDomains,
+  grantedPermissions,
+  readUiResource,
+  sandboxSrc,
+} from "/mcp-apps.js";
 const LOOKS = [
   { id: "slate", label: "Slate" },
   { id: "silver", label: "Silver" },
@@ -2142,6 +2178,28 @@ async function refreshBots(sprite) {
 }
 let threadView = "";
 let stickToBottom = false;
+let followBottom = true;
+let ignoreThreadScroll = 0;
+const threadGrowth = new ResizeObserver(() => holdThreadBottom());
+function suppressThreadScroll(log, top) {
+  ignoreThreadScroll += 1;
+  log.scrollTop = top;
+  requestAnimationFrame(() => {
+    ignoreThreadScroll = Math.max(0, ignoreThreadScroll - 1);
+  });
+}
+function holdThreadBottom() {
+  if (!followBottom) return;
+  const log = document.querySelector("#log");
+  if (!log) return;
+  if (log.scrollHeight - log.scrollTop - log.clientHeight < 2) return;
+  suppressThreadScroll(log, log.scrollHeight);
+  paintScroll();
+}
+function watchThreadGrowth(log) {
+  threadGrowth.disconnect();
+  for (const child of log.children) threadGrowth.observe(child);
+}
 function visibleThreadMessages(messages) {
   return (messages || []).filter((message) => message && message.peer !== true && message.source !== "peer");
 }
@@ -2233,10 +2291,11 @@ async function refreshActivity() {
   paintBusy();
   paintWork(state.threadBody && state.threadBody.messages);
 }
-function threadSignature(botId, messages, questions) {
+function threadSignature(botId, messages, questions, apps) {
   const files = messages.map((message) => (message.files || []).map((file) => file.id).join(",")).join("\t");
   const asked = (questions || []).map((question) => [question.id, (question.selected || []).join("+")].join(":")).join("\n");
-  return botId + "\n" + messages.map((message) => [message.id, message.kind, message.text, message.from, message.to, message.createdAt].join("\t")).join("\n") + "\n" + files + "\n" + asked;
+  const views = (apps || []).map((app) => [app.id, app.resourceUri, app.text, app.messageId].join(":")).join("\n");
+  return botId + "\n" + messages.map((message) => [message.id, message.kind, message.text, message.from, message.to, message.createdAt].join("\t")).join("\n") + "\n" + files + "\n" + asked + "\n" + views;
 }
 function formatSent(iso) {
   const date = new Date(iso || "");
@@ -2548,6 +2607,242 @@ async function paintRoutines() {
     node.append(row);
   }
 }
+const appFrames = new Map();
+const domainChoices = new Map();
+let sandboxInfo = null;
+let appGeneration = 0;
+
+async function loadSandbox() {
+  if (sandboxInfo) return sandboxInfo;
+  sandboxInfo = await api("/api/mcp-apps/sandbox");
+  return sandboxInfo;
+}
+
+function postToApp(frame, posts) {
+  if (!frame.contentWindow || !sandboxInfo || !sandboxInfo.origin) return;
+  for (const message of posts || []) frame.contentWindow.postMessage(message, sandboxInfo.origin);
+}
+
+function retireApps(reason) {
+  const generation = ++appGeneration;
+  const frames = [...appFrames.values()];
+  appFrames.clear();
+  return Promise.all(frames.map((frame) => frame.retire(reason))).then(() => generation);
+}
+
+function clampAppHeight(value) {
+  if (!Number.isFinite(value) || value <= 0) return 168;
+  return Math.max(80, Math.min(480, Math.round(value)));
+}
+
+async function runAppSide(entry, side) {
+  const bridge = entry.bridge;
+  try {
+    if (side.type === "tool") {
+      const result = await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/mcp-apps/call", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: side.name, arguments: side.arguments }),
+      });
+      postToApp(entry.frame, bridge.finishTool(side.rpcId, side.arguments, result));
+      return;
+    }
+    if (side.type === "read") {
+      const result = await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/mcp-apps/read", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ uri: side.uri }),
+      });
+      postToApp(entry.frame, bridge.succeed(side.rpcId, result));
+      return;
+    }
+    if (side.type === "message") {
+      await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/messages", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ content: side.text }),
+      });
+      postToApp(entry.frame, bridge.succeed(side.rpcId, {}));
+      stickToBottom = true;
+      threadView = "";
+      refreshThread();
+      return;
+    }
+    if (side.type === "context") {
+      await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/mcp-apps/context", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: side.text }),
+      });
+      postToApp(entry.frame, bridge.succeed(side.rpcId, {}));
+      return;
+    }
+    if (side.type === "link") {
+      window.open(side.url, "_blank", "noopener,noreferrer");
+      postToApp(entry.frame, bridge.succeed(side.rpcId, {}));
+    }
+  } catch (error) {
+    postToApp(entry.frame, bridge.fail(side.rpcId, error.message || "Denied"));
+  }
+}
+
+function showAppConfirm(card, entry, prompt) {
+  const box = card.querySelector(".mcp-app-confirm");
+  box.replaceChildren();
+  const title = document.createElement("p");
+  title.textContent = prompt.title;
+  const detail = document.createElement("p");
+  detail.textContent = prompt.detail;
+  const allow = document.createElement("button");
+  allow.type = "button";
+  allow.textContent = prompt.kind === "tool" ? "Allow " + prompt.detail : prompt.kind === "link" ? "Open link" : prompt.kind === "context" ? "Share context" : "Send message";
+  const deny = document.createElement("button");
+  deny.type = "button";
+  deny.textContent = prompt.kind === "tool" ? "Deny " + prompt.detail : "Not now";
+  allow.onclick = () => {
+    box.replaceChildren();
+    const decision = entry.bridge.decide(prompt.id, true);
+    postToApp(entry.frame, decision.posts);
+    if (decision.side) runAppSide(entry, decision.side);
+  };
+  deny.onclick = () => {
+    box.replaceChildren();
+    const decision = entry.bridge.decide(prompt.id, false);
+    postToApp(entry.frame, decision.posts);
+  };
+  box.append(title, detail, allow, deny);
+}
+
+function applyAppEvent(card, entry, event) {
+  postToApp(entry.frame, event.posts);
+  if (event.resize && event.resize.height) entry.frame.style.height = clampAppHeight(event.resize.height) + "px";
+  if (event.confirm) showAppConfirm(card, entry, event.confirm);
+  if (event.side) runAppSide(entry, event.side);
+}
+
+function appCard(app, info, generation) {
+  const card = document.createElement("section");
+  card.className = "mcp-app";
+  card.dataset.appId = app.id;
+  const header = document.createElement("header");
+  const label = document.createElement("span");
+  label.textContent = "MCP app";
+  const name = document.createElement("strong");
+  name.textContent = app.description || app.tool || "App";
+  header.append(label, name);
+  const fallback = document.createElement("p");
+  fallback.className = "mcp-app-fallback";
+  fallback.textContent = app.text || "";
+  const confirm = document.createElement("div");
+  confirm.className = "mcp-app-confirm";
+  card.append(header, fallback, confirm);
+  if (!info.origin) return card;
+  const mount = async (approved) => {
+    if (generation !== appGeneration) return;
+    let parsed;
+    try {
+      const read = await api("/api/sprites/" + state.sprite + "/bots/" + state.bot + "/mcp-apps/read", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ uri: app.resourceUri }),
+      });
+      parsed = readUiResource(read);
+    } catch (error) {
+      fallback.textContent = app.text || error.message;
+      return;
+    }
+    if (generation !== appGeneration) return;
+    if (parsed.error) {
+      fallback.textContent = app.text || parsed.error;
+      return;
+    }
+    if (parsed.prefersBorder) card.classList.add("bordered");
+    const domains = declaredDomains(parsed.csp);
+    if (domains.length && !domainChoices.has(app.resourceUri)) {
+      confirm.replaceChildren();
+      const title = document.createElement("p");
+      title.textContent = "This app asked to reach " + domains.join(", ") + ". Nothing is contacted until you allow it.";
+      const allow = document.createElement("button");
+      allow.type = "button";
+      allow.textContent = "Allow connections";
+      const deny = document.createElement("button");
+      deny.type = "button";
+      deny.textContent = "Keep connections off";
+      allow.onclick = () => {
+        domainChoices.set(app.resourceUri, true);
+        confirm.replaceChildren();
+        mount(true);
+      };
+      deny.onclick = () => {
+        domainChoices.set(app.resourceUri, false);
+        confirm.replaceChildren();
+        mount(false);
+      };
+      confirm.append(title, allow, deny);
+      return;
+    }
+    const useDomains = approved === true || domainChoices.get(app.resourceUri) === true;
+    const policy = info.allow || [];
+    const permissions = grantedPermissions(parsed.permissions, policy);
+    const frame = document.createElement("iframe");
+    frame.className = "mcp-app-sandbox";
+    frame.title = app.description || "MCP app";
+    frame.setAttribute("sandbox", "allow-scripts allow-same-origin");
+    frame.referrerPolicy = "no-referrer";
+    frame.allow = allowAttribute(permissions);
+    frame.style.height = "168px";
+    const bridge = new AppBridge({
+      app,
+      html: parsed.html,
+      csp: parsed.csp,
+      permissions: parsed.permissions,
+      domainsApproved: useDomains,
+      policy,
+      locale: navigator.language || "en-US",
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+    });
+    const entry = {
+      frame,
+      bridge,
+      retire(reason) {
+        return new Promise((resolve) => {
+          const timer = setTimeout(finish, 200);
+          function finish() {
+            clearTimeout(timer);
+            window.removeEventListener("message", onTeardown);
+            if (entry.removeListener) entry.removeListener();
+            frame.remove();
+            resolve();
+          }
+          function onTeardown(event) {
+            if (event.source !== frame.contentWindow) return;
+            const data = event.data;
+            if (data && data.result) finish();
+          }
+          window.addEventListener("message", onTeardown);
+          try {
+            postToApp(frame, [bridge.teardown(reason)]);
+          } catch (error) {
+            finish();
+          }
+        });
+      },
+    };
+    function onMessage(event) {
+      if (event.source !== frame.contentWindow) return;
+      if (!sandboxInfo || event.origin !== sandboxInfo.origin) return;
+      applyAppEvent(card, entry, bridge.receive(event.data));
+    }
+    window.addEventListener("message", onMessage);
+    entry.removeListener = () => window.removeEventListener("message", onMessage);
+    appFrames.set(app.id, entry);
+    card.append(frame);
+    frame.src = sandboxSrc(info.origin, location.origin, parsed.csp, useDomains, permissions);
+  };
+  mount(domainChoices.get(app.resourceUri) === true);
+  return card;
+}
+
 async function paintMcpEvents() {
   const node = document.querySelector("#mcp-events");
   const id = botDialog.open ? botDialog.dataset.id : "";
@@ -2606,6 +2901,8 @@ async function refreshThread() {
   const log = document.querySelector("#log");
   if (!state.sprite || !state.bot) {
     threadView = "";
+    await retireApps("thread closed");
+    threadGrowth.disconnect();
     log.innerHTML = "";
     setThreadHead("Choose a bot", "");
     setComposer(false, "Message");
@@ -2621,7 +2918,8 @@ async function refreshThread() {
   state.threadBody = body;
   const messages = visibleThreadMessages(body.messages);
   const questions = body.questions || [];
-  const signature = threadSignature(requested, messages, questions);
+  const apps = Array.isArray(body.apps) ? body.apps : [];
+  const signature = threadSignature(requested, messages, questions, apps);
   paintWork(messages);
   paintLibrary();
   refreshCards().catch(() => {});
@@ -2635,13 +2933,33 @@ async function refreshThread() {
   const pinned = followSend || !threadView.startsWith(requested + "\n") || distance < 48;
   const kept = log.scrollTop;
   const openSteers = new Set([...log.querySelectorAll('.steer-toggle[aria-expanded="true"]')].map((button) => button.dataset.id));
+  let sandbox = { origin: "", allow: [] };
+  if (apps.length) {
+    try {
+      sandbox = await loadSandbox();
+    } catch {
+      sandbox = { origin: "", allow: [] };
+    }
+  }
+  if (state.bot !== requested) return;
+  const generation = await retireApps("thread repaint");
+  if (state.bot !== requested) return;
   threadView = signature;
+  threadGrowth.disconnect();
   log.innerHTML = "";
-  if (!messages.length && !questions.some((question) => !question.answeredAt)) {
+  if (!messages.length && !apps.length && !questions.some((question) => !question.answeredAt)) {
     log.append(showEmpty(body.bot.name, "This thread is empty. Send a message to start it."));
     paintScroll();
     return;
   }
+  const placed = new Set();
+  const placeApps = (messageId) => {
+    for (const app of apps) {
+      if (app.messageId !== messageId || placed.has(app.id)) continue;
+      log.append(appCard(app, sandbox, generation));
+      placed.add(app.id);
+    }
+  };
   let previous = "";
   for (const message of messages) {
     if (message.kind === "pi.note") {
@@ -2680,12 +2998,24 @@ async function refreshThread() {
     block.append(bubble);
     if (message.files && message.files.length) block.append(fileChips(message));
     log.append(block);
+    placeApps(message.id);
+  }
+  for (const app of apps) {
+    if (!placed.has(app.id)) log.append(appCard(app, sandbox, generation));
   }
   for (const question of questions) {
     if (!question.answeredAt) log.append(questionCard(question));
   }
-  log.scrollTop = pinned ? log.scrollHeight : kept;
+  if (pinned) {
+    followBottom = true;
+    suppressThreadScroll(log, log.scrollHeight);
+  } else {
+    followBottom = false;
+    suppressThreadScroll(log, kept);
+  }
+  watchThreadGrowth(log);
   paintScroll();
+  if (state.scrollTo) followBottom = false;
   scrollToMessage();
 }
 document.querySelector("#create-sprite").onsubmit = async (event) => {
@@ -4093,10 +4423,16 @@ document.querySelector("#attach-input").onchange = async (event) => {
   paintPending();
   paintVoiceButton();
 };
-document.querySelector("#log").addEventListener("scroll", paintScroll);
+document.querySelector("#log").addEventListener("scroll", () => {
+  paintScroll();
+  if (ignoreThreadScroll) return;
+  const log = document.querySelector("#log");
+  followBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 48;
+});
 document.querySelector("#scroll-bottom").onclick = () => {
   const log = document.querySelector("#log");
-  log.scrollTop = log.scrollHeight;
+  followBottom = true;
+  suppressThreadScroll(log, log.scrollHeight);
   paintScroll();
 };
 document.addEventListener("selectionchange", paintQuote);
