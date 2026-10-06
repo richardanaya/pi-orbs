@@ -20,7 +20,7 @@ From the repository root:
 npm install --prefix server && npm install --prefix client
 ```
 
-The root `package.json` has no dependencies of its own. Server and client dependencies live in those two packages.
+Server and client dependencies live in those two packages. The root `package.json` holds the end-to-end dev dependencies described in [docs/e2e.md](docs/e2e.md).
 
 ## Build
 
@@ -86,6 +86,6 @@ The simulator covers the roster, thread, compose box, and adding a bot. The xAI 
 - Do not publish to npm, and do not deploy a shared Sprite, as part of a code or docs change. Publishing is the maintainer's `npm publish` step; `prepublishOnly` already runs the build.
 - Do not create a `v*` tag or a GitHub Release from a pull request. [RELEASE.md](RELEASE.md) is the bump and the later tag (`git tag v0.1.0 && git push --tags` once the bump is on `master` and the release is OK).
 
-A green `npm run build` and `npm test` are the checks to report.
+A green `npm run build` and `npm test` are the checks to report. Browser coverage is optional for a code change and is described in [docs/e2e.md](docs/e2e.md). `npm run test:e2e` needs Node 22.22.3 or newer (or Node 24.8 or newer) and does not need an xAI key.
 
 Site videos are a nested Remotion project in `website/remotion/`. They are not part of root `npm run build` or CI. Preview and render commands are in that folder's README.

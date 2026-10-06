@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "trace-1",
+  "createdAt": "2026-10-06T01:40:20.180Z",
+  "payload": {
+    "actions": [
+      {
+        "name": "tap",
+        "summary": "tap button \"Search\"",
+        "target": {
+          "role": "button",
+          "name": "Search"
+        }
+      }
+    ],
+    "executor": {
+      "name": "e2e-default-agent",
+      "version": "2"
+    },
+    "recordedFor": {
+      "testId": "tests/search.e2e.ts::the%20agent%20opens%20Search",
+      "targetId": "chromium",
+      "instructionDigest": "4b15ec870d78439104353b2e51bc5a6ac567ebddfa38138bd1763c0e9524530b",
+      "paramsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "callIndex": 0,
+      "agent": "default"
+    },
+    "summary": "Tapped Search. A Search dialog is open with a focused search box and options for bots, settings, and actions.",
+    "startPath": "/",
+    "endPath": "/",
+    "endAnchors": [
+      {
+        "text": "Search bots, settings, and messages"
+      },
+      {
+        "role": "textbox",
+        "name": "Search bots, settings, and messages",
+        "placeholder": "Search bots, settings, and messages. Quote a phrase for messages."
+      },
+      {
+        "text": "Settings"
+      },
+      {
+        "text": "Voice"
+      },
+      {
+        "text": "Grok or OpenAI realtime"
+      },
+      {
+        "text": "Schedules"
+      },
+      {
+        "text": "cron-job.org key"
+      },
+      {
+        "text": "Download all conversations"
+      }
+    ],
+    "endWaitMs": 12578
+  }
+}
