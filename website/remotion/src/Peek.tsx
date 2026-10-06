@@ -46,11 +46,18 @@ function hopLift(frame: number, fps: number, size: number): number {
   });
 }
 
+type PeekProps = {
+  /** Loop color. First and last frames are this empty field. */
+  background?: string;
+  /** Product drop shadow. Off when the field is black. */
+  shadow?: boolean;
+};
+
 /**
  * The locked silver π-face peeks up from the bottom, glances, blinks,
  * hops once, then slides fully back out. Loop matches on an empty frame.
  */
-export const Peek: React.FC = () => {
+export const Peek: React.FC<PeekProps> = ({ background = "#ffffff", shadow = true }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
@@ -79,7 +86,7 @@ export const Peek: React.FC = () => {
   });
 
   return (
-    <AbsoluteFill style={{ background: "#ffffff", overflow: "hidden" }}>
+    <AbsoluteFill style={{ background, overflow: "hidden" }}>
       <div
         style={{
           position: "absolute",
@@ -97,6 +104,7 @@ export const Peek: React.FC = () => {
           glanceX={glance}
           eyesScale={blinkScaleY(frame, 86)}
           blushAmount={blush}
+          shadow={shadow}
         />
       </div>
     </AbsoluteFill>

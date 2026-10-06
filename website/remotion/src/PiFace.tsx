@@ -28,6 +28,11 @@ type PiFaceProps = {
   eyesScale?: number;
   /** Blush opacity. Omit for the ambient pulse. */
   blushAmount?: number;
+  /**
+   * Product drop shadow. Turn off on a black field, where the dark shadow
+   * vanishes and the blur can read as a muddy edge.
+   */
+  shadow?: boolean;
 };
 
 /**
@@ -44,6 +49,7 @@ export const PiFace: React.FC<PiFaceProps> = ({
   glanceX,
   eyesScale,
   blushAmount,
+  shadow = true,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -72,7 +78,9 @@ export const PiFace: React.FC<PiFaceProps> = ({
         flex: "none",
         borderRadius: "50%",
         background: orbBackground(orb),
-        filter: `drop-shadow(0 ${size * 0.25}px ${size * 0.2}px rgba(40, 24, 22, 0.16))`,
+        filter: shadow
+          ? `drop-shadow(0 ${size * 0.25}px ${size * 0.2}px rgba(40, 24, 22, 0.16))`
+          : "none",
         transform: `translateY(${hop * size}px)`,
         ...style,
       }}

@@ -27,6 +27,16 @@ export const RemotionRoot: React.FC = () => {
         fps={PEEK_FPS}
         width={PEEK_SIZE}
         height={PEEK_SIZE}
+        defaultProps={{ background: "#ffffff", shadow: true }}
+      />
+      <Composition
+        id="PiOrbsPeekBlack"
+        component={Peek}
+        durationInFrames={PEEK_DURATION}
+        fps={PEEK_FPS}
+        width={PEEK_SIZE}
+        height={PEEK_SIZE}
+        defaultProps={{ background: "#000000", shadow: false }}
       />
     </>
   );
