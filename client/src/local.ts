@@ -436,7 +436,11 @@ export function localMode(): boolean {
 }
 
 export function cannedReply(content: string): string {
-  const heard = content.length > 180 ? `${content.slice(0, 179)}…` : content;
+  const clipped = content.length > 180 ? `${content.slice(0, 179)}…` : content;
+  // A fence has to start and end on its own line. Gluing the quote onto ``` hides the close.
+  let heard = clipped;
+  if (heard.startsWith("```")) heard = `\n${heard}`;
+  if (/```[^\n]*$/.test(heard)) heard = `${heard}\n`;
   return `“${heard}” — noted. This is a canned reply from the local simulator. No model was called.`;
 }
 

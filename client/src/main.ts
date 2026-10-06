@@ -426,7 +426,7 @@ async function pushCronKey(saved: SavedSprite): Promise<void> {
 const http = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://localhost");
   try {
-    if (url.pathname === "/thread-view.js" || url.pathname === "/words.js") {
+    if (url.pathname === "/thread-view.js" || url.pathname === "/words.js" || url.pathname === "/mermaid-view.js") {
       const file = join(dirname(fileURLToPath(import.meta.url)), url.pathname.slice(1));
       try {
         const body = await readFile(file);

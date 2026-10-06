@@ -9,9 +9,16 @@ import { after, before, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { conversationsArchive } from "../dist/archive.js";
-import { handleLocal } from "../dist/local.js";
+import { cannedReply, handleLocal } from "../dist/local.js";
 
 const exec = promisify(execFile);
+
+test("a canned reply keeps a fenced block on its own lines", () => {
+  assert.equal(cannedReply("Hello"), "“Hello” — noted. This is a canned reply from the local simulator. No model was called.");
+  const text = cannedReply("See\n\n```mermaid\nflowchart LR\n  A --> B\n```");
+  assert.match(text, /```mermaid\nflowchart LR\n {2}A --> B\n```\n” — noted/);
+  assert.match(cannedReply("```html\n<p>Hi</p>\n```"), /“\n```html\n<p>Hi<\/p>\n```\n” — noted/);
+});
 
 const clientRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = join(clientRoot, "..");

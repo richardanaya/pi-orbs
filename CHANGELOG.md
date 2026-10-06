@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Mermaid diagrams in chat. A `mermaid` fence is drawn in the bubble. Mermaid runs with `securityLevel: "strict"`, locked config keys, and a sanitizer pass on the SVG. A diagram that cannot be parsed stays as source. `diagram` and `graph` fences still offer the small arrow sketch as a PNG.
+- MCP Apps are not hosted. `docs/evals/mcp-apps.md` records why, and the open questions for a later host.
+
+### Fixed
+
+- Fenced code languages match case-insensitively, so `HTML`, `CSV`, and `Mermaid` get the same treatment as the lowercase tags.
+- The local simulator’s canned reply no longer glues its closing quote onto a fenced block, so a fence in that echo still closes.
+
+### Added
+
 - Search. Ctrl/Cmd+K opens a palette of bots, settings, and actions, then matching messages. A quoted phrase matches that text in a thread.
 - A bot can create another bot. `create_bot` and `POST /api/bots/:id/spawn` add it to the roster. The human Add dialog still works. Name, instruction, and look use the same limits, a bot can create at most 8, and the roster holds at most 24.
 - Bot templates. Export saves a bot’s name, instruction, and look. Import creates a copy for this user. It is not a marketplace.
