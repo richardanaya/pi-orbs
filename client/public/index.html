@@ -1275,6 +1275,7 @@
   .question button { background: #fff; color: #0a0a0a; border-color: #fff; }
   .mcp-app {
     align-self: flex-start;
+    flex-shrink: 0;
     width: min(560px, 100%);
     margin: 0 0 14px;
     border-radius: 18px;
@@ -2177,6 +2178,28 @@ async function refreshBots(sprite) {
 }
 let threadView = "";
 let stickToBottom = false;
+let followBottom = true;
+let ignoreThreadScroll = 0;
+const threadGrowth = new ResizeObserver(() => holdThreadBottom());
+function suppressThreadScroll(log, top) {
+  ignoreThreadScroll += 1;
+  log.scrollTop = top;
+  requestAnimationFrame(() => {
+    ignoreThreadScroll = Math.max(0, ignoreThreadScroll - 1);
+  });
+}
+function holdThreadBottom() {
+  if (!followBottom) return;
+  const log = document.querySelector("#log");
+  if (!log) return;
+  if (log.scrollHeight - log.scrollTop - log.clientHeight < 2) return;
+  suppressThreadScroll(log, log.scrollHeight);
+  paintScroll();
+}
+function watchThreadGrowth(log) {
+  threadGrowth.disconnect();
+  for (const child of log.children) threadGrowth.observe(child);
+}
 function visibleThreadMessages(messages) {
   return (messages || []).filter((message) => message && message.peer !== true && message.source !== "peer");
 }
@@ -2879,6 +2902,7 @@ async function refreshThread() {
   if (!state.sprite || !state.bot) {
     threadView = "";
     await retireApps("thread closed");
+    threadGrowth.disconnect();
     log.innerHTML = "";
     setThreadHead("Choose a bot", "");
     setComposer(false, "Message");
@@ -2921,6 +2945,7 @@ async function refreshThread() {
   const generation = await retireApps("thread repaint");
   if (state.bot !== requested) return;
   threadView = signature;
+  threadGrowth.disconnect();
   log.innerHTML = "";
   if (!messages.length && !apps.length && !questions.some((question) => !question.answeredAt)) {
     log.append(showEmpty(body.bot.name, "This thread is empty. Send a message to start it."));
@@ -2981,8 +3006,16 @@ async function refreshThread() {
   for (const question of questions) {
     if (!question.answeredAt) log.append(questionCard(question));
   }
-  log.scrollTop = pinned ? log.scrollHeight : kept;
+  if (pinned) {
+    followBottom = true;
+    suppressThreadScroll(log, log.scrollHeight);
+  } else {
+    followBottom = false;
+    suppressThreadScroll(log, kept);
+  }
+  watchThreadGrowth(log);
   paintScroll();
+  if (state.scrollTo) followBottom = false;
   scrollToMessage();
 }
 document.querySelector("#create-sprite").onsubmit = async (event) => {
@@ -4390,10 +4423,16 @@ document.querySelector("#attach-input").onchange = async (event) => {
   paintPending();
   paintVoiceButton();
 };
-document.querySelector("#log").addEventListener("scroll", paintScroll);
+document.querySelector("#log").addEventListener("scroll", () => {
+  paintScroll();
+  if (ignoreThreadScroll) return;
+  const log = document.querySelector("#log");
+  followBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 48;
+});
 document.querySelector("#scroll-bottom").onclick = () => {
   const log = document.querySelector("#log");
-  log.scrollTop = log.scrollHeight;
+  followBottom = true;
+  suppressThreadScroll(log, log.scrollHeight);
   paintScroll();
 };
 document.addEventListener("selectionchange", paintQuote);
