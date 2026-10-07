@@ -19,6 +19,20 @@ type PiFaceProps = {
   seed?: number;
   hopAt?: number;
   style?: React.CSSProperties;
+  /**
+   * Scripted glance in viewBox units. Omit for the ambient look-slide
+   * from website/pi-face.js. The π mark, eyes, and blush stay the locked paths.
+   */
+  glanceX?: number;
+  /** Eye scaleY. Omit for the ambient blink. 1 is open, 0.12 is the product shut. */
+  eyesScale?: number;
+  /** Blush opacity. Omit for the ambient pulse. */
+  blushAmount?: number;
+  /**
+   * Product drop shadow. Turn off on a black field, where the dark shadow
+   * vanishes and the blur can read as a muddy edge.
+   */
+  shadow?: boolean;
 };
 
 /**
@@ -32,15 +46,27 @@ export const PiFace: React.FC<PiFaceProps> = ({
   seed = 1,
   hopAt,
   style,
+  glanceX,
+  eyesScale,
+  blushAmount,
+  shadow = true,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const motion = faceMotion(seed);
   const elapsed = Math.max(0, frame / fps - motion.begin);
   const progress = (elapsed % motion.dur) / motion.dur;
-  const slide = lookSlide(progress, motion.first, motion.second);
-  const eyes = blinkScale(frame, fps, motion.blink, motion.blinkDelay);
-  const blush = blushOpacity(frame, fps, motion.blush, motion.blushDelay);
+  const ambient = lookSlide(progress, motion.first, motion.second);
+  const slide =
+    glanceX === undefined
+      ? ambient
+      : {
+          x: glanceX,
+          y: -Math.min(1.15, (glanceX * glanceX) / 28),
+          scale: 1 - Math.min(0.12, Math.abs(glanceX) / 55),
+        };
+  const eyes = eyesScale ?? blinkScale(frame, fps, motion.blink, motion.blinkDelay);
+  const blush = blushAmount ?? blushOpacity(frame, fps, motion.blush, motion.blushDelay);
   const hop = hopY(frame, hopAt, fps);
   const orb = orbColor(look, tone);
 
@@ -52,7 +78,9 @@ export const PiFace: React.FC<PiFaceProps> = ({
         flex: "none",
         borderRadius: "50%",
         background: orbBackground(orb),
-        filter: `drop-shadow(0 ${size * 0.25}px ${size * 0.2}px rgba(40, 24, 22, 0.16))`,
+        filter: shadow
+          ? `drop-shadow(0 ${size * 0.25}px ${size * 0.2}px rgba(40, 24, 22, 0.16))`
+          : "none",
         transform: `translateY(${hop * size}px)`,
         ...style,
       }}
